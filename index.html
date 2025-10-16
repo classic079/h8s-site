@@ -36,6 +36,7 @@
       align-items:center;
     }
 
+    /* Top sticky bar with price + 10m change */
     .topbar{
       position: sticky;
       top: 0;
@@ -48,12 +49,14 @@
       border-bottom: 1px solid rgba(255,255,255,0.06);
       display:flex;
       justify-content:center;
+      gap:12px;
+      align-items: baseline;
+      font-variant-numeric: tabular-nums;
     }
     .price{
       font-size: clamp(22px, 7vw, 40px);
       font-weight: 800;
       line-height: 1;
-      font-variant-numeric: tabular-nums;
       transition: color .25s ease;
       color:#ffffff;
       text-shadow: 0 0 18px rgba(0,0,0,.35);
@@ -61,6 +64,17 @@
     .price.up{ color: var(--up); }
     .price.down{ color: var(--down); }
 
+    .change{
+      font-size: clamp(12px, 3.2vw, 16px);
+      font-weight: 700;
+      opacity:.9;
+      transition: color .25s ease;
+    }
+    .change.up   { color: var(--up); }
+    .change.down { color: var(--down); }
+    .change.flat { color: #c8d6cf; }
+
+    /* Chart */
     #chartContainer{
       position: relative;
       width: min(920px, 96vw);
@@ -75,6 +89,7 @@
       box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 30px rgba(0,0,0,.35);
     }
 
+    /* Feed */
     #feedContainer{
       width: min(920px, 96vw);
       height: 56vh;
@@ -129,6 +144,7 @@
   <div class="wrap">
     <header class="topbar">
       <div id="livePrice" class="price">$—</div>
+      <div id="liveChange" class="change flat">—</div>
     </header>
 
     <section id="chartContainer">
@@ -145,23 +161,29 @@
   </div>
 
   <script>
+    // ---------- DOM ----------
     const $ = sel => document.querySelector(sel);
     const feedEl = $('#feedContainer');
     const priceEl = $('#livePrice');
+    const changeEl = $('#liveChange');
     const amountHeader = $('#amountHeader');
     const chartCanvas = $('#chartCanvas');
     const ctx = chartCanvas.getContext('2d', { desynchronized: true });
 
+    // Formatters
     const fmtUSD = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2 });
     const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 5 });
+    const fmtPct = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
 
+    // Buffers & state
     const MAX_TRADES = 50;
-    const MAX_POINTS = 600;
-    let trades = [];
-    let prices = [];
+    const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+    let trades = []; // { price, size, time, dir }
+    let series = []; // { t, p } for 10m window
     let lastPrice = null;
     let showUSD = false;
 
+    // Hi-DPI canvas
     function resizeCanvas(){
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
       const cssW = chartCanvas.clientWidth;
@@ -173,13 +195,11 @@
     }
     const ro = new ResizeObserver(resizeCanvas);
     ro.observe(chartCanvas);
+    window.addEventListener('orientationchange', resizeCanvas, { passive:true });
 
+    // WebSocket
     let ws, reconnectTimer;
-    const SUB_MSG = {
-      type: 'subscribe',
-      product_ids: ['BTC-USD'],
-      channels: ['matches']
-    };
+    const SUB_MSG = { type:'subscribe', product_ids:['BTC-USD'], channels:['matches'] };
 
     function connect(){
       clearTimeout(reconnectTimer);
@@ -189,12 +209,11 @@
       ws.addEventListener('close', tryReconnect, { once:true });
       ws.addEventListener('error', () => ws.close(), { once:true });
     }
-    function tryReconnect(){
-      reconnectTimer = setTimeout(connect, 1000);
-    }
+    function tryReconnect(){ reconnectTimer = setTimeout(connect, 1000); }
 
+    // Batched updates
     let needsFeedRender = false;
-    let latestTickForChart = null;
+    let pendingPriceForSeries = null;
 
     function onMessage(evt){
       const msg = JSON.parse(evt.data);
@@ -204,13 +223,15 @@
       const size  = parseFloat(msg.size);
       const time  = new Date(msg.time);
 
-      const prev = trades.length ? trades[trades.length - 1].price : lastPrice;
+      // Row direction vs previous trade
+      const prevTradePrice = trades.length ? trades[trades.length - 1].price : lastPrice;
       let dir = 'flat';
-      if (prev != null){
-        if (price > prev) dir = 'up';
-        else if (price < prev) dir = 'down';
+      if (prevTradePrice != null){
+        if (price > prevTradePrice) dir = 'up';
+        else if (price < prevTradePrice) dir = 'down';
       }
 
+      // Header price flash color vs last header price
       if (lastPrice !== null){
         priceEl.classList.remove('up','down');
         if (price > lastPrice) priceEl.classList.add('up');
@@ -219,13 +240,17 @@
       lastPrice = price;
       priceEl.textContent = fmtUSD.format(price);
 
+      // Feed buffer (Time | Price | Amount)
       trades.push({ price, size, time, dir });
       if (trades.length > MAX_TRADES) trades.shift();
 
-      latestTickForChart = price;
+      // For chart & 10m change: capture latest price to add once per frame with a timestamp
+      pendingPriceForSeries = price;
+
       needsFeedRender = true;
     }
 
+    // Render feed
     function renderFeed(){
       const oldHeader = feedEl.querySelector('.headerRow');
       const frag = document.createDocumentFragment();
@@ -246,7 +271,6 @@
           <div class="priceCell">${fmtUSD.format(t.price)}</div>
           <div class="amountCell">${amountDisplay}</div>
         `;
-
         row.querySelector('.amountCell').addEventListener('click', toggleAmountView);
         frag.appendChild(row);
       }
@@ -255,19 +279,27 @@
       feedEl.appendChild(frag);
     }
 
-    function drawChart(force=false){
+    // Draw chart from series[]
+    function drawChart(){
       const w = chartCanvas.clientWidth;
       const h = chartCanvas.clientHeight;
+
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = '#101010';
       ctx.fillRect(0, 0, w, h);
 
-      if (prices.length < 2) return;
+      if (series.length < 2) return;
 
+      // Get min/max of visible window
       let min = Infinity, max = -Infinity;
-      for (let p of prices){ if (p < min) min = p; if (p > max) max = p; }
+      for (let i=0;i<series.length;i++){
+        const p = series[i].p;
+        if (p < min) min = p;
+        if (p > max) max = p;
+      }
       const range = (max - min) || 1;
 
+      // Grid
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
       ctx.lineWidth = 1;
       for (let i = 1; i < 6; i++) {
@@ -275,24 +307,56 @@
         ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
       }
 
+      // Line
       ctx.beginPath();
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#00ffb3';
-      prices.forEach((p, i) => {
-        const x = (i / (prices.length - 1)) * w;
-        const y = h - ((p - min) / range) * h;
+      for (let i=0;i<series.length;i++){
+        const x = (i / (series.length - 1)) * w; // simple index spacing
+        const y = h - ((series[i].p - min) / range) * h;
         if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      });
+      }
       ctx.stroke();
     }
 
-    function loop(){
-      if (latestTickForChart != null){
-        prices.push(latestTickForChart);
-        if (prices.length > MAX_POINTS) prices.shift();
-        latestTickForChart = null;
-        drawChart();
+    // Update the 10-minute change label
+    function updateTenMinuteChange(){
+      // Drop points older than 10 minutes
+      const cutoff = Date.now() - WINDOW_MS;
+      while (series.length && series[0].t < cutoff) series.shift();
+
+      if (series.length < 2){
+        changeEl.textContent = '—';
+        changeEl.className = 'change flat';
+        return;
       }
+
+      const start = series[0].p;
+      const now   = series[series.length - 1].p;
+      const pct   = ((now - start) / start) * 100;
+      const cls   = now > start ? 'up' : (now < start ? 'down' : 'flat');
+
+      changeEl.textContent = `${fmtPct.format(pct)}`;
+      changeEl.className = `change ${cls}`;
+    }
+
+    // Animation loop
+    function loop(){
+      // Add latest sampled price to series at most once per frame
+      if (pendingPriceForSeries != null){
+        series.push({ t: Date.now(), p: pendingPriceForSeries });
+        pendingPriceForSeries = null;
+      }
+
+      // Keep only last 10 minutes of data
+      const cutoff = Date.now() - WINDOW_MS;
+      while (series.length && series[0].t < cutoff) series.shift();
+
+      // Draw and update stats
+      drawChart();
+      updateTenMinuteChange();
+
+      // Feed (batched)
       if (needsFeedRender){
         needsFeedRender = false;
         renderFeed();
@@ -300,14 +364,23 @@
       requestAnimationFrame(loop);
     }
 
+    // Toggle amount view (BTC <-> USD)
     function toggleAmountView(){
       showUSD = !showUSD;
       amountHeader.textContent = showUSD ? 'Amount (USD)' : 'Amount (BTC)';
       renderFeed();
     }
-
     amountHeader.addEventListener('click', toggleAmountView);
 
+    // Visibility
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        drawChart();
+        updateTenMinuteChange();
+      }
+    }, { passive:true });
+
+    // Init
     resizeCanvas();
     connect();
     requestAnimationFrame(loop);
