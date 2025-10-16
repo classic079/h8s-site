@@ -34,22 +34,22 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* NEW: compact stats bar for 10m highs */
-    .stats{
+    /* Meta bar under top */
+    .meta{
       width:min(920px,96vw);
-      display:grid; grid-template-columns: 1fr 1fr;
+      display:grid; grid-template-columns: 1fr 1fr 1fr;
       gap:8px; margin:8px auto 0; font-variant-numeric:tabular-nums;
-      font-size:14px; opacity:.9;
+      font-size:14px; opacity:.95;
     }
-    .stat{
+    .card{
       background:var(--panel); border-radius:10px; padding:8px 10px;
       display:flex; justify-content:space-between; align-items:center;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.35);
     }
-    .stat .label{opacity:.7}
-    .stat .value{font-weight:700}
-    .stat.buy .value{color:var(--up)}
-    .stat.sell .value{color:var(--down)}
+    .card .label{opacity:.7}
+    .card .value{font-weight:700}
+    .card.buy .value{color:var(--up)}
+    .card.sell .value{color:var(--down)}
 
     /* Chart */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
@@ -75,10 +75,11 @@
       <div class="change flat" id="change">0.00%</div>
     </div>
 
-    <!-- NEW: 10m highs -->
-    <div class="stats">
-      <div class="stat buy"><span class="label">10m High Buy</span><span class="value" id="highBuy">—</span></div>
-      <div class="stat sell"><span class="label">10m High Sell</span><span class="value" id="highSell">—</span></div>
+    <!-- NEW: 10m price extremes + last trade -->
+    <div class="meta">
+      <div class="card buy"><span class="label">10m Max Buy Price</span><span class="value" id="maxBuyPrice">—</span></div>
+      <div class="card sell"><span class="label">10m Min Sell Price</span><span class="value" id="minSellPrice">—</span></div>
+      <div class="card"><span class="label">Last trade</span><span class="value" id="lastTrade">—</span></div>
     </div>
 
     <div id="chartContainer">
@@ -89,63 +90,100 @@
   </div>
 
   <script>
+    // DOM
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl  = document.getElementById('feedContainer');
-    const highBuyEl = document.getElementById('highBuy');
-    const highSellEl = document.getElementById('highSell');
+    const maxBuyPriceEl = document.getElementById('maxBuyPrice');
+    const minSellPriceEl = document.getElementById('minSellPrice');
+    const lastTradeEl = document.getElementById('lastTrade');
 
+    // State
     let lastPrice = null;
 
+    // Helpers
+    function safeParseFloat(x){
+      const n = parseFloat(x);
+      return Number.isFinite(n) ? n : NaN;
+    }
+    function fmtUSD(n){
+      return n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
+    }
+
+    // Normalize Coinbase message into {price, size, side, time}
+    function extractTrade(msg){
+      let price = safeParseFloat(msg.price);
+      let size  = safeParseFloat(msg.last_size ?? msg.size);
+      let side  = msg.side || '';
+      let time  = msg.time;
+
+      // Try Advanced Trade event shapes if needed
+      if (!Number.isFinite(price) || (!side && !time)) {
+        const ev = Array.isArray(msg.events) && msg.events[0];
+        if (ev) {
+          if (!Number.isFinite(price)) {
+            if (ev.tickers && ev.tickers[0]?.price) price = safeParseFloat(ev.tickers[0].price);
+            else if (ev.trades && ev.trades[0]?.price) price = safeParseFloat(ev.trades[0].price);
+          }
+          if (!Number.isFinite(size)) {
+            if (ev.tickers && ev.tickers[0]?.last_size) size = safeParseFloat(ev.tickers[0].last_size);
+            else if (ev.trades && ev.trades[0]?.size) size = safeParseFloat(ev.trades[0].size);
+          }
+          if (!side && ev.trades && ev.trades[0]?.side) side = ev.trades[0].side;
+          if (!time && ev.trades && ev.trades[0]?.time) time = ev.trades[0].time;
+        }
+      }
+      return { price, size, side, time };
+    }
+
+    // Price ticker (unchanged behavior)
     function setPrice(p) {
       if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
-        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+        const pct = (diff / lastPrice * 100);
+        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
       }
-      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+      priceEl.textContent = fmtUSD(p);
       lastPrice = p;
     }
 
-    // === 10-minute rolling window ===
+    // === 10-minute rolling window for PRICE EXTREMES ===
     const TEN_MIN_MS = 10 * 60 * 1000;
 
     function pruneOldAndUpdateStats() {
       const cutoff = Date.now() - TEN_MIN_MS;
-      let highBuy = 0, highSell = 0;
+      let maxBuyPrice = -Infinity, minSellPrice = Infinity;
 
       const rows = Array.from(feedEl.children);
       for (const row of rows) {
         const t = parseInt(row.dataset.timestamp || '0', 10);
-        if (!t || t < cutoff) {
-          row.remove();
-          continue;
-        }
+        if (!t || t < cutoff) { row.remove(); continue; }
+
         const side = row.dataset.side;
-        const size = parseFloat(row.dataset.size);
-        if (Number.isFinite(size)) {
-          if (side === 'buy') highBuy = Math.max(highBuy, size);
-          else if (side === 'sell') highSell = Math.max(highSell, size);
-        }
+        const price = parseFloat(row.dataset.price);
+        if (!Number.isFinite(price)) continue;
+
+        if (side === 'buy')  maxBuyPrice = Math.max(maxBuyPrice, price);
+        if (side === 'sell') minSellPrice = Math.min(minSellPrice, price);
       }
 
-      highBuyEl.textContent  = highBuy  ? highBuy.toFixed(4)  + ' BTC' : '—';
-      highSellEl.textContent = highSell ? highSell.toFixed(4) + ' BTC' : '—';
+      maxBuyPriceEl.textContent = Number.isFinite(maxBuyPrice) ? fmtUSD(maxBuyPrice) : '—';
+      minSellPriceEl.textContent = Number.isFinite(minSellPrice) ? fmtUSD(minSellPrice) : '—';
     }
 
-    // Sweep every 30s so numbers “fall off” naturally
+    // Sweep every 30s so stale trades roll off
     setInterval(pruneOldAndUpdateStats, 30 * 1000);
 
+    // Feed row renderer
     function addTrade({side, price, size, time}) {
+      const ts = time ? Date.parse(time) : Date.now();
+      const qty = safeParseFloat(size);
+      const prc = safeParseFloat(price);
+
       const row = document.createElement('div');
       row.className = `feedRow ${side || ''}`;
-
-      // Normalize & protect
-      const ts = time ? Date.parse(time) : Date.now();
-      const qty = Number.isFinite(parseFloat(size)) ? parseFloat(size) : NaN;
-      const prc = Number.isFinite(parseFloat(price)) ? parseFloat(price) : NaN;
 
       // Tag metadata for pruning/stat calc
       row.dataset.timestamp = String(ts);
@@ -156,19 +194,25 @@
       row.innerHTML = `
         <div class="feedTime">${time ? new Date(ts).toLocaleTimeString() : ''}</div>
         <div class="feedQty">${Number.isFinite(qty) ? qty.toFixed(4) + ' BTC' : '—'}</div>
-        <div>${Number.isFinite(prc) ? prc.toLocaleString('en-US',{style:'currency',currency:'USD'}) : ''}</div>
+        <div>${Number.isFinite(prc) ? fmtUSD(prc) : ''}</div>
       `;
 
       feedEl.prepend(row);
-
-      // Keep a hard cap too (defensive)
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
 
-      // Recompute stats instantly so the top numbers move fast
+      // Update the meta cards fast
       pruneOldAndUpdateStats();
+
+      // Update "Last trade" badge (price + hh:mm:ss)
+      if (Number.isFinite(prc)) {
+        const tStr = new Date(ts).toLocaleTimeString();
+        lastTradeEl.textContent = `${fmtUSD(prc)}  @  ${tStr}`;
+      } else if (time) {
+        lastTradeEl.textContent = `—  @  ${new Date(ts).toLocaleTimeString()}`;
+      }
     }
 
-    // Coinbase WS ticker (unchanged)
+    // Coinbase WS
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -178,16 +222,15 @@
     };
     ws.onmessage = e => {
       try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
-          const p = parseFloat(msg.price);
-          if (!isNaN(p)) setPrice(p);
-          addTrade(msg);
-        }
+        const raw = JSON.parse(e.data);
+        if (!raw) return;
+        const t = extractTrade(raw);
+        if (Number.isFinite(t.price)) setPrice(t.price);
+        if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
       } catch {}
     };
 
-    // Canvas sizing (unchanged)
+    // Canvas sizing (baseline)
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
