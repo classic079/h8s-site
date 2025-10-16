@@ -5,38 +5,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>h8s — Live (Safe Mode)</title>
+    <title>h8s — Live</title>
     <style>
       * { box-sizing: border-box; }
       html, body { height: 100%; }
-      body { margin:0; background:#0b0d12; color:#eaf2ff; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji; }
-      #app { min-height: 100svh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display:grid; grid-template-rows: auto 1fr; gap:12px; }
-      #price-section { position: relative; display: grid; place-items: center; text-align: center; padding: 8px 0; }
-      .live-price { line-height:1.05; font-size: clamp(40px, 11vw, 72px); font-weight:700; letter-spacing:-0.02em; }
-      .subline { margin-top:6px; opacity:.7; font-size: clamp(12px, 3.2vw, 14px); }
-      /* Sparkline behind price (safe mode) */
-      #spark { position:absolute; inset:0; z-index:0; opacity:.22; } 
-      #price-section > * { position: relative; z-index: 1; }
-      #tape { background:#0e121a; border-radius:16px; padding:8px; overflow:hidden; display:grid; grid-template-rows:auto 1fr; }
-      .tape-header { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 8px; font-size:12px; opacity:.7 }
-      .tape-list { list-style:none; margin:0; padding:0; overflow:auto; -webkit-overflow-scrolling:touch; }
-      .tape-item { display:grid; grid-template-columns:70px 1fr 86px; gap:8px; align-items:baseline; padding:6px 8px; font-variant-numeric: tabular-nums; border-top:1px solid rgba(255,255,255,.06); }
-      .tape-item:first-child{ border-top: none; }
-      /* fade older rows slightly */
+      body {
+        margin: 0;
+        background: #0b0d12;
+        color: #eaf2ff;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Layout tuned for iPhone */
+      #app {
+        min-height: 100svh;
+        padding: max(12px, env(safe-area-inset-top))
+                 max(12px, env(safe-area-inset-right))
+                 max(12px, env(safe-area-inset-bottom))
+                 max(12px, env(safe-area-inset-left));
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+      }
+
+      #price-section {
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 8px 0;
+      }
+      .live-price {
+        line-height: 1.05;
+        font-size: clamp(40px, 11vw, 72px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .subline { margin-top: 6px; opacity: .7; font-size: clamp(12px, 3.2vw, 14px); }
+
+      /* Trade tape */
+      #tape {
+        background: #0e121a;
+        border-radius: 16px;
+        padding: 8px;
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+      .tape-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 6px 8px;
+        font-size: 12px;
+        opacity: .7;
+      }
+      .tape-list { list-style: none; margin: 0; padding: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+      .tape-item {
+        display: grid;
+        grid-template-columns: 70px 1fr 86px;
+        gap: 8px;
+        align-items: baseline;
+        padding: 6px 8px;
+        font-variant-numeric: tabular-nums;
+        border-top: 1px solid rgba(255,255,255,.06);
+      }
+      .tape-item:first-child { border-top: none; }
+      .t { opacity: .7; font-size: 12px; }
+      .p { justify-self: start; font-weight: 600; }
+      .q { justify-self: end; opacity: .85; }
+      .buy  { color: #7ee787; }
+      .sell { color: #ff7b72; }
+      /* fade older rows slightly for readability */
       .tape-item:nth-child(n+50){ opacity:.85; }
       .tape-item:nth-child(n+80){ opacity:.70; }
-      .t{opacity:.7; font-size:12px} .p{justify-self:start; font-weight:600} .q{justify-self:end; opacity:.85}
-      .buy{color:#7ee787} .sell{color:#ff7b72}
-      #debug{position:fixed; top:8px; left:8px; padding:6px 8px; background:#222a; color:#fff; font:12px/1.2 monospace; border-radius:8px; display:none; z-index:9999}
+
+      /* Debug badge (hidden unless #debug) */
+      #debug {
+        position: fixed; top: 8px; left: 8px; padding: 6px 8px;
+        background: #222a; color: #fff; font: 12px/1.2 monospace;
+        border-radius: 8px; display: none; z-index: 9999;
+      }
     </style>
   </head>
   <body>
     <main id="app">
       <section id="price-section" aria-label="Live price">
-        <canvas id="spark" aria-hidden="true"></canvas>
         <div id="live-price" class="live-price" role="status" aria-live="polite">Loading…</div>
         <div class="subline" id="subline">Updated • —</div>
       </section>
+
+      <!-- Real-time Coinbase trade tape -->
       <section id="tape" aria-label="Live trades">
         <div class="tape-header">
           <div>BTC-USD trades</div>
@@ -44,39 +104,37 @@
         </div>
         <ul id="tapeList" class="tape-list" aria-live="polite"></ul>
       </section>
+
       <div id="debug"></div>
     </main>
 
+    <!-- Global error catcher (visible with #debug) -->
     <script>
-      // Global error catcher -> shows in debug overlay
       (function(){
         const debug = document.getElementById('debug');
         const show = location.hash.includes('debug');
         if (show) debug.style.display='block';
-        window.addEventListener('error', e=>{ if(show) debug.textContent = 'ERR: ' + (e.message||'unknown'); });
-        window.addEventListener('unhandledrejection', e=>{ if(show) debug.textContent = 'REJ: ' + (e.reason&&e.reason.message||'unknown'); });
+        window.addEventListener('error', e => { if (show) debug.textContent = 'ERR: ' + (e.message || 'unknown'); });
+        window.addEventListener('unhandledrejection', e => { if (show) debug.textContent = 'REJ: ' + ((e.reason && e.reason.message) || 'unknown'); });
       })();
     </script>
 
+    <!-- Price formatting helper -->
     <script>
-      // ===== price display =====
       const priceEl = document.getElementById('live-price');
       const sublineEl = document.getElementById('subline');
-      function setPriceDisplay(value){
-        try{
-          window.__lastPrice = value;
-          const s = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2}).format(value);
-          priceEl.textContent = s; sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        }catch{}
-      }).format(value);
-          priceEl.textContent = s; sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        }catch{}
+      function setPriceDisplay(value) {
+        try {
+          const s = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+          priceEl.textContent = s;
+          sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch {}
       }
       window.updatePrice = setPriceDisplay;
     </script>
 
+    <!-- Coinbase Pro WS: ticker + matches (price also driven by trades) -->
     <script>
-      // ===== Coinbase Pro trade tape (ticker + matches) =====
       (function(){
         const list = document.getElementById('tapeList');
         const rateEl = document.getElementById('rate');
@@ -84,60 +142,94 @@
         const showDebug = location.hash.includes('debug');
         const log = (m)=>{ if(showDebug){ debug.style.display='block'; debug.textContent = m; } };
 
-        let ws, reconnectDelay=1000, maxDelay=30000, lastPaint=0, tradesInWindow=0;
-        const maxItems = 100;
+        let ws, reconnectDelay = 1000, maxDelay = 30000;
+        let tradesInWindow = 0;
+        let lastPaint = 0;
+        const maxItems = 100;   // keep last 100 trades
 
-        function addRow(side, price, size, time){
+        let gotTicker = false;  // if ticker is blocked/quiet, we still update price from trades
+
+        function addRow(side, price, size, time) {
+          // throttle DOM writes (~12fps)
           const now = performance.now();
-          if (now - lastPaint < 80) return; // throttle
+          if (now - lastPaint < 80) return;
           lastPaint = now;
+
           const li = document.createElement('li');
-          li.className = 'tape-item ' + (side==='buy'?'buy':'sell');
-          li.innerHTML = '<span class="t">'+ time.slice(11,19) +'</span>'+
-                         '<span class="p">'+ Number(price).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}) +'</span>'+
-                         '<span class="q">'+ Number(size).toLocaleString(undefined,{maximumFractionDigits:6}) +'</span>';
+          li.className = 'tape-item ' + (side === 'buy' ? 'buy' : 'sell');
+          li.innerHTML =
+            '<span class="t">' + time.slice(11,19) + '</span>' +
+            '<span class="p">' + Number(price).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>' +
+            '<span class="q">' + Number(size).toLocaleString(undefined,{maximumFractionDigits:6}) + '</span>';
           list.insertBefore(li, list.firstChild);
           while (list.children.length > maxItems) list.removeChild(list.lastChild);
         }
 
-        setInterval(()=>{ rateEl.textContent = tradesInWindow + ' tps'; tradesInWindow = 0; }, 1000);
+        // TPS meter
+        setInterval(() => { rateEl.textContent = tradesInWindow + ' tps'; tradesInWindow = 0; }, 1000);
 
         function connect(){
-          try{
+          try {
             ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
-            ws.onopen = ()=>{ log('CB Pro: open'); reconnectDelay=1000; ws.send(JSON.stringify({type:'subscribe', channels:[{name:'matches', product_ids:['BTC-USD']}, {name:'ticker', product_ids:['BTC-USD']}]})); };
-            ws.onmessage = (e)=>{
-              try{
-                const msg = JSON.parse(e.data);
-                if (msg.type==='ticker' && msg.price){ const p = parseFloat(msg.price); if(!Number.isNaN(p)) setPriceDisplay(p); }
-                else if (msg.type==='match'){ tradesInWindow++; addRow(msg.side, msg.price, msg.size, msg.time); }
-              }catch(err){ log('parse error'); }
+            ws.onopen = () => {
+              log('CB Pro: open');
+              reconnectDelay = 1000;
+              ws.send(JSON.stringify({
+                type: 'subscribe',
+                channels: [
+                  { name: 'matches', product_ids: ['BTC-USD'] },
+                  { name: 'ticker',  product_ids: ['BTC-USD'] }
+                ]
+              }));
             };
-            ws.onerror = ()=> log('CB Pro: error');
-            ws.onclose = ()=>{ log('CB Pro: close'); if(document.visibilityState==='visible'){ setTimeout(connect, reconnectDelay); reconnectDelay = Math.min(reconnectDelay*2, maxDelay);} };
-          }catch(err){ log('CB Pro: exception'); }
+
+            ws.onmessage = (e) => {
+              try {
+                const msg = JSON.parse(e.data);
+
+                // Ticker (nice to have)
+                if (msg.type === 'ticker' && msg.price) {
+                  const p = parseFloat(msg.price);
+                  if (!Number.isNaN(p)) { gotTicker = true; setPriceDisplay(p); }
+                  return;
+                }
+
+                // Trades (always flowing)
+                if (msg.type === 'match') {
+                  tradesInWindow++;
+                  addRow(msg.side, msg.price, msg.size, msg.time);
+
+                  // Also update the big price from trades so it never stays "Loading…"
+                  if (msg.price) {
+                    const p = parseFloat(msg.price);
+                    if (!Number.isNaN(p)) setPriceDisplay(p);
+                  }
+                  return;
+                }
+              } catch {}
+            };
+
+            ws.onerror = () => log('CB Pro: error');
+            ws.onclose  = () => {
+              log('CB Pro: close');
+              if (document.visibilityState === 'visible') {
+                setTimeout(connect, reconnectDelay);
+                reconnectDelay = Math.min(reconnectDelay * 2, maxDelay);
+              }
+            };
+          } catch (err) { log('CB Pro: exception'); }
         }
-        document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ if(!ws || ws.readyState===WebSocket.CLOSED) connect(); } else { try{ ws&&ws.close(); }catch{} } });
+
+        // Pause socket when hidden to save battery/data
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            if (!ws || ws.readyState === WebSocket.CLOSED) connect();
+          } else {
+            try { ws && ws.close(); } catch {}
+          }
+        });
+
         connect();
-      })();
-    </script>
-    <script>
-      // ===== Safe Sparkline (isolated, no feed impact) =====
-      (function(){
-        try{
-          const spark = document.getElementById('spark');
-          if(!spark) return;
-          const ctx = spark.getContext('2d');
-          const history = [];
-          const HORIZON = 10*60*1000; // 10 minutes
-          function size(){ const dpr = window.devicePixelRatio||1; const r = spark.getBoundingClientRect(); spark.width=Math.max(1,Math.floor(r.width*dpr)); spark.height=Math.max(1,Math.floor(r.height*dpr)); }
-          function prune(now){ const cut = now - HORIZON; while(history.length && history[0].t < cut) history.shift(); }
-          function draw(){ const w=spark.width,h=spark.height; if(!w||!h||history.length<2) return; let min=Infinity,max=-Infinity; for(const s of history){ if(s.p<min)min=s.p; if(s.p>max)max=s.p; } const range=Math.max(1e-6,max-min); const t0=history[0].t, t1=history[history.length-1].t||t0+1; const mx=Math.floor(w*0.04), my=Math.floor(h*0.18), iw=w-mx*2, ih=h-my*2; ctx.clearRect(0,0,w,h); ctx.lineWidth=Math.max(1,Math.floor(w/300)); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); for(let i=0;i<history.length;i++){ const x=mx+((history[i].t-t0)/Math.max(1,(t1-t0)))*iw; const y=my+(1-(history[i].p-min)/range)*ih; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.stroke(); }
-          function sample(){ const now=Date.now(); prune(now); if(window.__lastPrice!=null){ history.push({t:now,p:Number(window.__lastPrice)}); if(history.length>400) history.shift(); } draw(); }
-          size();
-          window.addEventListener('orientationchange',()=>setTimeout(()=>{ try{ size(); draw(); }catch{} },250));
-          setInterval(()=>{ try{ sample(); }catch{} }, 5000); // gentle sampling every 5s
-        }catch(e){ /* ignore */ }
       })();
     </script>
   </body>
