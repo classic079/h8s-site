@@ -5,17 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Live BTC/USD — Staging</title>
   <style>
-    :root {
-      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-      --up:#00ffb3; --down:#ff3c3c;
-    }
+    :root { --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf; --up:#00ffb3; --down:#ff3c3c; }
     *{box-sizing:border-box}
     html,body{
       height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     }
-    .wrap{position:relative; z-index:1; min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
+    .wrap{position:relative;min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
     /* Top bar */
     .topbar{
@@ -34,10 +31,10 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Meta bar under top */
+    /* Meta cards: only the two price extremes now */
     .meta{
       width:min(920px,96vw);
-      display:grid; grid-template-columns: 1fr 1fr 1fr;
+      display:grid; grid-template-columns: 1fr 1fr;
       gap:8px; margin:8px auto 0; font-variant-numeric:tabular-nums;
       font-size:14px; opacity:.95;
     }
@@ -52,8 +49,12 @@
     .card.sell .value{color:var(--down)}
 
     /* Chart */
-    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
-    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
+    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(150px,28vh,240px);margin:8px auto 10px;}
+    #chartCanvas{
+      position:absolute;inset:0;width:100%;height:100%;
+      background:var(--panel);border-radius:12px;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
+    }
 
     /* Feed */
     #feedContainer{
@@ -72,14 +73,13 @@
   <div class="wrap">
     <div class="topbar">
       <div class="price" id="price">–</div>
-      <div class="change flat" id="change">0.00%</div>
+      <div class="change flat" id="change">+0.00%</div>
     </div>
 
-    <!-- NEW: 10m price extremes + last trade -->
+    <!-- Only the 10m price extremes -->
     <div class="meta">
       <div class="card buy"><span class="label">10m Max Buy Price</span><span class="value" id="maxBuyPrice">—</span></div>
       <div class="card sell"><span class="label">10m Min Sell Price</span><span class="value" id="minSellPrice">—</span></div>
-      <div class="card"><span class="label">Last trade</span><span class="value" id="lastTrade">—</span></div>
     </div>
 
     <div id="chartContainer">
@@ -90,68 +90,75 @@
   </div>
 
   <script>
-    // DOM
+    // DOM refs
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl  = document.getElementById('feedContainer');
     const maxBuyPriceEl = document.getElementById('maxBuyPrice');
     const minSellPriceEl = document.getElementById('minSellPrice');
-    const lastTradeEl = document.getElementById('lastTrade');
 
     // State
     let lastPrice = null;
 
     // Helpers
-    function safeParseFloat(x){
-      const n = parseFloat(x);
+    const safeParseFloat = v => {
+      const n = parseFloat(v);
       return Number.isFinite(n) ? n : NaN;
-    }
-    function fmtUSD(n){
-      return n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
-    }
+    };
+    const fmtUSD = n => n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
 
-    // Normalize Coinbase message into {price, size, side, time}
+    // Normalize Coinbase message → {price,size,side,time}
     function extractTrade(msg){
       let price = safeParseFloat(msg.price);
       let size  = safeParseFloat(msg.last_size ?? msg.size);
       let side  = msg.side || '';
       let time  = msg.time;
 
-      // Try Advanced Trade event shapes if needed
-      if (!Number.isFinite(price) || (!side && !time)) {
+      // Handle Advanced Trade event envelopes
+      if (!Number.isFinite(price) || !side || !time) {
         const ev = Array.isArray(msg.events) && msg.events[0];
         if (ev) {
           if (!Number.isFinite(price)) {
-            if (ev.tickers && ev.tickers[0]?.price) price = safeParseFloat(ev.tickers[0].price);
-            else if (ev.trades && ev.trades[0]?.price) price = safeParseFloat(ev.trades[0].price);
+            if (ev.tickers?.[0]?.price) price = safeParseFloat(ev.tickers[0].price);
+            else if (ev.trades?.[0]?.price) price = safeParseFloat(ev.trades[0].price);
           }
           if (!Number.isFinite(size)) {
-            if (ev.tickers && ev.tickers[0]?.last_size) size = safeParseFloat(ev.tickers[0].last_size);
-            else if (ev.trades && ev.trades[0]?.size) size = safeParseFloat(ev.trades[0].size);
+            if (ev.tickers?.[0]?.last_size) size = safeParseFloat(ev.tickers[0].last_size);
+            else if (ev.trades?.[0]?.size) size = safeParseFloat(ev.trades[0].size);
           }
-          if (!side && ev.trades && ev.trades[0]?.side) side = ev.trades[0].side;
-          if (!time && ev.trades && ev.trades[0]?.time) time = ev.trades[0].time;
+          if (!side && ev.trades?.[0]?.side) side = ev.trades[0].side;
+          if (!time && ev.trades?.[0]?.time) time = ev.trades[0].time;
         }
       }
       return { price, size, side, time };
     }
 
-    // Price ticker (unchanged behavior)
+    // ===== 10-minute window (shared by stats & chart) =====
+    const TEN_MIN_MS = 10 * 60 * 1000;
+    const ring = []; // {t:number, p:number}
+
+    function pushPrice(p, ts){
+      const t = ts || Date.now();
+      ring.push({ t, p });
+      // prune old
+      const cutoff = t - TEN_MIN_MS;
+      while (ring.length && ring[0].t < cutoff) ring.shift();
+    }
+
+    // ===== Ticker =====
     function setPrice(p) {
       if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = (diff / lastPrice * 100);
+        const pct = (diff / lastPrice) * 100;
         changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
-        changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
-        priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
+        changeEl.className = `change ${pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat'} flash`;
+        priceEl.className = `price ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`;
       }
       priceEl.textContent = fmtUSD(p);
       lastPrice = p;
     }
 
-    // === 10-minute rolling window for PRICE EXTREMES ===
-    const TEN_MIN_MS = 10 * 60 * 1000;
-
+    // ===== Stats: 10m price extremes =====
     function pruneOldAndUpdateStats() {
       const cutoff = Date.now() - TEN_MIN_MS;
       let maxBuyPrice = -Infinity, minSellPrice = Infinity;
@@ -160,11 +167,9 @@
       for (const row of rows) {
         const t = parseInt(row.dataset.timestamp || '0', 10);
         if (!t || t < cutoff) { row.remove(); continue; }
-
         const side = row.dataset.side;
         const price = parseFloat(row.dataset.price);
         if (!Number.isFinite(price)) continue;
-
         if (side === 'buy')  maxBuyPrice = Math.max(maxBuyPrice, price);
         if (side === 'sell') minSellPrice = Math.min(minSellPrice, price);
       }
@@ -172,11 +177,9 @@
       maxBuyPriceEl.textContent = Number.isFinite(maxBuyPrice) ? fmtUSD(maxBuyPrice) : '—';
       minSellPriceEl.textContent = Number.isFinite(minSellPrice) ? fmtUSD(minSellPrice) : '—';
     }
+    setInterval(pruneOldAndUpdateStats, 30_000);
 
-    // Sweep every 30s so stale trades roll off
-    setInterval(pruneOldAndUpdateStats, 30 * 1000);
-
-    // Feed row renderer
+    // ===== Feed =====
     function addTrade({side, price, size, time}) {
       const ts = time ? Date.parse(time) : Date.now();
       const qty = safeParseFloat(size);
@@ -185,7 +188,7 @@
       const row = document.createElement('div');
       row.className = `feedRow ${side || ''}`;
 
-      // Tag metadata for pruning/stat calc
+      // metadata for pruning/stats
       row.dataset.timestamp = String(ts);
       row.dataset.side = side || '';
       row.dataset.size = Number.isFinite(qty) ? String(qty) : '';
@@ -196,23 +199,67 @@
         <div class="feedQty">${Number.isFinite(qty) ? qty.toFixed(4) + ' BTC' : '—'}</div>
         <div>${Number.isFinite(prc) ? fmtUSD(prc) : ''}</div>
       `;
-
       feedEl.prepend(row);
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
 
-      // Update the meta cards fast
+      // keep stats fresh
       pruneOldAndUpdateStats();
-
-      // Update "Last trade" badge (price + hh:mm:ss)
-      if (Number.isFinite(prc)) {
-        const tStr = new Date(ts).toLocaleTimeString();
-        lastTradeEl.textContent = `${fmtUSD(prc)}  @  ${tStr}`;
-      } else if (time) {
-        lastTradeEl.textContent = `—  @  ${new Date(ts).toLocaleTimeString()}`;
-      }
     }
 
-    // Coinbase WS
+    // ===== Chart (sparkline of last 10 minutes) =====
+    const canvas = document.getElementById('chartCanvas');
+    const ctx = canvas.getContext('2d');
+    function resizeCanvas(){
+      const r = canvas.getBoundingClientRect();
+      canvas.width  = Math.max(1, Math.floor(r.width  * devicePixelRatio));
+      canvas.height = Math.max(1, Math.floor(r.height * devicePixelRatio));
+    }
+    function renderChart(){
+      const now = Date.now();
+      // prune the ring here too
+      const cutoff = now - TEN_MIN_MS;
+      while (ring.length && ring[0].t < cutoff) ring.shift();
+
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      if (ring.length < 2) { requestAnimationFrame(renderChart); return; }
+
+      // y-scale from min/max in window
+      let min = Infinity, max = -Infinity;
+      for (const {p} of ring){ if (p < min) min = p; if (p > max) max = p; }
+      if (min === max) { min -= 1; max += 1; }
+
+      const w = canvas.width, h = canvas.height;
+      const x = t => ((t - cutoff) / TEN_MIN_MS) * w;
+      const y = p => h - ((p - min) / (max - min)) * h;
+
+      // grid line for current price band (subtle)
+      ctx.lineWidth = Math.max(1, devicePixelRatio);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.setLineDash([6,4]);
+      const last = ring[ring.length-1].p;
+      ctx.beginPath();
+      ctx.moveTo(0, y(last));
+      ctx.lineTo(w, y(last));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // sparkline
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.moveTo(x(ring[0].t), y(ring[0].p));
+      for (let i=1;i<ring.length;i++){
+        ctx.lineTo(x(ring[i].t), y(ring[i].p));
+      }
+      ctx.stroke();
+
+      requestAnimationFrame(renderChart);
+    }
+    window.addEventListener('load', () => { resizeCanvas(); requestAnimationFrame(renderChart); });
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
+    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
+
+    // ===== WebSocket =====
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -225,24 +272,13 @@
         const raw = JSON.parse(e.data);
         if (!raw) return;
         const t = extractTrade(raw);
-        if (Number.isFinite(t.price)) setPrice(t.price);
+        if (Number.isFinite(t.price)) {
+          setPrice(t.price);
+          pushPrice(t.price, t.time ? Date.parse(t.time) : Date.now());
+        }
         if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
       } catch {}
     };
-
-    // Canvas sizing (baseline)
-    const canvas = document.getElementById('chartCanvas');
-    const ctx = canvas.getContext('2d');
-    function resizeCanvas(){
-      const r = canvas.getBoundingClientRect();
-      canvas.width = Math.floor(r.width * devicePixelRatio);
-      canvas.height = Math.floor(r.height * devicePixelRatio);
-      ctx.fillStyle = 'rgba(255,255,255,0.02)';
-      ctx.fillRect(0,0,canvas.width,canvas.height);
-    }
-    window.addEventListener('load', () => { resizeCanvas(); pruneOldAndUpdateStats(); });
-    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
-    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
   </script>
 </body>
 </html>
