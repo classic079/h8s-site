@@ -172,6 +172,7 @@
 
     // Formatters
     const fmtUSD = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2 });
+    const fmtUSDChange = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2, signDisplay:'always' });
     const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 5 });
     const fmtPct = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
 
@@ -319,7 +320,7 @@
       ctx.stroke();
     }
 
-    // Update the 10-minute change label
+    // Update the 10-minute change label (absolute + percent)
     function updateTenMinuteChange(){
       // Drop points older than 10 minutes
       const cutoff = Date.now() - WINDOW_MS;
@@ -333,10 +334,11 @@
 
       const start = series[0].p;
       const now   = series[series.length - 1].p;
+      const diff  = now - start;
       const pct   = ((now - start) / start) * 100;
-      const cls   = now > start ? 'up' : (now < start ? 'down' : 'flat');
+      const cls   = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
 
-      changeEl.textContent = `${fmtPct.format(pct)}`;
+      changeEl.textContent = `${fmtUSDChange.format(diff)} (${fmtPct.format(pct)})`;
       changeEl.className = `change ${cls}`;
     }
 
