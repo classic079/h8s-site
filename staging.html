@@ -17,7 +17,7 @@
     }
     .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
-    /* Top bar (unchanged) */
+    /* Top bar */
     .topbar{
       position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
@@ -34,25 +34,17 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* === NEW: TPS mini bar directly under topbar === */
-    #tpsRow{
-      width:min(920px,96vw); margin:6px auto 2px;
-      display:flex; align-items:center; gap:8px;
-    }
-    #tpsLabel{font-size:12px;opacity:.75;white-space:nowrap;}
-    #tpsBox{
-      flex:1; height:42px; background:var(--panel); border-radius:8px;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 6px 18px rgba(0,0,0,.35);
-      position:relative; overflow:hidden;
-    }
-    #tpsCanvas{position:absolute; inset:0; display:block; width:100%; height:100%;}
-
-    /* Chart (unchanged) */
+    /* Chart (static background like your original) */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
-    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
+    #chartCanvas{
+      position:absolute;inset:0;width:100%;height:100%;
+      background:var(--panel);border-radius:12px;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
+    }
 
-    /* Feed (unchanged) */
-    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+    /* Feed */
+    #feedContainer{
+      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
@@ -70,12 +62,6 @@
       <div class="change flat" id="change">0.00%</div>
     </div>
 
-    <!-- NEW: TPS bar (added, everything else unchanged) -->
-    <div id="tpsRow" aria-label="Trades per second (last 60s)">
-      <span id="tpsLabel">TPS (60s)</span>
-      <div id="tpsBox"><canvas id="tpsCanvas"></canvas></div>
-    </div>
-
     <div id="chartContainer">
       <canvas id="chartCanvas"></canvas>
     </div>
@@ -84,24 +70,28 @@
   </div>
 
   <script>
-    /* ==== ORIGINAL INDEX LOGIC (unchanged) ==== */
+    // DOM
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
-    const feedEl = document.getElementById('feedContainer');
+    const feedEl  = document.getElementById('feedContainer');
+
+    // State
     let lastPrice = null;
 
+    // Price ticker
     function setPrice(p) {
       if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
-        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+        const pct = (diff / lastPrice * 100);
+        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
       }
-      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+      priceEl.textContent = p.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
       lastPrice = p;
     }
 
+    // Feed row
     function addTrade({side, price, size, time}) {
       const row = document.createElement('div');
       row.className = `feedRow ${side || ''}`;
@@ -114,7 +104,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WebSocket feed (UNCHANGED except for one added line: tpsBump(1))
+    // Coinbase WebSocket ticker (simple & stable)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -129,19 +119,16 @@
           const p = parseFloat(msg.price);
           if (!isNaN(p)) setPrice(p);
           addTrade(msg);
-
-          /* NEW: bump TPS counter (does nothing if TPS module isn’t loaded) */
-          if (window.tpsBump) window.tpsBump(1);
         }
       } catch {}
     };
 
-    // Chart canvas sizing (UNCHANGED)
+    // Chart canvas sizing (static background only)
     const chartCanvas = document.getElementById('chartCanvas');
     const chartCtx = chartCanvas.getContext('2d');
     function resizeChart(){
       const r = chartCanvas.getBoundingClientRect();
-      chartCanvas.width = Math.floor(r.width * devicePixelRatio);
+      chartCanvas.width  = Math.floor(r.width  * devicePixelRatio);
       chartCanvas.height = Math.floor(r.height * devicePixelRatio);
       chartCtx.fillStyle = 'rgba(255,255,255,0.02)';
       chartCtx.fillRect(0,0,chartCanvas.width,chartCanvas.height);
@@ -149,74 +136,6 @@
     window.addEventListener('load', resizeChart);
     window.addEventListener('orientationchange', () => setTimeout(resizeChart, 250));
     window.addEventListener('resize', () => requestAnimationFrame(resizeChart));
-
-    /* ==== NEW TPS MODULE (self-contained; won’t touch other code) ==== */
-    (function initTPS(){
-      const canvas = document.getElementById('tpsCanvas');
-      const ctx = canvas.getContext('2d');
-
-      const WINDOW = 60; // seconds
-      const buckets = new Array(WINDOW).fill(0);
-      let cursor = 0;
-      let maxSeen = 1;
-      let rafQueued = false;
-
-      function size(){
-        const r = canvas.getBoundingClientRect();
-        canvas.width  = Math.max(1, Math.floor(r.width  * devicePixelRatio));
-        canvas.height = Math.max(1, Math.floor(r.height * devicePixelRatio));
-        draw();
-      }
-
-      function rotate(){
-        cursor = (cursor + 1) % WINDOW;
-        buckets[cursor] = 0;           // clear the new "now" second
-        queueDraw();
-      }
-
-      function queueDraw(){
-        if (!rafQueued){ rafQueued = true; requestAnimationFrame(()=>{ rafQueued=false; draw(); }); }
-      }
-
-      function draw(){
-        const w = canvas.width, h = canvas.height;
-        ctx.clearRect(0,0,w,h);
-
-        // subtle baseline
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(0, h-2, w, 2);
-
-        const cell = w / WINDOW;
-        const gap = Math.max(1, Math.floor(cell * 0.2));
-        const barW = Math.max(1, Math.floor(cell - gap));
-        const scale = maxSeen > 0 ? (h - 6) / maxSeen : 1;
-
-        // draw oldest→newest left→right
-        for (let i=0;i<WINDOW;i++){
-          const idx = (cursor + 1 + i) % WINDOW;
-          const val = buckets[idx];
-          const barH = Math.max(1, Math.round(val * scale));
-          const x = Math.round(i * cell + (cell - barW));
-          const y = h - 3 - barH;
-          const alpha = Math.min(1, 0.25 + (val / (maxSeen || 1)) * 0.75);
-          ctx.fillStyle = `rgba(0,255,179,${alpha})`;
-          ctx.fillRect(x, y, barW, barH);
-        }
-      }
-
-      // public bump (count/sec). To switch to BTC/sec later, pass size.
-      window.tpsBump = function(amount){
-        const inc = Number.isFinite(amount) ? amount : 1;
-        buckets[cursor] += inc;
-        if (buckets[cursor] > maxSeen) maxSeen = buckets[cursor];
-        queueDraw();
-      };
-
-      setInterval(rotate, 1000);
-      window.addEventListener('load', size);
-      window.addEventListener('orientationchange', () => setTimeout(size, 250));
-      window.addEventListener('resize', () => requestAnimationFrame(size));
-    })();
   </script>
 </body>
 </html>
