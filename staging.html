@@ -17,7 +17,7 @@
     }
     .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
-    /* Top bar (percent hidden per your request) */
+    /* Top price/ticker (unchanged) */
     .topbar{
       position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
@@ -29,9 +29,12 @@
     }
     .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
     .price.up{color:var(--up)} .price.down{color:var(--down)}
-    .change{display:none;} /* hide the % next to the price */
+    .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;}
+    .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
+    @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
+    .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* TPS mini-bar (safe/isolated) */
+    /* NEW: TPS mini-bar (isolated; won’t touch anything else) */
     #tpsRow{
       width:min(920px,96vw); margin:6px auto 2px;
       display:flex; align-items:center; gap:8px;
@@ -44,7 +47,7 @@
     }
     #tpsCanvas{position:absolute; inset:0; display:block; width:100%; height:100%;}
 
-    /* Chart (unchanged index style) */
+    /* Chart (unchanged) */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
     #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
@@ -64,10 +67,10 @@
   <div class="wrap">
     <div class="topbar">
       <div class="price" id="price">–</div>
-      <div class="change flat" id="change">0.00%</div> <!-- kept for code stability, hidden via CSS -->
+      <div class="change flat" id="change">0.00%</div>
     </div>
 
-    <!-- TPS: safe add-on -->
+    <!-- NEW: TPS chart under the top bar -->
     <div id="tpsRow" aria-label="Trades per second (last 60s)">
       <span id="tpsLabel">TPS (60s)</span>
       <div id="tpsBox"><canvas id="tpsCanvas"></canvas></div>
@@ -111,7 +114,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // WebSocket (same as index)
+    // Coinbase WebSocket feed (same as index)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -126,8 +129,8 @@
           const p = parseFloat(msg.price);
           if (!isNaN(p)) setPrice(p);
           addTrade(msg);
-          // TPS only bumps its own counter; it doesn't touch other logic.
-          tpsBump();
+          // TPS bump (isolated)
+          tpsBump(1);
         }
       } catch {}
     };
@@ -146,7 +149,7 @@
     window.addEventListener('orientationchange', () => setTimeout(resizeChart, 250));
     window.addEventListener('resize', () => requestAnimationFrame(resizeChart));
 
-    /* ==== TPS mini chart (fully isolated) ==== */
+    /* ==== NEW: TPS mini chart (fully isolated, won’t break anything) ==== */
     (function initTPS(){
       const canvas = document.getElementById('tpsCanvas');
       const ctx = canvas.getContext('2d');
@@ -167,16 +170,21 @@
       function rotate(){
         cursor = (cursor + 1) % WINDOW;
         buckets[cursor] = 0;           // clear the new "now" second
+        queueDraw();
+      }
+
+      function queueDraw(){
         if (!rafQueued){ rafQueued = true; requestAnimationFrame(()=>{ rafQueued=false; draw(); }); }
       }
 
       function draw(){
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0,0,w,h);
-        // background
+
+        // subtle baseline
         ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(0, h-2, w, 2); // tiny baseline
-        // bars
+        ctx.fillRect(0, h-2, w, 2);
+
         const cell = w / WINDOW;
         const gap = Math.max(1, Math.floor(cell * 0.2));
         const barW = Math.max(1, Math.floor(cell - gap));
@@ -195,11 +203,12 @@
         }
       }
 
-      // Expose a tiny bump function without polluting globals
-      window.tpsBump = function(){
-        buckets[cursor] += 1;          // or add size for BTC/sec
+      // Expose minimal API for bumps; can switch to BTC/sec later
+      window.tpsBump = function(amount){
+        const inc = Number.isFinite(amount) ? amount : 1;
+        buckets[cursor] += inc;
         if (buckets[cursor] > maxSeen) maxSeen = buckets[cursor];
-        if (!rafQueued){ rafQueued = true; requestAnimationFrame(()=>{ rafQueued=false; draw(); }); }
+        queueDraw();
       };
 
       // timers + sizing
