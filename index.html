@@ -6,31 +6,17 @@
   <title>Live BTC/USD</title>
   <style>
     :root {
-      --bg:#0a0a0a;
-      --panel:#101010;
-      --text:#e9fef7;
-      --up:#00ffb3;
-      --down:#ff3c3c;
-      --glow: rgba(0,255,179,0.25);
-      --muted:#c8d6cf;
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
+      --up:#00ffb3; --down:#ff3c3c; --glow: rgba(0,255,179,0.25); --muted:#c8d6cf;
     }
     *{box-sizing:border-box}
-    html,body{
-      height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-    }
+    html,body{height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
     .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
     /* Top bar */
-    .topbar{
-      position:sticky;top:0;z-index:10;width:100%;
-      background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
-      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-      padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
-      border-bottom:1px solid rgba(255,255,255,0.06);
-      display:flex;justify-content:center;gap:12px;align-items:baseline;font-variant-numeric:tabular-nums;
-    }
+    .topbar{position:sticky;top:0;z-index:10;width:100%;background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
+      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
+      border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:center;gap:12px;align-items:baseline;font-variant-numeric:tabular-nums;}
     .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
     .price.up{color:var(--up)} .price.down{color:var(--down)}
     .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;will-change:transform,opacity;}
@@ -51,50 +37,36 @@
     .tops h4{margin:4px 0 4px;font-size:.9em;font-weight:700;letter-spacing:.3px;color:#fff;}
     .tops ul{list-style:none;margin:0;padding:0;}
     .tops li{padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.07);font-variant-numeric:tabular-nums;}
+    .tops .buy {color:var(--up)}
+    .tops .sell{color:var(--down)}
     .tops .muted{color:var(--muted);opacity:.9}
 
     /* Summary bar (mobile) */
-    .tops-summary{
-      display:none; /* hidden on desktop by default */
-      width:100%;
-      background:rgba(255,255,255,0.04);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:10px;
-      padding:6px 10px;
-      font-size:.95em;
-      font-weight:600;
-      color:#fff;
-      text-align:left;
-      cursor:pointer;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-    }
+    .tops-summary{display:none;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:6px 10px;
+      font-size:.95em;font-weight:600;color:#fff;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;}
     .tops-summary .label{opacity:.85}
     .tops-summary .vals{font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .tops-summary .vals .buy{color:var(--up)} .tops-summary .vals .sell{color:var(--down)}
     .tops-summary .chev{opacity:.8}
 
-    /* Collapse behavior on mobile */
-    @media (max-width: 600px){
-      .tops-grid{display:none;}            /* hide lists by default */
-      .tops-summary{display:flex;}         /* show summary line */
-      .tops.expanded .tops-grid{display:grid;} /* show lists when expanded */
+    @media (max-width:600px){
+      .tops-grid{display:none;}
+      .tops-summary{display:flex;}
+      .tops.expanded .tops-grid{display:grid;}
     }
 
-    /* Ticker rows */
+    /* Ticker rows — color by SIDE (buy=green, sell=red) */
     .row{display:grid;grid-template-columns:92px 1fr auto;column-gap:10px;align-items:center;padding:4px 6px;border-radius:8px;font-size:clamp(12px,3.2vw,14px);line-height:1.15;font-variant-numeric:tabular-nums;text-align:left;}
-    .row.up{color:var(--up)} .row.down{color:var(--down)} .row.flat{color:var(--text);opacity:.9}
+    .row.buy {color:var(--up)}
+    .row.sell{color:var(--down)}
     .time{white-space:nowrap;opacity:.85}
     .priceCell{white-space:nowrap}
     .amountCell{white-space:nowrap;opacity:.95;cursor:pointer;}
+    .dir{opacity:.8;margin-left:6px} /* tiny arrow after price */
 
     .headerRow{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.85em;opacity:.7;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:4px;padding-bottom:4px;display:grid;grid-template-columns:92px 1fr auto;column-gap:10px;text-align:left;}
 
-    @media (prefers-reduced-motion:reduce){
-      #chartCanvas{transition:none}
-      .change.flash{animation:none}
-    }
+    @media (prefers-reduced-motion:reduce){#chartCanvas{transition:none}.change.flash{animation:none}}
   </style>
 </head>
 <body>
@@ -111,7 +83,7 @@
       <div class="tops" id="topsPanel">
         <button id="topsToggle" class="tops-summary" aria-expanded="false">
           <span class="label">Top Buys/Sells</span>
-          <span class="vals" id="topsSummaryVals">— | —</span>
+          <span class="vals" id="topsSummaryVals"><span class="buy">—</span> | <span class="sell">—</span></span>
           <span class="chev" id="topsChev">▼</span>
         </button>
         <div class="tops-grid" id="topsLists">
@@ -132,6 +104,8 @@
         <div id="amountHeader" style="cursor:pointer;">Amount (USD)</div>
       </div>
     </section>
+
+    <!-- Ticker rows will render inside #feedContainer after the header -->
   </div>
 
   <script>
@@ -195,16 +169,18 @@
       const side =msg.side; // 'buy' | 'sell'
       const time =new Date(msg.time);
 
-      // Row direction vs previous
+      // Direction vs previous (for arrow only)
       const prevPrice=trades.length?trades[trades.length-1].price:lastPrice;
-      let dir='flat'; if(prevPrice!=null){ dir=price>prevPrice?'up':(price<prevPrice?'down':'flat'); }
+      let dirArrow=''; if(prevPrice!=null){ dirArrow = price>prevPrice ? '▲' : (price<prevPrice ? '▼' : '•'); }
 
-      // Header color tick
+      // Header color tick by last price
       if(lastPrice!==null){ priceEl.classList.remove('up','down'); if(price>lastPrice)priceEl.classList.add('up'); else if(price<lastPrice)priceEl.classList.add('down'); }
       lastPrice=price; priceEl.textContent=fmtUSD.format(price);
 
-      // Buffers
-      trades.push({price,size,time,dir}); if(trades.length>MAX_TRADES) trades.shift();
+      // Buffers (store side & arrow)
+      trades.push({price,size,time,side,dirArrow});
+      if(trades.length>MAX_TRADES) trades.shift();
+
       windowTrades.push({price,size,side,time:time.getTime()});
       pendingPriceForSeries=price;
 
@@ -213,8 +189,8 @@
 
     // --- Feed render ---
     function renderFeed(){
-      // Keep tops & header
-      const headerNodes=Array.from(feedEl.children).slice(0,2); // .tops + .headerRow
+      // Keep tops & header (first two children)
+      const headerNodes=Array.from(feedEl.children).slice(0,2);
       const frag=document.createDocumentFragment();
       headerNodes.forEach(n=>frag.appendChild(n));
 
@@ -222,10 +198,13 @@
       for(let i=trades.length-1;i>=0;i--){
         const t=trades[i];
         const row=document.createElement('div');
-        row.className=`row ${t.dir}`;
+        row.className=`row ${t.side}`; // color by SIDE
         const timeStr=t.time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
         const amountDisplay=showUSD ? fmtUSD.format(t.price*t.size) : `${fmtBTC.format(t.size)} BTC`;
-        row.innerHTML=`<div class="time">${timeStr}</div><div class="priceCell">${fmtUSD.format(t.price)}</div><div class="amountCell">${amountDisplay}</div>`;
+        row.innerHTML=`
+          <div class="time">${timeStr}</div>
+          <div class="priceCell">${fmtUSD.format(t.price)} <span class="dir">${t.dirArrow}</span></div>
+          <div class="amountCell">${amountDisplay}</div>`;
         row.querySelector('.amountCell').addEventListener('click',toggleAmountView);
         frag.appendChild(row);
       }
@@ -244,14 +223,14 @@
 
       const fmtAmt = t => showUSD ? fmtUSD.format(t.usd) : `${fmtBTC.format(t.size)} BTC`;
 
-      // Lists (desktop & expanded mobile)
-      topBuysEl.innerHTML = buys.length ? buys.map(t=>`<li>${fmtAmt(t)}</li>`).join('') : `<li class="muted">—</li>`;
-      topSellsEl.innerHTML= sells.length ? sells.map(t=>`<li>${fmtAmt(t)}</li>`).join('') : `<li class="muted">—</li>`;
+      // Lists (desktop & expanded mobile) with side colors
+      topBuysEl.innerHTML = buys.length ? buys.map(t=>`<li class="buy">${fmtAmt(t)}</li>`).join('') : `<li class="muted">—</li>`;
+      topSellsEl.innerHTML= sells.length ? sells.map(t=>`<li class="sell">${fmtAmt(t)}</li>`).join('') : `<li class="muted">—</li>`;
 
-      // Summary (mobile collapsed)
-      const topBuy  = buys[0]  ? fmtAmt(buys[0])  : '—';
-      const topSell = sells[0] ? fmtAmt(sells[0]) : '—';
-      topsSummaryVals.textContent = `Top Buy: ${topBuy} | Top Sell: ${topSell}`;
+      // Summary (mobile collapsed) with colored spans
+      const topBuy  = buys[0]  ? `<span class="buy">${fmtAmt(buys[0])}</span>`  : '<span class="buy">—</span>';
+      const topSell = sells[0] ? `<span class="sell">${fmtAmt(sells[0])}</span>` : '<span class="sell">—</span>';
+      topsSummaryVals.innerHTML = `Top Buy: ${topBuy} | Top Sell: ${topSell}`;
     }
 
     // --- Chart (segment color vs 10m avg + dashed avg line) ---
