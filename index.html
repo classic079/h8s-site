@@ -6,10 +6,8 @@
   <title>Live BTC/USD</title>
   <style>
     :root {
-      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-      /* NEW: neutral glow used before first tick */
-      --glow: rgba(0,200,255,0.22);
-      --up:#00ffb3; --down:#ff3c3c;
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
+      --up:#00ffb3; --down:#ff3c3c; --muted:#c8d6cf;
     }
     *{box-sizing:border-box}
     html,body{
@@ -38,32 +36,19 @@
 
     /* Chart */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
-    #chartCanvas{
-      position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
-      /* NEW: add subtle colorized backglow while keeping existing ring + depth */
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.04),
-        0 0 30px var(--glow),
-        0 10px 30px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
-    }
+    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
     /* Feed container */
-    #feedContainer{
-      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
-      /* NEW: match the chart’s colorized backglow */
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.04),
-        0 0 30px var(--glow),
-        0 10px 30px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
     .feedRow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:14px;font-variant-numeric:tabular-nums;}
     .feedRow:nth-child(even){background:rgba(255,255,255,0.02);}
     .feedRow.buy{color:var(--up)} .feedRow.sell{color:var(--down)}
     .feedTime{opacity:.6;font-size:12px;}
     .feedQty{opacity:.8;font-weight:600;}
+
   </style>
 </head>
 <body>
@@ -84,7 +69,6 @@
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl = document.getElementById('feedContainer');
-    const rootStyle = document.documentElement.style; // NEW
     let lastPrice = null;
 
     function setPrice(p) {
@@ -94,11 +78,6 @@
         changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
-
-        // NEW: flip glow purely on tick direction (minimal, zero side-effects)
-        if (diff > 0) rootStyle.setProperty('--glow','rgba(0,255,179,0.35)');         // green
-        else if (diff < 0) rootStyle.setProperty('--glow','rgba(255,60,60,0.35)');     // red
-        else rootStyle.setProperty('--glow','rgba(0,200,255,0.22)');                   // neutral
       }
       priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
       lastPrice = p;
@@ -116,7 +95,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WS ticker (unchanged)
+    // Coinbase WS ticker (simple, stable)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -135,13 +114,14 @@
       } catch {}
     };
 
-    // Canvas sizing (unchanged)
+    // Lightweight canvas sizing (no fancy observers)
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
       const r = canvas.getBoundingClientRect();
       canvas.width = Math.floor(r.width * devicePixelRatio);
       canvas.height = Math.floor(r.height * devicePixelRatio);
+      // Optional: quick background hint
       ctx.fillStyle = 'rgba(255,255,255,0.02)';
       ctx.fillRect(0,0,canvas.width,canvas.height);
     }
