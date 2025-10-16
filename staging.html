@@ -3,20 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Live BTC/USD — Staging</title>
+  <title>Live BTC/USD</title>
   <style>
-    :root { --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf; --up:#00ffb3; --down:#ff3c3c; }
+    :root {
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
+      --up:#00ffb3; --down:#ff3c3c; --muted:#c8d6cf;
+    }
     *{box-sizing:border-box}
     html,body{
       height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     }
-    .wrap{position:relative;min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
+    .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
-    /* Top bar */
+    /* Top price/ticker */
     .topbar{
-      position:sticky;top:0;z-index:2;width:100%;
+      position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
       padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
@@ -31,34 +34,24 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Meta cards */
-    .meta{
+    /* NEW: TPS mini-chart (lives right under the topbar) */
+    #tpsContainer{
       width:min(920px,96vw);
-      display:grid; grid-template-columns: 1fr 1fr;
-      gap:8px; margin:8px auto 0; font-variant-numeric:tabular-nums;
-      font-size:14px; opacity:.95;
+      margin:6px auto 2px;
+      display:flex;align-items:center;gap:8px;
     }
-    .card{
-      background:var(--panel); border-radius:10px; padding:8px 10px;
-      display:flex; justify-content:space-between; align-items:center;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 8px 24px rgba(0,0,0,.35);
+    #tpsLabel{font-size:12px;opacity:.75;white-space:nowrap;}
+    #tpsCanvas{
+      flex:1;height:42px;display:block;background:var(--panel);border-radius:8px;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 6px 18px rgba(0,0,0,.35);
     }
-    .card .label{opacity:.7}
-    .card .value{font-weight:700}
-    .card.buy .value{color:var(--up)}
-    .card.sell .value{color:var(--down)}
 
     /* Chart */
-    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(150px,28vh,240px);margin:8px auto 10px;}
-    #chartCanvas{
-      position:absolute;inset:0;width:100%;height:100%;
-      background:var(--panel);border-radius:12px;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
-    }
+    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
+    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
     /* Feed */
-    #feedContainer{
-      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
@@ -73,12 +66,13 @@
   <div class="wrap">
     <div class="topbar">
       <div class="price" id="price">–</div>
-      <div class="change flat" id="change">+0.00%</div>
+      <div class="change flat" id="change">0.00%</div>
     </div>
 
-    <div class="meta">
-      <div class="card buy"><span class="label">10m Max Buy Price</span><span class="value" id="maxBuyPrice">—</span></div>
-      <div class="card sell"><span class="label">10m Min Sell Price</span><span class="value" id="minSellPrice">—</span></div>
+    <!-- NEW: TPS chart -->
+    <div id="tpsContainer" aria-label="Trades per second, last 60s">
+      <span id="tpsLabel">TPS (60s)</span>
+      <canvas id="tpsCanvas"></canvas>
     </div>
 
     <div id="chartContainer">
@@ -89,181 +83,37 @@
   </div>
 
   <script>
-    // ---- DOM
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl  = document.getElementById('feedContainer');
-    const maxBuyPriceEl = document.getElementById('maxBuyPrice');
-    const minSellPriceEl = document.getElementById('minSellPrice');
 
-    // ---- State
     let lastPrice = null;
-    let latestPrice = null; // for sampler
 
-    // ---- Utils
-    const safeParseFloat = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
-    const fmtUSD = n => n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
-
-    // Normalize Coinbase → {price,size,side,time}
-    function extractTrade(msg){
-      let price = safeParseFloat(msg.price);
-      let size  = safeParseFloat(msg.last_size ?? msg.size);
-      let side  = msg.side || '';
-      let time  = msg.time;
-
-      if (!Number.isFinite(price) || !side || !time) {
-        const ev = Array.isArray(msg.events) && msg.events[0];
-        if (ev) {
-          if (!Number.isFinite(price)) {
-            if (ev.tickers?.[0]?.price) price = safeParseFloat(ev.tickers[0].price);
-            else if (ev.trades?.[0]?.price) price = safeParseFloat(ev.trades[0].price);
-          }
-          if (!Number.isFinite(size)) {
-            if (ev.tickers?.[0]?.last_size) size = safeParseFloat(ev.tickers[0].last_size);
-            else if (ev.trades?.[0]?.size) size = safeParseFloat(ev.trades[0].size);
-          }
-          if (!side && ev.trades?.[0]?.side) side = ev.trades[0].side;
-          if (!time && ev.trades?.[0]?.time) time = ev.trades[0].time;
-        }
-      }
-      return { price, size, side, time };
-    }
-
-    // ---- Ticker
     function setPrice(p) {
-      latestPrice = p;
       if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = (diff / lastPrice) * 100;
-        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
-        changeEl.className = `change ${pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat'} flash`;
-        priceEl.className = `price ${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}`;
+        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
+        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+        changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
+        priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
       }
-      priceEl.textContent = fmtUSD(p);
+      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
       lastPrice = p;
     }
 
-    // ---- 10m stats (price extremes) with pruning
-    const TEN_MIN_MS = 10 * 60 * 1000;
-    function pruneOldAndUpdateStats() {
-      const cutoff = Date.now() - TEN_MIN_MS;
-      let maxBuyPrice = -Infinity, minSellPrice = Infinity;
-
-      const rows = Array.from(feedEl.children);
-      for (const row of rows) {
-        const t = parseInt(row.dataset.timestamp || '0', 10);
-        if (!t || t < cutoff) { row.remove(); continue; }
-        const side = row.dataset.side;
-        const price = parseFloat(row.dataset.price);
-        if (!Number.isFinite(price)) continue;
-        if (side === 'buy')  maxBuyPrice = Math.max(maxBuyPrice, price);
-        if (side === 'sell') minSellPrice = Math.min(minSellPrice, price);
-      }
-
-      maxBuyPriceEl.textContent = Number.isFinite(maxBuyPrice) ? fmtUSD(maxBuyPrice) : '—';
-      minSellPriceEl.textContent = Number.isFinite(minSellPrice) ? fmtUSD(minSellPrice) : '—';
-    }
-    setInterval(pruneOldAndUpdateStats, 30_000);
-
-    // ---- Feed
     function addTrade({side, price, size, time}) {
-      const ts = time ? Date.parse(time) : Date.now();
-      const qty = safeParseFloat(size);
-      const prc = safeParseFloat(price);
-
       const row = document.createElement('div');
       row.className = `feedRow ${side || ''}`;
-
-      row.dataset.timestamp = String(ts);
-      row.dataset.side = side || '';
-      row.dataset.size = Number.isFinite(qty) ? String(qty) : '';
-      row.dataset.price = Number.isFinite(prc) ? String(prc) : '';
-
       row.innerHTML = `
-        <div class="feedTime">${time ? new Date(ts).toLocaleTimeString() : ''}</div>
-        <div class="feedQty">${Number.isFinite(qty) ? qty.toFixed(4) + ' BTC' : '—'}</div>
-        <div>${Number.isFinite(prc) ? fmtUSD(prc) : ''}</div>
+        <div class="feedTime">${time ? new Date(time).toLocaleTimeString() : ''}</div>
+        <div class="feedQty">${Number.isFinite(parseFloat(size)) ? parseFloat(size).toFixed(4) + ' BTC' : '—'}</div>
+        <div>${Number.isFinite(parseFloat(price)) ? parseFloat(price).toLocaleString('en-US',{style:'currency',currency:'USD'}) : ''}</div>
       `;
       feedEl.prepend(row);
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
-
-      pruneOldAndUpdateStats();
     }
 
-    // ---- Chart (index-like, stable)
-    const canvas = document.getElementById('chartCanvas');
-    const ctx = canvas.getContext('2d');
-    const SAMPLE_HZ = 1;          // one point per second
-    const MAX_POINTS = 600;       // ~10 minutes at 1 Hz
-    const points = [];            // [{t,p}]
-
-    function resizeCanvas(){
-      const r = canvas.getBoundingClientRect();
-      canvas.width  = Math.max(1, Math.floor(r.width  * devicePixelRatio));
-      canvas.height = Math.max(1, Math.floor(r.height * devicePixelRatio));
-      draw(); // redraw on resize
-    }
-
-    function sample(){
-      if (!Number.isFinite(latestPrice)) return;
-      const t = Date.now();
-      points.push({t, p: latestPrice});
-      while (points.length > MAX_POINTS) points.shift();
-      draw();
-    }
-
-    function draw(){
-      const w = canvas.width, h = canvas.height;
-      ctx.clearRect(0,0,w,h);
-
-      // bg hint
-      ctx.fillStyle = 'rgba(255,255,255,0.02)';
-      ctx.fillRect(0,0,w,h);
-
-      if (points.length < 2) return;
-
-      // compute y-range
-      let min = Infinity, max = -Infinity;
-      for (const {p} of points){ if (p < min) min = p; if (p > max) max = p; }
-      if (min === max) { min -= 1; max += 1; }
-      const y = p => h - ((p - min) / (max - min)) * h;
-
-      // horizontal mid guide at last price (subtle)
-      const last = points[points.length - 1].p;
-      ctx.setLineDash([6,4]);
-      ctx.lineWidth = Math.max(1, devicePixelRatio);
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-      ctx.beginPath();
-      ctx.moveTo(0, y(last));
-      ctx.lineTo(w, y(last));
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // fixed spacing across width
-      const stepX = w / (MAX_POINTS - 1);
-      // draw up/down segments like index
-      ctx.lineWidth = Math.max(1, devicePixelRatio);
-      for (let i = 1; i < points.length; i++){
-        const prev = points[i-1], curr = points[i];
-        ctx.strokeStyle = curr.p >= prev.p ? 'rgba(0,255,179,0.9)' : 'rgba(255,60,60,0.9)';
-        ctx.beginPath();
-        ctx.moveTo((i-1) * stepX, y(prev.p));
-        ctx.lineTo(i * stepX,     y(curr.p));
-        ctx.stroke();
-      }
-    }
-
-    // Resize hooks
-    window.addEventListener('load', () => {
-      resizeCanvas();
-      // start sampler after first price arrives
-      setInterval(sample, 1000 / SAMPLE_HZ);
-      pruneOldAndUpdateStats();
-    });
-    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
-    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
-
-    // ---- WebSocket
+    // ===== Coinbase WS ticker (same as your working index) =====
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -273,13 +123,92 @@
     };
     ws.onmessage = e => {
       try {
-        const raw = JSON.parse(e.data);
-        if (!raw) return;
-        const t = extractTrade(raw);
-        if (Number.isFinite(t.price)) setPrice(t.price);
-        if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'ticker' && msg.price) {
+          const p = parseFloat(msg.price);
+          if (!isNaN(p)) setPrice(p);
+          addTrade(msg);
+          // TPS bump on every valid ticker
+          bumpTPS();
+        }
       } catch {}
     };
+
+    // ===== Canvas sizing like index =====
+    const chartCanvas = document.getElementById('chartCanvas');
+    const chartCtx = chartCanvas.getContext('2d');
+    function resizeChart(){
+      const r = chartCanvas.getBoundingClientRect();
+      chartCanvas.width = Math.floor(r.width * devicePixelRatio);
+      chartCanvas.height = Math.floor(r.height * devicePixelRatio);
+      chartCtx.fillStyle = 'rgba(255,255,255,0.02)';
+      chartCtx.fillRect(0,0,chartCanvas.width,chartCanvas.height);
+    }
+
+    // ===== NEW: TPS mini bar chart =====
+    const tpsCanvas = document.getElementById('tpsCanvas');
+    const tpsCtx = tpsCanvas.getContext('2d');
+
+    const TPS_WINDOW = 60; // seconds
+    let tpsBuckets = new Array(TPS_WINDOW).fill(0);
+    let tpsCursor = 0; // which bucket is "now"
+    let tpsMaxSeen = 1;
+
+    function resizeTPS(){
+      const r = tpsCanvas.getBoundingClientRect();
+      tpsCanvas.width = Math.floor(r.width * devicePixelRatio);
+      tpsCanvas.height = Math.floor(r.height * devicePixelRatio);
+      drawTPS();
+    }
+
+    function rotateTPS(){
+      tpsCursor = (tpsCursor + 1) % TPS_WINDOW;
+      tpsBuckets[tpsCursor] = 0; // clear the new current second
+      drawTPS();
+    }
+
+    function bumpTPS(){
+      tpsBuckets[tpsCursor] += 1;
+      if (tpsBuckets[tpsCursor] > tpsMaxSeen) tpsMaxSeen = tpsBuckets[tpsCursor];
+      // lightweight draw throttle
+      if (!tpsDrawQueued){ tpsDrawQueued = true; requestAnimationFrame(()=>{ tpsDrawQueued=false; drawTPS(); }); }
+    }
+
+    let tpsDrawQueued = false;
+    function drawTPS(){
+      const w = tpsCanvas.width, h = tpsCanvas.height;
+      tpsCtx.clearRect(0,0,w,h);
+
+      // background
+      tpsCtx.fillStyle = 'rgba(255,255,255,0.02)';
+      tpsCtx.fillRect(0,0,w,h);
+
+      const barGap = Math.max(1, Math.floor(w / TPS_WINDOW * 0.2));
+      const barW = Math.max(1, Math.floor((w / TPS_WINDOW) - barGap));
+      const scale = tpsMaxSeen > 0 ? (h - 4) / tpsMaxSeen : 1;
+
+      // draw oldest → newest left→right
+      for (let i = 0; i < TPS_WINDOW; i++){
+        const idx = (tpsCursor + 1 + i) % TPS_WINDOW; // oldest first
+        const val = tpsBuckets[idx];
+        const x = i * (barW + barGap) + 2;
+        const barH = Math.max(1, Math.round(val * scale));
+        const y = h - barH - 2;
+
+        // color blend by load: low-muted → high-bright
+        const alpha = Math.min(1, 0.3 + (val / (tpsMaxSeen || 1)) * 0.7);
+        tpsCtx.fillStyle = `rgba(0,255,179,${alpha})`;
+        tpsCtx.fillRect(x, y, barW, barH);
+      }
+    }
+
+    // timers
+    setInterval(rotateTPS, 1000);
+
+    // boot
+    window.addEventListener('load', () => { resizeChart(); resizeTPS(); });
+    window.addEventListener('orientationchange', () => { setTimeout(resizeChart, 250); setTimeout(resizeTPS, 250); });
+    window.addEventListener('resize', () => { requestAnimationFrame(resizeChart); requestAnimationFrame(resizeTPS); });
   </script>
 </body>
 </html>
