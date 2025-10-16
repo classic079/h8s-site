@@ -69,10 +69,21 @@
       font-weight: 700;
       opacity:.9;
       transition: color .25s ease;
+      will-change: transform, opacity;
     }
     .change.up   { color: var(--up); }
     .change.down { color: var(--down); }
     .change.flat { color: #c8d6cf; }
+
+    /* Flash animation when the 10m change updates */
+    @keyframes changeFlash {
+      0% { opacity: 0.4; transform: scale(0.985); }
+      60% { opacity: 1; transform: scale(1.0); }
+      100% { opacity: 0.95; transform: scale(1.0); }
+    }
+    .change.flash {
+      animation: changeFlash 450ms ease-out;
+    }
 
     /* Chart */
     #chartContainer{
@@ -137,6 +148,7 @@
     }
     @media (prefers-reduced-motion: reduce){
       #chartCanvas{transition:none}
+      .change.flash{ animation: none; }
     }
   </style>
 </head>
@@ -174,7 +186,7 @@
     const fmtUSD = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2 });
     const fmtUSDChange = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2, signDisplay:'always' });
     const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 5 });
-    const fmtPct = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'always' });
+    const fmtPct = new Intl.NumberFormat(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3, signDisplay: 'always' });
 
     // Buffers & state
     const MAX_TRADES = 50;
@@ -320,7 +332,7 @@
       ctx.stroke();
     }
 
-    // Update the 10-minute change label (absolute + percent)
+    // Update the 10-minute change label (absolute + percent) with flash
     function updateTenMinuteChange(){
       // Drop points older than 10 minutes
       const cutoff = Date.now() - WINDOW_MS;
@@ -338,8 +350,15 @@
       const pct   = ((now - start) / start) * 100;
       const cls   = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
 
-      changeEl.textContent = `${fmtUSDChange.format(diff)} (${fmtPct.format(pct)})`;
+      // Update text
+      changeEl.textContent = `${fmtUSDChange.format(diff)} (${fmtPct.format(pct)}%)`;
+
+      // Re-trigger flash animation
       changeEl.className = `change ${cls}`;
+      // Force reflow to restart animation reliably across browsers
+      // eslint-disable-next-line no-unused-expressions
+      void changeEl.offsetWidth;
+      changeEl.classList.add('flash');
     }
 
     // Animation loop
@@ -368,10 +387,13 @@
 
     // Toggle amount view (BTC <-> USD)
     function toggleAmountView(){
-      showUSD = !showUSD;
-      amountHeader.textContent = showUSD ? 'Amount (USD)' : 'Amount (BTC)';
+      const showingUSD = amountHeader.textContent.includes('USD');
+      amountHeader.textContent = showingUSD ? 'Amount (BTC)' : 'Amount (USD)';
       renderFeed();
+      // flip state
+      showUSD = !showUSD;
     }
+
     amountHeader.addEventListener('click', toggleAmountView);
 
     // Visibility
