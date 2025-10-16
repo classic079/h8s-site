@@ -5,22 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Live BTC/USD — Staging</title>
   <style>
-    :root {
-      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-      --glow: rgba(0,200,255,0.22); /* neutral at boot */
-      --up:#00ffb3; --down:#ff3c3c;
-    }
+    :root { --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf; --up:#00ffb3; --down:#ff3c3c; }
     *{box-sizing:border-box}
     html,body{
       height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     }
-    .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
+
+    /* === NEW: a standalone glow layer behind the app === */
+    #glowLayer{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      opacity:.5; transition:opacity .25s ease, filter .25s ease, background-image .25s ease;
+      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,200,255,.25), rgba(0,0,0,0) 60%);
+      filter: blur(18px);
+    }
+    #glowLayer.up{
+      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,255,179,.28), rgba(0,0,0,0) 60%);
+    }
+    #glowLayer.down{
+      background-image: radial-gradient(60% 50% at 50% 20%, rgba(255,60,60,.28), rgba(0,0,0,0) 60%);
+    }
+    #glowLayer.neutral{
+      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,200,255,.22), rgba(0,0,0,0) 60%);
+    }
+    /* a subtle pulse on change */
+    @keyframes glowPulse { 0%{opacity:.4} 60%{opacity:.6} 100%{opacity:.5} }
+    #glowLayer.pulse{ animation: glowPulse 600ms ease-out 1; }
+
+    /* App wrapper sits above the glow */
+    .wrap{position:relative; z-index:1; min-height:100%; padding-bottom:env(safe-area-inset-bottom); display:flex; flex-direction:column; align-items:center;}
 
     /* Top bar */
     .topbar{
-      position:sticky;top:0;z-index:10;width:100%;
+      position:sticky;top:0;z-index:2;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
       padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
@@ -35,26 +53,15 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Chart with colorized backglow */
+    /* Chart */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
-    #chartCanvas{
-      position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.04),
-        0 0 30px var(--glow),
-        0 10px 30px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
-    }
+    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
-    /* Feed mirrors the glow */
+    /* Feed */
     #feedContainer{
       width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,.04),
-        0 0 30px var(--glow),
-        0 10px 30px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
     .feedRow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:14px;font-variant-numeric:tabular-nums;}
     .feedRow:nth-child(even){background:rgba(255,255,255,0.02);}
@@ -64,6 +71,9 @@
   </style>
 </head>
 <body>
+  <!-- NEW glow layer -->
+  <div id="glowLayer" class="neutral"></div>
+
   <div class="wrap">
     <div class="topbar">
       <div class="price" id="price">–</div>
@@ -78,100 +88,53 @@
   </div>
 
   <script>
-    // DOM
+    // === original working logic preserved ===
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
-    const feedEl  = document.getElementById('feedContainer');
-    const rootStyle = document.documentElement.style;
-
-    // State
+    const feedEl = document.getElementById('feedContainer');
     let lastPrice = null;
 
-    // 10m average for glow only (doesn't touch ticker/chart)
-    const TEN_MIN_MS = 10 * 60 * 1000;
-    const ring = []; // {t, p}
-    function pruneOld(now){ for (let i=ring.length-1;i>=0;i--) if (now-ring[i].t > TEN_MIN_MS) ring.splice(i,1); }
-    function avg10m(now){ pruneOld(now); if(!ring.length) return NaN; let s=0; for (const r of ring) s+=r.p; return s/ring.length; }
-    const DEADBAND_FRAC = 0.002; // ±0.2%
+    // NEW: glow layer hook (separate from UI)
+    const glow = document.getElementById('glowLayer');
+    function setGlow(mode){
+      glow.classList.remove('up','down','neutral','pulse');
+      glow.classList.add(mode);
+      // quick pulse to make the change perceptible
+      requestAnimationFrame(()=> glow.classList.add('pulse'));
+    }
 
     function setPrice(p) {
-      // Handle first tick cleanly (no false -0.00% / red)
-      if (lastPrice === null) {
-        priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-        changeEl.textContent = '+0.00%';
-        changeEl.className = 'change flat';
-        lastPrice = p;
-      } else {
+      if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = (diff / lastPrice * 100);
-        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
+        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
-        priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-        lastPrice = p;
-      }
 
-      // Glow vs 10m avg (isolated to CSS var)
-      const now = Date.now();
-      ring.push({t: now, p});
-      const a = avg10m(now);
-      if (isFinite(a)) {
-        const spread = Math.abs(p - a) / a;
-        if (spread <= DEADBAND_FRAC) rootStyle.setProperty('--glow','rgba(0,200,255,0.22)'); // neutral
-        else if (p > a) rootStyle.setProperty('--glow','rgba(0,255,179,0.35)');             // green
-        else rootStyle.setProperty('--glow','rgba(255,60,60,0.35)');                        // red
+        // NEW: pick glow solely by tick direction (no touching chart/feed)
+        if (diff > 0) setGlow('up');
+        else if (diff < 0) setGlow('down');
+        else setGlow('neutral');
       } else {
-        rootStyle.setProperty('--glow','rgba(0,200,255,0.22)');
+        setGlow('neutral'); // first tick: keep neutral
       }
-      if (ring.length > 36000) ring.shift();
-    }
-
-    function safeParseFloat(x){
-      const n = parseFloat(x);
-      return Number.isFinite(n) ? n : NaN;
-    }
-
-    function extractTrade(msg){
-      // Normalize various Coinbase message shapes into {price, size, side, time}
-      // Legacy "ticker": price, last_size, side, time
-      let price = safeParseFloat(msg.price);
-      let size  = safeParseFloat(msg.last_size ?? msg.size);
-      let side  = msg.side || '';
-      let time  = msg.time;
-
-      // Advanced Trade "events": [{ tickers:[{price,last_size}], trades:[{price,size,side,time}] }]
-      if (!Number.isFinite(price) || !Number.isFinite(size) || !side || !time) {
-        const ev = Array.isArray(msg.events) && msg.events[0];
-        if (ev) {
-          if (!Number.isFinite(price)) {
-            if (ev.tickers && ev.tickers[0] && ev.tickers[0].price) price = safeParseFloat(ev.tickers[0].price);
-            else if (ev.trades && ev.trades[0] && ev.trades[0].price) price = safeParseFloat(ev.trades[0].price);
-          }
-          if (!Number.isFinite(size)) {
-            if (ev.tickers && ev.tickers[0] && ev.tickers[0].last_size) size = safeParseFloat(ev.tickers[0].last_size);
-            else if (ev.trades && ev.trades[0] && ev.trades[0].size) size = safeParseFloat(ev.trades[0].size);
-          }
-          if (!side && ev.trades && ev.trades[0] && ev.trades[0].side) side = ev.trades[0].side;
-          if (!time && ev.trades && ev.trades[0] && ev.trades[0].time) time = ev.trades[0].time;
-        }
-      }
-      return { price, size, side, time };
+      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+      lastPrice = p;
     }
 
     function addTrade({side, price, size, time}) {
-      const qty = Number.isFinite(size) ? size.toFixed(4) + ' BTC' : '—';
       const row = document.createElement('div');
-      row.className = `feedRow ${side || ''}`;
+      row.className = `feedRow ${side}`;
       row.innerHTML = `
-        <div class="feedTime">${time ? new Date(time).toLocaleTimeString() : ''}</div>
-        <div class="feedQty">${qty}</div>
-        <div>${Number.isFinite(price) ? price.toLocaleString('en-US',{style:'currency',currency:'USD'}) : ''}</div>
+        <div class="feedTime">${new Date(time).toLocaleTimeString()}</div>
+        <div class="feedQty">${parseFloat(size).toFixed(4)} BTC</div>
+        <div>${parseFloat(price).toLocaleString('en-US',{style:'currency',currency:'USD'})}</div>
       `;
       feedEl.prepend(row);
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WS (legacy endpoint; AT often proxies to this format anyway)
+    // Coinbase WS ticker (unchanged)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -179,15 +142,14 @@
         channels: [{ name: 'ticker', product_ids: ['BTC-USD'] }]
       }));
     };
-    ws.onmessage = (e) => {
+    ws.onmessage = e => {
       try {
         const msg = JSON.parse(e.data);
-        if (!msg) return;
-        // try to pull normalized fields
-        const t = extractTrade(msg);
-        if (Number.isFinite(t.price)) setPrice(t.price);
-        // only render feed row if we’ve got at least price or size/time
-        if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
+        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
+          const p = parseFloat(msg.price);
+          if (!isNaN(p)) setPrice(p);
+          addTrade(msg);
+        }
       } catch {}
     };
 
