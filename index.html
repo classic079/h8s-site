@@ -69,28 +69,73 @@
       window.addEventListener('orientationchange', () => setTimeout(initOrResizeChart, 250));
       initOrResizeChart();
 
-      // ===== Live BTC price via Binance (no API key) with CoinGecko fallback =====
+      // ===== Live price via Coinbase WebSocket (public) with HTTP fallback =====
       (function () {
         const debug = document.getElementById('debug');
         if (location.hash.includes('debug')) debug.style.display = 'block';
-        function log(m){ if (debug.style.display==='block') debug.textContent = m; }
+        function log(m){ if (debug && debug.style.display==='block') debug.textContent = m; }
 
         let updatedFromWS = false;
-        try {
-          const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
-          ws.onopen = () => log('WS: open');
-          ws.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg && msg.p) {
-              const price = parseFloat(msg.p);
-              if (!Number.isNaN(price)) { setPriceDisplay(price); updatedFromWS = true; }
-            }
-          };
-          ws.onerror = () => log('WS: error');
-          ws.onclose = () => log('WS: close');
-        } catch (err) { log('WS: exception'); }
 
-        // Fallback: if no WS update after 5s, poll CoinGecko every 15s
+        // Try Advanced Trade WS first
+        function connectAdvancedTrade(){
+          try {
+            const ws = new WebSocket('wss://advanced-trade-ws.coinbase.com');
+            ws.onopen = () => {
+              log('CB AT: open');
+              // Two possible subscribe formats; try simplest first
+              try { ws.send(JSON.stringify({ type:'subscribe', channel:'ticker', product_ids:['BTC-USD'] })); }
+              catch(_){}
+              // Also try legacy-style payload in case proxy expects it
+              try { ws.send(JSON.stringify({ type:'subscribe', channels:[{ name:'ticker', product_ids:['BTC-USD'] }] })); }
+              catch(_){}
+            };
+            ws.onmessage = (e) => {
+              try {
+                const msg = JSON.parse(e.data);
+                // Extract price from multiple possible shapes
+                let price = NaN;
+                if (msg.price) price = parseFloat(msg.price);
+                else if (msg.events && msg.events[0]) {
+                  const ev = msg.events[0];
+                  if (ev.tickers && ev.tickers[0] && ev.tickers[0].price) price = parseFloat(ev.tickers[0].price);
+                  else if (ev.trades && ev.trades[0] && ev.trades[0].price) price = parseFloat(ev.trades[0].price);
+                }
+                if (!Number.isNaN(price)) { setPriceDisplay(price); updatedFromWS = true; }
+              } catch(_){}
+            };
+            ws.onerror = () => log('CB AT: error');
+            ws.onclose = () => log('CB AT: close');
+          } catch (err) { log('CB AT: exception'); }
+        }
+
+        // Legacy Pro feed fallback
+        function connectLegacy(){
+          try {
+            const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+            ws.onopen = () => {
+              log('CB Pro: open');
+              ws.send(JSON.stringify({ type:'subscribe', channels:[{ name:'ticker', product_ids:['BTC-USD'] }] }));
+            };
+            ws.onmessage = (e) => {
+              try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'ticker' && msg.price) {
+                  const price = parseFloat(msg.price);
+                  if (!Number.isNaN(price)) { setPriceDisplay(price); updatedFromWS = true; }
+                }
+              } catch(_){}
+            };
+            ws.onerror = () => log('CB Pro: error');
+            ws.onclose = () => log('CB Pro: close');
+          } catch (err) { log('CB Pro: exception'); }
+        }
+
+        connectAdvancedTrade();
+        // Also attempt legacy in parallel after a short delay
+        setTimeout(connectLegacy, 1000);
+
+        // HTTP fallback (CoinGecko) if WS delivers nothing after 5s
         async function pollCG(){
           try {
             const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { cache: 'no-store' });
