@@ -16,9 +16,12 @@
       }
       /* Layout tuned for iPhone */
       #app { min-height: 100svh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: grid; grid-template-rows: auto 1fr; gap: 12px; }
-      #price-section { display: grid; place-items: center; text-align: center; padding-top: 4px; }
+      #price-section { position: relative; display: grid; place-items: center; text-align: center; padding: 8px 0; }
       .live-price { line-height: 1.05; font-size: clamp(40px, 11vw, 72px); font-weight: 700; letter-spacing: -0.02em; }
-      .subline { margin-top: 6px; opacity: .7; font-size: clamp(12px, 3.2vw, 14px); }
+      .subline { margin-top: 6px; opacity:.7; font-size: clamp(12px, 3.2vw, 14px); }
+      /* Sparkline canvas behind the price */
+      #spark { position:absolute; inset:0; z-index:0; opacity:.25; }
+      #price-section > * { position: relative; z-index: 1; }
 
       /* TAPE */
       #tape { background: #0e121a; border-radius: 16px; padding: 8px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
@@ -39,6 +42,7 @@
   <body>
     <main id="app">
       <section id="price-section" aria-label="Live price">
+        <canvas id="spark" aria-hidden="true"></canvas>
         <div id="live-price" class="live-price" role="status" aria-live="polite">Loading…</div>
         <div class="subline" id="subline">Updated • —</div>
       </section>
@@ -63,8 +67,77 @@
         const s = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
         priceEl.textContent = s;
         sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        addPriceSample(value);
+      }).format(value);
+        priceEl.textContent = s;
+        sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
       window.updatePrice = setPriceDisplay;
+      // ===== Sparkline state & rendering =====
+      const spark = document.getElementById('spark');
+      const history = []; // {t, p}
+      const HORIZON_MS = 10 * 60 * 1000; // 10 minutes
+      let lastSampleTs = 0;
+      let lastSparkPaint = 0;
+
+      function addPriceSample(p) {
+        const now = Date.now();
+        // sample at most every 2s
+        if (now - lastSampleTs < 2000) return;
+        lastSampleTs = now;
+        history.push({ t: now, p: Number(p) });
+        // prune old
+        const cutoff = now - HORIZON_MS;
+        while (history.length && history[0].t < cutoff) history.shift();
+        requestAnimationFrame(paintSpark);
+      }
+
+      function sizeSpark() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = spark.getBoundingClientRect();
+        spark.width = Math.max(1, Math.floor(rect.width * dpr));
+        spark.height = Math.max(1, Math.floor(rect.height * dpr));
+      }
+
+      function paintSpark() {
+        const now = performance.now();
+        if (now - lastSparkPaint < 120) return; // ~8 fps cap
+        lastSparkPaint = now;
+        const ctx = spark.getContext('2d');
+        const w = spark.width, h = spark.height;
+        if (!w || !h) return;
+        ctx.clearRect(0,0,w,h);
+        if (history.length < 2) return;
+        const t0 = history[0].t;
+        const t1 = history[history.length - 1].t;
+        const minP = Math.min(...history.map(x=>x.p));
+        const maxP = Math.max(...history.map(x=>x.p));
+        const range = Math.max(1e-6, maxP - minP);
+        // margins
+        const mx = Math.floor(w*0.04), my = Math.floor(h*0.18);
+        const iw = w - mx*2, ih = h - my*2;
+        ctx.lineWidth = Math.max(1, Math.floor(w/300));
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        for (let i=0;i<history.length;i++){
+          const x = mx + ((history[i].t - t0) / Math.max(1, (t1 - t0))) * iw;
+          const y = my + (1 - (history[i].p - minP)/range) * ih;
+          if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        // subtle baseline
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.moveTo(mx, my + ih);
+        ctx.lineTo(mx+iw, my+ih);
+        ctx.stroke();
+      }
+
+      function initSpark() { sizeSpark(); paintSpark(); }
+      window.addEventListener('load', initSpark);
+      window.addEventListener('orientationchange', () => setTimeout(initSpark, 250));
 
       // ===== Coinbase Pro trade tape =====
       (function(){
