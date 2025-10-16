@@ -17,7 +17,7 @@
     }
     .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
-    /* Top price/ticker (unchanged) */
+    /* Top bar (unchanged) */
     .topbar{
       position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
@@ -34,7 +34,7 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* NEW: TPS mini-bar (isolated; won’t touch anything else) */
+    /* === NEW: TPS mini bar directly under topbar === */
     #tpsRow{
       width:min(920px,96vw); margin:6px auto 2px;
       display:flex; align-items:center; gap:8px;
@@ -70,7 +70,7 @@
       <div class="change flat" id="change">0.00%</div>
     </div>
 
-    <!-- NEW: TPS chart under the top bar -->
+    <!-- NEW: TPS bar (added, everything else unchanged) -->
     <div id="tpsRow" aria-label="Trades per second (last 60s)">
       <span id="tpsLabel">TPS (60s)</span>
       <div id="tpsBox"><canvas id="tpsCanvas"></canvas></div>
@@ -84,7 +84,7 @@
   </div>
 
   <script>
-    /* ==== Original index logic (unchanged) ==== */
+    /* ==== ORIGINAL INDEX LOGIC (unchanged) ==== */
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl = document.getElementById('feedContainer');
@@ -114,7 +114,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WebSocket feed (same as index)
+    // Coinbase WebSocket feed (UNCHANGED except for one added line: tpsBump(1))
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -129,13 +129,14 @@
           const p = parseFloat(msg.price);
           if (!isNaN(p)) setPrice(p);
           addTrade(msg);
-          // TPS bump (isolated)
-          tpsBump(1);
+
+          /* NEW: bump TPS counter (does nothing if TPS module isn’t loaded) */
+          if (window.tpsBump) window.tpsBump(1);
         }
       } catch {}
     };
 
-    // Chart canvas sizing (unchanged)
+    // Chart canvas sizing (UNCHANGED)
     const chartCanvas = document.getElementById('chartCanvas');
     const chartCtx = chartCanvas.getContext('2d');
     function resizeChart(){
@@ -149,7 +150,7 @@
     window.addEventListener('orientationchange', () => setTimeout(resizeChart, 250));
     window.addEventListener('resize', () => requestAnimationFrame(resizeChart));
 
-    /* ==== NEW: TPS mini chart (fully isolated, won’t break anything) ==== */
+    /* ==== NEW TPS MODULE (self-contained; won’t touch other code) ==== */
     (function initTPS(){
       const canvas = document.getElementById('tpsCanvas');
       const ctx = canvas.getContext('2d');
@@ -190,7 +191,7 @@
         const barW = Math.max(1, Math.floor(cell - gap));
         const scale = maxSeen > 0 ? (h - 6) / maxSeen : 1;
 
-        // draw oldest→newest
+        // draw oldest→newest left→right
         for (let i=0;i<WINDOW;i++){
           const idx = (cursor + 1 + i) % WINDOW;
           const val = buckets[idx];
@@ -203,7 +204,7 @@
         }
       }
 
-      // Expose minimal API for bumps; can switch to BTC/sec later
+      // public bump (count/sec). To switch to BTC/sec later, pass size.
       window.tpsBump = function(amount){
         const inc = Number.isFinite(amount) ? amount : 1;
         buckets[cursor] += inc;
@@ -211,7 +212,6 @@
         queueDraw();
       };
 
-      // timers + sizing
       setInterval(rotate, 1000);
       window.addEventListener('load', size);
       window.addEventListener('orientationchange', () => setTimeout(size, 250));
