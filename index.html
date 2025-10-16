@@ -36,7 +36,6 @@
       align-items:center;
     }
 
-    /* Top sticky bar with just the price */
     .topbar{
       position: sticky;
       top: 0;
@@ -62,7 +61,6 @@
     .price.up{ color: var(--up); }
     .price.down{ color: var(--down); }
 
-    /* Chart */
     #chartContainer{
       position: relative;
       width: min(920px, 96vw);
@@ -77,7 +75,6 @@
       box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 30px rgba(0,0,0,.35);
     }
 
-    /* Feed */
     #feedContainer{
       width: min(920px, 96vw);
       height: 56vh;
@@ -99,7 +96,7 @@
       font-size: clamp(12px, 3.2vw, 14px);
       line-height:1.15;
       font-variant-numeric: tabular-nums;
-      text-align:left;              /* LEFT aligned */
+      text-align:left;
     }
     .row.up   { color: var(--up); }
     .row.down { color: var(--down); }
@@ -107,8 +104,22 @@
 
     .time{white-space:nowrap; opacity:.85}
     .priceCell{white-space:nowrap}
-    .amountCell{white-space:nowrap; opacity:.95}
+    .amountCell{white-space:nowrap; opacity:.95; cursor:pointer;}
 
+    .headerRow {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: 0.85em;
+      opacity: 0.7;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      display:grid;
+      grid-template-columns: 92px 1fr auto;
+      column-gap:10px;
+      text-align:left;
+    }
     @media (prefers-reduced-motion: reduce){
       #chartCanvas{transition:none}
     }
@@ -124,31 +135,33 @@
       <canvas id="chartCanvas"></canvas>
     </section>
 
-    <section id="feedContainer" aria-label="Recent Trades"></section>
+    <section id="feedContainer" aria-label="Recent Trades">
+      <div class="headerRow">
+        <div>Time</div>
+        <div>Price</div>
+        <div id="amountHeader" style="cursor:pointer;">Amount (BTC)</div>
+      </div>
+    </section>
   </div>
 
   <script>
-    // ---------- DOM refs ----------
     const $ = sel => document.querySelector(sel);
     const feedEl = $('#feedContainer');
     const priceEl = $('#livePrice');
-
+    const amountHeader = $('#amountHeader');
     const chartCanvas = $('#chartCanvas');
     const ctx = chartCanvas.getContext('2d', { desynchronized: true });
 
     const fmtUSD = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2 });
-    const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 8 });
+    const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 5 });
 
-    // Buffers
-    const MAX_TRADES = 50;   // latest 50 in the box
-    const MAX_POINTS = 600;  // ~10 minutes if ~1/s sampling
-    let trades = [];         // {price, size, time, dir}
+    const MAX_TRADES = 50;
+    const MAX_POINTS = 600;
+    let trades = [];
     let prices = [];
-
-    // Track last price for top bar color + per-row direction
     let lastPrice = null;
+    let showUSD = false;
 
-    // Hi-DPI canvas
     function resizeCanvas(){
       const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
       const cssW = chartCanvas.clientWidth;
@@ -160,9 +173,7 @@
     }
     const ro = new ResizeObserver(resizeCanvas);
     ro.observe(chartCanvas);
-    window.addEventListener('orientationchange', resizeCanvas, { passive:true });
 
-    // ---------- WebSocket ----------
     let ws, reconnectTimer;
     const SUB_MSG = {
       type: 'subscribe',
@@ -179,11 +190,9 @@
       ws.addEventListener('error', () => ws.close(), { once:true });
     }
     function tryReconnect(){
-      clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connect, 1000);
     }
 
-    // Batched updates
     let needsFeedRender = false;
     let latestTickForChart = null;
 
@@ -192,10 +201,9 @@
       if (msg.type !== 'match') return;
 
       const price = parseFloat(msg.price);
-      const size  = parseFloat(msg.size); // BTC amount
+      const size  = parseFloat(msg.size);
       const time  = new Date(msg.time);
 
-      // Determine direction vs previous trade
       const prev = trades.length ? trades[trades.length - 1].price : lastPrice;
       let dir = 'flat';
       if (prev != null){
@@ -203,7 +211,6 @@
         else if (price < prev) dir = 'down';
       }
 
-      // Header price color (vs last header price)
       if (lastPrice !== null){
         priceEl.classList.remove('up','down');
         if (price > lastPrice) priceEl.classList.add('up');
@@ -212,44 +219,45 @@
       lastPrice = price;
       priceEl.textContent = fmtUSD.format(price);
 
-      // Feed buffer
       trades.push({ price, size, time, dir });
       if (trades.length > MAX_TRADES) trades.shift();
 
-      // Chart sampling
       latestTickForChart = price;
-
       needsFeedRender = true;
     }
 
-    // ---------- Rendering ----------
     function renderFeed(){
+      const oldHeader = feedEl.querySelector('.headerRow');
       const frag = document.createDocumentFragment();
-      // render newest -> oldest (top to bottom)
+      frag.appendChild(oldHeader);
+
       for (let i = trades.length - 1; i >= 0; i--){
         const t = trades[i];
         const row = document.createElement('div');
         row.className = `row ${t.dir}`;
         const timeStr = t.time.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+        const amountDisplay = showUSD
+          ? fmtUSD.format(t.price * t.size)
+          : `${fmtBTC.format(t.size)} BTC`;
+
         row.innerHTML = `
           <div class="time">${timeStr}</div>
           <div class="priceCell">${fmtUSD.format(t.price)}</div>
-          <div class="amountCell">${fmtBTC.format(t.size)} BTC</div>
+          <div class="amountCell">${amountDisplay}</div>
         `;
+
+        row.querySelector('.amountCell').addEventListener('click', toggleAmountView);
         frag.appendChild(row);
       }
-      const prevScrollBottom = feedEl.scrollHeight - feedEl.scrollTop - feedEl.clientHeight;
+
       feedEl.innerHTML = '';
       feedEl.appendChild(frag);
-      if (prevScrollBottom < 40) {
-        feedEl.scrollTop = 0;
-      }
     }
 
     function drawChart(force=false){
       const w = chartCanvas.clientWidth;
       const h = chartCanvas.clientHeight;
-
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = '#101010';
       ctx.fillRect(0, 0, w, h);
@@ -257,11 +265,7 @@
       if (prices.length < 2) return;
 
       let min = Infinity, max = -Infinity;
-      for (let i=0;i<prices.length;i++){
-        const p = prices[i];
-        if (p < min) min = p;
-        if (p > max) max = p;
-      }
+      for (let p of prices){ if (p < min) min = p; if (p > max) max = p; }
       const range = (max - min) || 1;
 
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
@@ -274,11 +278,11 @@
       ctx.beginPath();
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#00ffb3';
-      for (let i=0;i<prices.length;i++){
+      prices.forEach((p, i) => {
         const x = (i / (prices.length - 1)) * w;
-        const y = h - ((prices[i] - min) / range) * h;
+        const y = h - ((p - min) / range) * h;
         if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      }
+      });
       ctx.stroke();
     }
 
@@ -296,11 +300,14 @@
       requestAnimationFrame(loop);
     }
 
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) drawChart(true);
-    }, { passive:true });
+    function toggleAmountView(){
+      showUSD = !showUSD;
+      amountHeader.textContent = showUSD ? 'Amount (USD)' : 'Amount (BTC)';
+      renderFeed();
+    }
 
-    // Init
+    amountHeader.addEventListener('click', toggleAmountView);
+
     resizeCanvas();
     connect();
     requestAnimationFrame(loop);
