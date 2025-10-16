@@ -3,42 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Live BTC/USD — Staging</title>
+  <title>Live BTC/USD</title>
   <style>
-    :root { --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf; --up:#00ffb3; --down:#ff3c3c; }
+    :root {
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
+      --up:#00ffb3; --down:#ff3c3c; --muted:#c8d6cf;
+    }
     *{box-sizing:border-box}
     html,body{
       height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     }
-
-    /* === NEW: a standalone glow layer behind the app === */
-    #glowLayer{
-      position:fixed; inset:0; z-index:0; pointer-events:none;
-      opacity:.5; transition:opacity .25s ease, filter .25s ease, background-image .25s ease;
-      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,200,255,.25), rgba(0,0,0,0) 60%);
-      filter: blur(18px);
-    }
-    #glowLayer.up{
-      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,255,179,.28), rgba(0,0,0,0) 60%);
-    }
-    #glowLayer.down{
-      background-image: radial-gradient(60% 50% at 50% 20%, rgba(255,60,60,.28), rgba(0,0,0,0) 60%);
-    }
-    #glowLayer.neutral{
-      background-image: radial-gradient(60% 50% at 50% 20%, rgba(0,200,255,.22), rgba(0,0,0,0) 60%);
-    }
-    /* a subtle pulse on change */
-    @keyframes glowPulse { 0%{opacity:.4} 60%{opacity:.6} 100%{opacity:.5} }
-    #glowLayer.pulse{ animation: glowPulse 600ms ease-out 1; }
-
-    /* App wrapper sits above the glow */
-    .wrap{position:relative; z-index:1; min-height:100%; padding-bottom:env(safe-area-inset-bottom); display:flex; flex-direction:column; align-items:center;}
+    .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
 
     /* Top bar */
     .topbar{
-      position:sticky;top:0;z-index:2;width:100%;
+      position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
       padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
@@ -57,9 +38,8 @@
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
     #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
-    /* Feed */
-    #feedContainer{
-      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+    /* Feed container */
+    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
@@ -68,12 +48,10 @@
     .feedRow.buy{color:var(--up)} .feedRow.sell{color:var(--down)}
     .feedTime{opacity:.6;font-size:12px;}
     .feedQty{opacity:.8;font-weight:600;}
+
   </style>
 </head>
 <body>
-  <!-- NEW glow layer -->
-  <div id="glowLayer" class="neutral"></div>
-
   <div class="wrap">
     <div class="topbar">
       <div class="price" id="price">–</div>
@@ -88,20 +66,10 @@
   </div>
 
   <script>
-    // === original working logic preserved ===
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl = document.getElementById('feedContainer');
     let lastPrice = null;
-
-    // NEW: glow layer hook (separate from UI)
-    const glow = document.getElementById('glowLayer');
-    function setGlow(mode){
-      glow.classList.remove('up','down','neutral','pulse');
-      glow.classList.add(mode);
-      // quick pulse to make the change perceptible
-      requestAnimationFrame(()=> glow.classList.add('pulse'));
-    }
 
     function setPrice(p) {
       if (lastPrice !== null) {
@@ -110,13 +78,6 @@
         changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
-
-        // NEW: pick glow solely by tick direction (no touching chart/feed)
-        if (diff > 0) setGlow('up');
-        else if (diff < 0) setGlow('down');
-        else setGlow('neutral');
-      } else {
-        setGlow('neutral'); // first tick: keep neutral
       }
       priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
       lastPrice = p;
@@ -134,7 +95,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WS ticker (unchanged)
+    // Coinbase WS ticker (stable)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -153,7 +114,7 @@
       } catch {}
     };
 
-    // Canvas sizing (unchanged)
+    // Canvas sizing
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
