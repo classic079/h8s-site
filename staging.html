@@ -31,7 +31,7 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Meta cards (price extremes only) */
+    /* Meta cards */
     .meta{
       width:min(920px,96vw);
       display:grid; grid-template-columns: 1fr 1fr;
@@ -48,7 +48,7 @@
     .card.buy .value{color:var(--up)}
     .card.sell .value{color:var(--down)}
 
-    /* Chart (same behavior as index.html: static canvas, no drawing loop) */
+    /* Chart */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(150px,28vh,240px);margin:8px auto 10px;}
     #chartCanvas{
       position:absolute;inset:0;width:100%;height:100%;
@@ -89,21 +89,22 @@
   </div>
 
   <script>
-    // DOM refs
+    // ---- DOM
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
     const feedEl  = document.getElementById('feedContainer');
     const maxBuyPriceEl = document.getElementById('maxBuyPrice');
     const minSellPriceEl = document.getElementById('minSellPrice');
 
-    // State
+    // ---- State
     let lastPrice = null;
+    let latestPrice = null; // for sampler
 
-    // Helpers
+    // ---- Utils
     const safeParseFloat = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
     const fmtUSD = n => n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
 
-    // Normalizer (handles legacy + Advanced Trade shapes)
+    // Normalize Coinbase → {price,size,side,time}
     function extractTrade(msg){
       let price = safeParseFloat(msg.price);
       let size  = safeParseFloat(msg.last_size ?? msg.size);
@@ -128,8 +129,9 @@
       return { price, size, side, time };
     }
 
-    // Ticker (same behavior)
+    // ---- Ticker
     function setPrice(p) {
+      latestPrice = p;
       if (lastPrice !== null) {
         const diff = p - lastPrice;
         const pct = (diff / lastPrice) * 100;
@@ -141,7 +143,7 @@
       lastPrice = p;
     }
 
-    // 10-minute window stats (price extremes), prunes old rows
+    // ---- 10m stats (price extremes) with pruning
     const TEN_MIN_MS = 10 * 60 * 1000;
     function pruneOldAndUpdateStats() {
       const cutoff = Date.now() - TEN_MIN_MS;
@@ -163,7 +165,7 @@
     }
     setInterval(pruneOldAndUpdateStats, 30_000);
 
-    // Feed
+    // ---- Feed
     function addTrade({side, price, size, time}) {
       const ts = time ? Date.parse(time) : Date.now();
       const qty = safeParseFloat(size);
@@ -172,7 +174,6 @@
       const row = document.createElement('div');
       row.className = `feedRow ${side || ''}`;
 
-      // metadata for pruning/stats
       row.dataset.timestamp = String(ts);
       row.dataset.side = side || '';
       row.dataset.size = Number.isFinite(qty) ? String(qty) : '';
@@ -189,22 +190,80 @@
       pruneOldAndUpdateStats();
     }
 
-    // Canvas sizing (index.html behavior)
+    // ---- Chart (index-like, stable)
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
+    const SAMPLE_HZ = 1;          // one point per second
+    const MAX_POINTS = 600;       // ~10 minutes at 1 Hz
+    const points = [];            // [{t,p}]
+
     function resizeCanvas(){
       const r = canvas.getBoundingClientRect();
       canvas.width  = Math.max(1, Math.floor(r.width  * devicePixelRatio));
       canvas.height = Math.max(1, Math.floor(r.height * devicePixelRatio));
-      // subtle background hint
-      ctx.fillStyle = 'rgba(255,255,255,0.02)';
-      ctx.fillRect(0,0,canvas.width,canvas.height);
+      draw(); // redraw on resize
     }
-    window.addEventListener('load', () => { resizeCanvas(); pruneOldAndUpdateStats(); });
+
+    function sample(){
+      if (!Number.isFinite(latestPrice)) return;
+      const t = Date.now();
+      points.push({t, p: latestPrice});
+      while (points.length > MAX_POINTS) points.shift();
+      draw();
+    }
+
+    function draw(){
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0,0,w,h);
+
+      // bg hint
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(0,0,w,h);
+
+      if (points.length < 2) return;
+
+      // compute y-range
+      let min = Infinity, max = -Infinity;
+      for (const {p} of points){ if (p < min) min = p; if (p > max) max = p; }
+      if (min === max) { min -= 1; max += 1; }
+      const y = p => h - ((p - min) / (max - min)) * h;
+
+      // horizontal mid guide at last price (subtle)
+      const last = points[points.length - 1].p;
+      ctx.setLineDash([6,4]);
+      ctx.lineWidth = Math.max(1, devicePixelRatio);
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.beginPath();
+      ctx.moveTo(0, y(last));
+      ctx.lineTo(w, y(last));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // fixed spacing across width
+      const stepX = w / (MAX_POINTS - 1);
+      // draw up/down segments like index
+      ctx.lineWidth = Math.max(1, devicePixelRatio);
+      for (let i = 1; i < points.length; i++){
+        const prev = points[i-1], curr = points[i];
+        ctx.strokeStyle = curr.p >= prev.p ? 'rgba(0,255,179,0.9)' : 'rgba(255,60,60,0.9)';
+        ctx.beginPath();
+        ctx.moveTo((i-1) * stepX, y(prev.p));
+        ctx.lineTo(i * stepX,     y(curr.p));
+        ctx.stroke();
+      }
+    }
+
+    // Resize hooks
+    window.addEventListener('load', () => {
+      resizeCanvas();
+      // start sampler after first price arrives
+      setInterval(sample, 1000 / SAMPLE_HZ);
+      pruneOldAndUpdateStats();
+    });
     window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
     window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
 
-    // WebSocket
+    // ---- WebSocket
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
