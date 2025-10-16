@@ -7,8 +7,7 @@
   <style>
     :root {
       --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-      /* Neutral glow at boot; JS will flip this after a few ticks */
-      --glow: rgba(0,200,255,0.22);
+      --glow: rgba(0,200,255,0.22); /* neutral at boot */
       --up:#00ffb3; --down:#ff3c3c;
     }
     *{box-sizing:border-box}
@@ -36,11 +35,8 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Chart container with safe, CSS-only glow */
-    #chartContainer{
-      position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;
-      /* Use box-shadow to show colorized glow; no filters that could mess with canvas */
-    }
+    /* Chart with colorized backglow */
+    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
     #chartCanvas{
       position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
       box-shadow:
@@ -50,7 +46,7 @@
       transition: box-shadow .25s ease;
     }
 
-    /* Feed container mirrors the glow */
+    /* Feed mirrors the glow */
     #feedContainer{
       width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -82,77 +78,100 @@
   </div>
 
   <script>
-    // ===== Keep existing working logic intact =====
+    // DOM
     const priceEl = document.getElementById('price');
     const changeEl = document.getElementById('change');
-    const feedEl = document.getElementById('feedContainer');
+    const feedEl  = document.getElementById('feedContainer');
     const rootStyle = document.documentElement.style;
 
+    // State
     let lastPrice = null;
 
-    // --- NEW: tiny rolling buffer for 10-minute average (isolated; no UI changes)
+    // 10m average for glow only (doesn't touch ticker/chart)
     const TEN_MIN_MS = 10 * 60 * 1000;
-    const ring = []; // {t:number, p:number}
-    function pruneOld(now){
-      for (let i = ring.length - 1; i >= 0; i--) {
-        if (now - ring[i].t > TEN_MIN_MS) ring.splice(i, 1);
-      }
-    }
-    function avg10m(now){
-      pruneOld(now);
-      if (ring.length === 0) return NaN;
-      let sum = 0;
-      for (const r of ring) sum += r.p;
-      return sum / ring.length;
-    }
-    // Small deadband to avoid color flicker when very close to avg
+    const ring = []; // {t, p}
+    function pruneOld(now){ for (let i=ring.length-1;i>=0;i--) if (now-ring[i].t > TEN_MIN_MS) ring.splice(i,1); }
+    function avg10m(now){ pruneOld(now); if(!ring.length) return NaN; let s=0; for (const r of ring) s+=r.p; return s/ring.length; }
     const DEADBAND_FRAC = 0.002; // ±0.2%
 
     function setPrice(p) {
-      // --- original ticker behavior (unchanged)
-      if (lastPrice !== null) {
+      // Handle first tick cleanly (no false -0.00% / red)
+      if (lastPrice === null) {
+        priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+        changeEl.textContent = '+0.00%';
+        changeEl.className = 'change flat';
+        lastPrice = p;
+      } else {
         const diff = p - lastPrice;
-        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
-        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+        const pct = (diff / lastPrice * 100);
+        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
+        priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+        lastPrice = p;
       }
-      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-      lastPrice = p;
 
-      // --- NEW: update buffer + glow (doesn't touch any DOM besides --glow var)
+      // Glow vs 10m avg (isolated to CSS var)
       const now = Date.now();
-      ring.push({ t: now, p });
+      ring.push({t: now, p});
       const a = avg10m(now);
       if (isFinite(a)) {
         const spread = Math.abs(p - a) / a;
-        if (spread <= DEADBAND_FRAC) {
-          rootStyle.setProperty('--glow','rgba(0,200,255,0.22)'); // neutral cyan
-        } else if (p > a) {
-          rootStyle.setProperty('--glow','rgba(0,255,179,0.35)'); // green
-        } else {
-          rootStyle.setProperty('--glow','rgba(255,60,60,0.35)');  // red
-        }
+        if (spread <= DEADBAND_FRAC) rootStyle.setProperty('--glow','rgba(0,200,255,0.22)'); // neutral
+        else if (p > a) rootStyle.setProperty('--glow','rgba(0,255,179,0.35)');             // green
+        else rootStyle.setProperty('--glow','rgba(255,60,60,0.35)');                        // red
       } else {
-        // warmup until avg forms
         rootStyle.setProperty('--glow','rgba(0,200,255,0.22)');
       }
-      if (ring.length > 36000) ring.shift(); // safety cap
+      if (ring.length > 36000) ring.shift();
+    }
+
+    function safeParseFloat(x){
+      const n = parseFloat(x);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function extractTrade(msg){
+      // Normalize various Coinbase message shapes into {price, size, side, time}
+      // Legacy "ticker": price, last_size, side, time
+      let price = safeParseFloat(msg.price);
+      let size  = safeParseFloat(msg.last_size ?? msg.size);
+      let side  = msg.side || '';
+      let time  = msg.time;
+
+      // Advanced Trade "events": [{ tickers:[{price,last_size}], trades:[{price,size,side,time}] }]
+      if (!Number.isFinite(price) || !Number.isFinite(size) || !side || !time) {
+        const ev = Array.isArray(msg.events) && msg.events[0];
+        if (ev) {
+          if (!Number.isFinite(price)) {
+            if (ev.tickers && ev.tickers[0] && ev.tickers[0].price) price = safeParseFloat(ev.tickers[0].price);
+            else if (ev.trades && ev.trades[0] && ev.trades[0].price) price = safeParseFloat(ev.trades[0].price);
+          }
+          if (!Number.isFinite(size)) {
+            if (ev.tickers && ev.tickers[0] && ev.tickers[0].last_size) size = safeParseFloat(ev.tickers[0].last_size);
+            else if (ev.trades && ev.trades[0] && ev.trades[0].size) size = safeParseFloat(ev.trades[0].size);
+          }
+          if (!side && ev.trades && ev.trades[0] && ev.trades[0].side) side = ev.trades[0].side;
+          if (!time && ev.trades && ev.trades[0] && ev.trades[0].time) time = ev.trades[0].time;
+        }
+      }
+      return { price, size, side, time };
     }
 
     function addTrade({side, price, size, time}) {
+      const qty = Number.isFinite(size) ? size.toFixed(4) + ' BTC' : '—';
       const row = document.createElement('div');
-      row.className = `feedRow ${side}`;
+      row.className = `feedRow ${side || ''}`;
       row.innerHTML = `
-        <div class="feedTime">${new Date(time).toLocaleTimeString()}</div>
-        <div class="feedQty">${parseFloat(size).toFixed(4)} BTC</div>
-        <div>${parseFloat(price).toLocaleString('en-US',{style:'currency',currency:'USD'})}</div>
+        <div class="feedTime">${time ? new Date(time).toLocaleTimeString() : ''}</div>
+        <div class="feedQty">${qty}</div>
+        <div>${Number.isFinite(price) ? price.toLocaleString('en-US',{style:'currency',currency:'USD'}) : ''}</div>
       `;
       feedEl.prepend(row);
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // ===== Coinbase WS ticker (unchanged) =====
+    // Coinbase WS (legacy endpoint; AT often proxies to this format anyway)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -160,25 +179,25 @@
         channels: [{ name: 'ticker', product_ids: ['BTC-USD'] }]
       }));
     };
-    ws.onmessage = e => {
+    ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
-          const p = parseFloat(msg.price);
-          if (!isNaN(p)) setPrice(p);
-          addTrade(msg);
-        }
+        if (!msg) return;
+        // try to pull normalized fields
+        const t = extractTrade(msg);
+        if (Number.isFinite(t.price)) setPrice(t.price);
+        // only render feed row if we’ve got at least price or size/time
+        if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
       } catch {}
     };
 
-    // ===== Canvas sizing (unchanged) =====
+    // Canvas sizing (unchanged)
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
       const r = canvas.getBoundingClientRect();
       canvas.width = Math.floor(r.width * devicePixelRatio);
       canvas.height = Math.floor(r.height * devicePixelRatio);
-      // simple background hint so you can see it alive immediately
       ctx.fillStyle = 'rgba(255,255,255,0.02)';
       ctx.fillRect(0,0,canvas.width,canvas.height);
     }
