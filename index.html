@@ -11,13 +11,20 @@
       html, body { height: 100%; }
       body { margin:0; background:#0b0d12; color:#eaf2ff; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji; }
       #app { min-height: 100svh; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display:grid; grid-template-rows: auto 1fr; gap:12px; }
-      #price-section { display:grid; place-items:center; text-align:center; padding:8px 0; }
+      #price-section { position: relative; display: grid; place-items: center; text-align: center; padding: 8px 0; }
       .live-price { line-height:1.05; font-size: clamp(40px, 11vw, 72px); font-weight:700; letter-spacing:-0.02em; }
       .subline { margin-top:6px; opacity:.7; font-size: clamp(12px, 3.2vw, 14px); }
+      /* Sparkline behind price (safe mode) */
+      #spark { position:absolute; inset:0; z-index:0; opacity:.22; } 
+      #price-section > * { position: relative; z-index: 1; }
       #tape { background:#0e121a; border-radius:16px; padding:8px; overflow:hidden; display:grid; grid-template-rows:auto 1fr; }
       .tape-header { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 8px; font-size:12px; opacity:.7 }
       .tape-list { list-style:none; margin:0; padding:0; overflow:auto; -webkit-overflow-scrolling:touch; }
-      .tape-item { display:grid; grid-template-columns:70px 1fr 86px; gap:8px; align-items:baseline; padding:6px 8px; font-variant-numeric: tabular-nums; }
+      .tape-item { display:grid; grid-template-columns:70px 1fr 86px; gap:8px; align-items:baseline; padding:6px 8px; font-variant-numeric: tabular-nums; border-top:1px solid rgba(255,255,255,.06); }
+      .tape-item:first-child{ border-top: none; }
+      /* fade older rows slightly */
+      .tape-item:nth-child(n+50){ opacity:.85; }
+      .tape-item:nth-child(n+80){ opacity:.70; }
       .t{opacity:.7; font-size:12px} .p{justify-self:start; font-weight:600} .q{justify-self:end; opacity:.85}
       .buy{color:#7ee787} .sell{color:#ff7b72}
       #debug{position:fixed; top:8px; left:8px; padding:6px 8px; background:#222a; color:#fff; font:12px/1.2 monospace; border-radius:8px; display:none; z-index:9999}
@@ -26,6 +33,7 @@
   <body>
     <main id="app">
       <section id="price-section" aria-label="Live price">
+        <canvas id="spark" aria-hidden="true"></canvas>
         <div id="live-price" class="live-price" role="status" aria-live="polite">Loading…</div>
         <div class="subline" id="subline">Updated • —</div>
       </section>
@@ -56,7 +64,11 @@
       const sublineEl = document.getElementById('subline');
       function setPriceDisplay(value){
         try{
+          window.__lastPrice = value;
           const s = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2}).format(value);
+          priceEl.textContent = s; sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }catch{}
+      }).format(value);
           priceEl.textContent = s; sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         }catch{}
       }
@@ -107,6 +119,25 @@
         }
         document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ if(!ws || ws.readyState===WebSocket.CLOSED) connect(); } else { try{ ws&&ws.close(); }catch{} } });
         connect();
+      })();
+    </script>
+    <script>
+      // ===== Safe Sparkline (isolated, no feed impact) =====
+      (function(){
+        try{
+          const spark = document.getElementById('spark');
+          if(!spark) return;
+          const ctx = spark.getContext('2d');
+          const history = [];
+          const HORIZON = 10*60*1000; // 10 minutes
+          function size(){ const dpr = window.devicePixelRatio||1; const r = spark.getBoundingClientRect(); spark.width=Math.max(1,Math.floor(r.width*dpr)); spark.height=Math.max(1,Math.floor(r.height*dpr)); }
+          function prune(now){ const cut = now - HORIZON; while(history.length && history[0].t < cut) history.shift(); }
+          function draw(){ const w=spark.width,h=spark.height; if(!w||!h||history.length<2) return; let min=Infinity,max=-Infinity; for(const s of history){ if(s.p<min)min=s.p; if(s.p>max)max=s.p; } const range=Math.max(1e-6,max-min); const t0=history[0].t, t1=history[history.length-1].t||t0+1; const mx=Math.floor(w*0.04), my=Math.floor(h*0.18), iw=w-mx*2, ih=h-my*2; ctx.clearRect(0,0,w,h); ctx.lineWidth=Math.max(1,Math.floor(w/300)); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); for(let i=0;i<history.length;i++){ const x=mx+((history[i].t-t0)/Math.max(1,(t1-t0)))*iw; const y=my+(1-(history[i].p-min)/range)*ih; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.stroke(); }
+          function sample(){ const now=Date.now(); prune(now); if(window.__lastPrice!=null){ history.push({t:now,p:Number(window.__lastPrice)}); if(history.length>400) history.shift(); } draw(); }
+          size();
+          window.addEventListener('orientationchange',()=>setTimeout(()=>{ try{ size(); draw(); }catch{} },250));
+          setInterval(()=>{ try{ sample(); }catch{} }, 5000); // gentle sampling every 5s
+        }catch(e){ /* ignore */ }
       })();
     </script>
   </body>
