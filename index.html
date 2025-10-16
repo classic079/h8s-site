@@ -2,167 +2,81 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>h8s — Live</title>
     <style>
-      /* Reset-ish */
       * { box-sizing: border-box; }
       html, body { height: 100%; }
       body {
-        margin: 0;
-        background: #0b0d12;
-        color: #eaf2ff;
+        margin: 0; background: #0b0d12; color: #eaf2ff;
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+        -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
       }
-      /* Safe areas for iPhone (notch/edges) */
       #app {
         min-height: 100dvh;
-        padding-top: max(12px, env(safe-area-inset-top));
-        padding-right: max(12px, env(safe-area-inset-right));
-        padding-bottom: max(12px, env(safe-area-inset-bottom));
-        padding-left: max(12px, env(safe-area-inset-left));
-        display: grid;
-        grid-template-rows: 1fr auto; /* live price takes the top, chart at bottom */
-        gap: 16px;
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        display: grid; grid-template-rows: 1fr auto; gap: 16px;
       }
-      /* Live price “hero” */
-      #price-section {
-        display: grid;
-        place-items: center;
-        text-align: center;
-        padding: 8px 0;
-      }
-      .live-price {
-        line-height: 1.05;
-        font-size: clamp(40px, 11vw, 72px);
-        font-weight: 700;
-        letter-spacing: -0.02em;
-      }
-      .subline {
-        margin-top: 6px;
-        opacity: 0.7;
-        font-size: clamp(12px, 3.2vw, 14px);
-      }
-      /* Chart pinned to the bottom */
-      #chart-section {
-        background: #0e121a;
-        border-radius: 16px;
-        padding: 8px;
-        min-height: 36dvh; /* ~a third of the screen */
-        display: grid;
-        overflow: hidden;
-      }
-      #price-chart {
-        width: 100%;
-        height: 100%;
-        display: block;
-      }
+      #price-section { display: grid; place-items: center; text-align: center; padding: 8px 0; }
+      .live-price { line-height: 1.05; font-size: clamp(40px, 11vw, 72px); font-weight: 700; letter-spacing: -0.02em; }
+      .subline { margin-top: 6px; opacity: .7; font-size: clamp(12px, 3.2vw, 14px); }
+      #chart-section { background: #0e121a; border-radius: 16px; padding: 8px; min-height: 36dvh; display: grid; overflow: hidden; }
+      #price-chart { width: 100%; height: 100%; display: block; }
       :focus-visible { outline: 2px solid #7aa2ff; outline-offset: 2px; }
     </style>
   </head>
   <body>
     <main id="app">
-      <!-- Header removed; opens straight to live price -->
       <section id="price-section" aria-label="Live price">
         <div id="live-price" class="live-price" role="status" aria-live="polite">—</div>
         <div class="subline" id="subline">Updated • —</div>
       </section>
-
-      <!-- Chart moved to bottom -->
       <section id="chart-section" aria-label="History">
         <canvas id="price-chart"></canvas>
       </section>
     </main>
 
-    <!-- Optional: bring your own chart lib. This page works even without it. -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> -->
-
     <script>
-      // ===== Live price helpers =====
+      // ===== Core UI helpers (no external libs) =====
       const priceEl = document.getElementById('live-price');
       const sublineEl = document.getElementById('subline');
-
       function setPriceDisplay(value) {
-        const s = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
-        priceEl.textContent = s;
-        sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        try {
+          const s = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+          priceEl.textContent = s;
+          sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (_) {}
       }
-
-      // Expose a simple hook you can call from your own feed:
-      // window.updatePrice(68901.24)
       window.updatePrice = setPriceDisplay;
-<script>
-/* Live BTC price via Binance (BTC/USDT) */
-(function () {
-  try {
-    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg && msg.p) {
-        const price = parseFloat(msg.p);
-        if (!Number.isNaN(price) && window.updatePrice) {
-          window.updatePrice(price);
-        }
-      }
-    };
-    ws.onclose = () => {
-      // simple auto-retry after a disconnect
-      setTimeout(() => location.reload(), 5000);
-    };
-  } catch (err) {
-    console.error('WS error', err);
-  }
-})();
-</script>
 
-      // (Optional) If you want a quick sanity check without wiring your feed yet:
-      // setInterval(() => setPriceDisplay(68000 + Math.random()*500), 3000);
-
-      // ===== Chart sizing (library-agnostic) =====
+      // Size the chart canvas to its container
       const chartCanvas = document.getElementById('price-chart');
-      let chartInstance = null; // your chart lib can assign here
-
       function resizeCanvasToContainer(canvas) {
         const rect = canvas.parentElement.getBoundingClientRect();
-        canvas.width  = Math.floor(rect.width);
+        canvas.width = Math.floor(rect.width);
         canvas.height = Math.floor(rect.height);
       }
-
-      function initOrResizeChart() {
-        resizeCanvasToContainer(chartCanvas);
-        // If you hook up Chart.js/ECharts/etc., resize here:
-        if (chartInstance && chartInstance.resize) chartInstance.resize();
-        else if (chartInstance && chartInstance.setSize) chartInstance.setSize({ width: chartCanvas.width, height: chartCanvas.height });
-      }
-
-      const ro = new ResizeObserver(initOrResizeChart);
-      ro.observe(document.getElementById('chart-section'));
+      function initOrResizeChart() { resizeCanvasToContainer(chartCanvas); }
+      new ResizeObserver(initOrResizeChart).observe(document.getElementById('chart-section'));
       window.addEventListener('orientationchange', () => setTimeout(initOrResizeChart, 250));
       initOrResizeChart();
 
-      // ===== (Optional) Example Chart.js hookup =====
-      // function buildChartWithChartJS(labels, data) {
-      //   if (!window.Chart) return; // Chart.js not loaded
-      //   if (chartInstance) chartInstance.destroy();
-      //   chartInstance = new Chart(chartCanvas.getContext('2d'), {
-      //     type: 'line',
-      //     data: { labels, datasets: [{ data, tension: 0.25, borderWidth: 2, pointRadius: 0 }] },
-      //     options: {
-      //       responsive: false, maintainAspectRatio: false,
-      //       plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
-      //       scales: { x: { ticks: { display: false }, grid: { display: false } },
-      //                y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.06)' } } }
-      //     }
-      //   });
-      // }
-      // // Example: buildChartWithChartJS(['', '', '', '', ''], [1,2,3,2.5,3.5]);
+      // ===== Live BTC price via Binance (no API key) =====
+      (function () {
+        try {
+          const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+          ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if (msg && msg.p) {
+              const price = parseFloat(msg.p);
+              if (!Number.isNaN(price)) setPriceDisplay(price);
+            }
+          };
+          ws.onclose = () => { setTimeout(() => { try { location.reload(); } catch (_) {} }, 5000); };
+        } catch (err) { console.error(err); }
+      })();
     </script>
   </body>
 </html>
