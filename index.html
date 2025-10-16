@@ -12,8 +12,8 @@
       --bg:#0a0a0a;
       --panel:#101010;
       --text:#e9fef7;
-      --buy:#00ffb3;
-      --sell:#ff3c3c;
+      --up:#00ffb3;
+      --down:#ff3c3c;
       --glow: rgba(0,255,179,0.25);
     }
     *{box-sizing:border-box}
@@ -45,7 +45,7 @@
       background: linear-gradient(180deg, rgba(10,10,10,.95), rgba(10,10,10,.7));
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      padding: calc(10px + env(safe-area-inset-top)) 16px 10px 16px;
+      padding: calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
       display:flex;
       justify-content:center;
@@ -59,52 +59,55 @@
       color:#ffffff;
       text-shadow: 0 0 18px rgba(0,0,0,.35);
     }
-    .price.up{ color: var(--buy); }
-    .price.down{ color: var(--sell); }
+    .price.up{ color: var(--up); }
+    .price.down{ color: var(--down); }
 
     /* Chart */
     #chartContainer{
       position: relative;
       width: min(920px, 96vw);
-      height: clamp(140px, 28vh, 240px);
-      margin: 10px auto 12px auto;
+      height: clamp(130px, 26vh, 220px);
+      margin: 8px auto 10px auto;
     }
     #chartCanvas{
       position:absolute; inset:0;
       width:100%; height:100%;
       background: var(--panel);
-      border-radius:14px;
+      border-radius:12px;
       box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 30px rgba(0,0,0,.35);
     }
 
     /* Feed */
     #feedContainer{
       width: min(920px, 96vw);
-      height: 54vh;
+      height: 56vh;
       background: var(--panel);
-      border-radius:14px;
-      padding:10px;
+      border-radius:12px;
+      padding:6px;
       overflow-y:auto;
       -webkit-overflow-scrolling: touch;
       box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 10px 30px rgba(0,0,0,.35), 0 0 18px var(--glow);
     }
+
     .row{
-      display:flex;
-      justify-content:space-between;
-      gap:8px;
-      padding:6px 8px;
-      border-radius:10px;
-      font-size: clamp(12px, 3.3vw, 14px);
-      line-height:1.2;
+      display:grid;
+      grid-template-columns: 92px 1fr auto; /* Time | Price | Amount */
+      column-gap:10px;
+      align-items:center;
+      padding:4px 6px;
+      border-radius:8px;
+      font-size: clamp(12px, 3.2vw, 14px);
+      line-height:1.15;
       font-variant-numeric: tabular-nums;
+      text-align:left;              /* LEFT aligned */
     }
-    .row:nth-child(2n){
-      background: rgba(255,255,255,0.02);
-    }
-    .col{min-width:0}
-    .time{opacity:.8; white-space:nowrap}
+    .row.up   { color: var(--up); }
+    .row.down { color: var(--down); }
+    .row.flat { color: var(--text); opacity:.9; }
+
+    .time{white-space:nowrap; opacity:.85}
     .priceCell{white-space:nowrap}
-    .amountCell{white-space:nowrap; opacity:.9}
+    .amountCell{white-space:nowrap; opacity:.95}
 
     @media (prefers-reduced-motion: reduce){
       #chartCanvas{transition:none}
@@ -137,12 +140,12 @@
     const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 8 });
 
     // Buffers
-    const MAX_TRADES = 50;   // show top 50 in the box
+    const MAX_TRADES = 50;   // latest 50 in the box
     const MAX_POINTS = 600;  // ~10 minutes if ~1/s sampling
-    let trades = [];
+    let trades = [];         // {price, size, time, dir}
     let prices = [];
 
-    // Price direction coloring
+    // Track last price for top bar color + per-row direction
     let lastPrice = null;
 
     // Hi-DPI canvas
@@ -192,7 +195,15 @@
       const size  = parseFloat(msg.size); // BTC amount
       const time  = new Date(msg.time);
 
-      // Price-up / price-down coloring on the header
+      // Determine direction vs previous trade
+      const prev = trades.length ? trades[trades.length - 1].price : lastPrice;
+      let dir = 'flat';
+      if (prev != null){
+        if (price > prev) dir = 'up';
+        else if (price < prev) dir = 'down';
+      }
+
+      // Header price color (vs last header price)
       if (lastPrice !== null){
         priceEl.classList.remove('up','down');
         if (price > lastPrice) priceEl.classList.add('up');
@@ -201,8 +212,8 @@
       lastPrice = price;
       priceEl.textContent = fmtUSD.format(price);
 
-      // Feed buffer (time, price, amount only)
-      trades.push({ price, size, time });
+      // Feed buffer
+      trades.push({ price, size, time, dir });
       if (trades.length > MAX_TRADES) trades.shift();
 
       // Chart sampling
@@ -214,15 +225,16 @@
     // ---------- Rendering ----------
     function renderFeed(){
       const frag = document.createDocumentFragment();
+      // render newest -> oldest (top to bottom)
       for (let i = trades.length - 1; i >= 0; i--){
         const t = trades[i];
         const row = document.createElement('div');
-        row.className = 'row';
+        row.className = `row ${t.dir}`;
         const timeStr = t.time.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
         row.innerHTML = `
-          <div class="col time">${timeStr}</div>
-          <div class="col priceCell">${fmtUSD.format(t.price)}</div>
-          <div class="col amountCell">${fmtBTC.format(t.size)} BTC</div>
+          <div class="time">${timeStr}</div>
+          <div class="priceCell">${fmtUSD.format(t.price)}</div>
+          <div class="amountCell">${fmtBTC.format(t.size)} BTC</div>
         `;
         frag.appendChild(row);
       }
