@@ -5,11 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Live BTC/USD</title>
   <style>
-    :root{
-      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-      /* default/boot glow until we get data */
-      --glow: rgba(0,200,255,0.22);
-      --up:#00ffb3; --down:#ff3c3c;
+    :root {
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
+      --up:#00ffb3; --down:#ff3c3c; --glow: rgba(0,255,179,0.25); --muted:#c8d6cf;
     }
     *{box-sizing:border-box}
     html,body{
@@ -29,54 +27,35 @@
       display:flex;justify-content:center;gap:12px;align-items:baseline;
       font-variant-numeric:tabular-nums;
     }
-    .topbar .meta{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;justify-content:center}
-    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease,color .25s ease;text-shadow:0 0 18px rgba(0,0,0,.35);}
+    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
     .price.up{color:var(--up)} .price.down{color:var(--down)}
     .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;}
     .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
-    .badge{
-      font-size:12px;opacity:.85;border:1px solid rgba(255,255,255,.08);
-      padding:3px 6px;border-radius:8px;background:rgba(255,255,255,.02)
-    }
 
-    /* Chart + backglow */
-    #chartContainer{
-      position:relative;width:min(920px,96vw);
-      height:clamp(130px,26vh,220px);margin:8px auto 10px;
-      filter: drop-shadow(0 0 18px var(--glow));
-      transition: filter .25s ease;
-    }
-    #chartCanvas{
-      position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 0 30px var(--glow), 0 14px 34px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
-    }
+    /* Chart */
+    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
+    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
 
-    /* Feed container shares the glow */
-    #feedContainer{
-      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+    /* Feed container */
+    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 0 30px var(--glow), 0 10px 30px rgba(0,0,0,.35);
-      transition: box-shadow .25s ease;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
     .feedRow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:14px;font-variant-numeric:tabular-nums;}
     .feedRow:nth-child(even){background:rgba(255,255,255,0.02);}
     .feedRow.buy{color:var(--up)} .feedRow.sell{color:var(--down)}
     .feedTime{opacity:.6;font-size:12px;}
     .feedQty{opacity:.8;font-weight:600;}
+
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="meta">
-        <div class="price" id="price">–</div>
-        <div class="change flat" id="change">0.00%</div>
-        <div class="badge" id="avgBadge">10m avg: —</div>
-        <div class="badge" id="devBadge">Δ vs 10m: —</div>
-      </div>
+      <div class="price" id="price">–</div>
+      <div class="change flat" id="change">0.00%</div>
     </div>
 
     <div id="chartContainer">
@@ -87,90 +66,23 @@
   </div>
 
   <script>
-    // --- DOM refs
-    const priceEl   = document.getElementById('price');
-    const changeEl  = document.getElementById('change');
-    const feedEl    = document.getElementById('feedContainer');
-    const avgBadge  = document.getElementById('avgBadge');
-    const devBadge  = document.getElementById('devBadge');
-    const rootStyle = document.documentElement.style;
-
-    // --- Price + AVG tracking
+    const priceEl = document.getElementById('price');
+    const changeEl = document.getElementById('change');
+    const feedEl = document.getElementById('feedContainer');
     let lastPrice = null;
-    const TEN_MIN_MS = 10 * 60 * 1000;
-    /** store recent prices as {t:number, p:number} */
-    const ring = [];
 
-    function pruneOld(now){
-      for (let i = ring.length - 1; i >= 0; i--) {
-        if (now - ring[i].t > TEN_MIN_MS) ring.splice(i, 1);
-      }
-    }
-    function avg10m(now){
-      pruneOld(now);
-      if (ring.length === 0) return NaN;
-      let sum = 0;
-      for (const r of ring) sum += r.p;
-      return sum / ring.length;
-    }
-
-    /** Map deviation to glow alpha with sane clamps.
-     *  spread = |p-avg|/avg (fraction). Example: 0.003 = 0.3%
-     *  alpha = base + slope * spread; clamped [minAlpha, maxAlpha]
-     *  Tweakables below.
-     */
-    const GLOW_CFG = {
-      minAlpha: 0.18,  // baseline glow
-      baseAlpha: 0.20, // starting alpha when spread ~0
-      slope: 1.8,      // how aggressively the glow ramps with spread
-      maxAlpha: 0.60,  // cap it so it doesn’t get silly
-      warmupColor: 'rgba(0,200,255,0.22)', // teal before avg exists
-      greenRGB: '0,255,179',
-      redRGB:   '255,60,60'
-    };
-
-    function setGlow(price, avg){
-      if (!isFinite(avg)) {
-        rootStyle.setProperty('--glow', GLOW_CFG.warmupColor);
-        return;
-      }
-      const spread = Math.abs(price - avg) / avg;          // fractional deviation
-      let alpha = GLOW_CFG.baseAlpha + GLOW_CFG.slope * spread;
-      alpha = Math.max(GLOW_CFG.minAlpha, Math.min(GLOW_CFG.maxAlpha, alpha));
-
-      const rgb = price >= avg ? GLOW_CFG.greenRGB : GLOW_CFG.redRGB;
-      rootStyle.setProperty('--glow', `rgba(${rgb},${alpha.toFixed(3)})`);
-
-      // For visibility in UI badges:
-      const sign = price >= avg ? '+' : '−';
-      devBadge.textContent = `Δ vs 10m: ${sign}${(spread*100).toFixed(2)}%`;
-    }
-
-    // --- UI updates
     function setPrice(p) {
-      const now = Date.now();
-      ring.push({ t: now, p });
-
       if (lastPrice !== null) {
         const diff = p - lastPrice;
-        const pct = (diff / lastPrice * 100);
-        changeEl.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
+        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
         changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
         priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
       }
       priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
       lastPrice = p;
-
-      const a = avg10m(now);
-      avgBadge.textContent = '10m avg: ' + (isFinite(a) ? a.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }) : '—');
-
-      setGlow(p, a);
-
-      // keep buffer size sane (safety)
-      if (ring.length > 36000) ring.shift();
     }
 
-    // --- Feed rendering
     function addTrade({side, price, size, time}) {
       const row = document.createElement('div');
       row.className = `feedRow ${side}`;
@@ -183,62 +95,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // --- Simple canvas sparkline for last 10m
-    const canvas = document.getElementById('chartCanvas');
-    const ctx = canvas.getContext('2d');
-    function resizeCanvas(){
-      const r = canvas.getBoundingClientRect();
-      canvas.width = Math.floor(r.width * devicePixelRatio);
-      canvas.height = Math.floor(r.height * devicePixelRatio);
-    }
-    window.addEventListener('load', resizeCanvas);
-    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
-    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
-    resizeCanvas();
-
-    function renderChart(){
-      const now = Date.now();
-      pruneOld(now);
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-
-      if (ring.length < 2) { requestAnimationFrame(renderChart); return; }
-
-      const t0 = now - TEN_MIN_MS;
-      let min = Infinity, max = -Infinity;
-      for (const r of ring){ if (r.p < min) min = r.p; if (r.p > max) max = r.p; }
-      if (min === max) { min -= 1; max += 1; }
-
-      const w = canvas.width, h = canvas.height;
-      const x = t => ( (t - t0) / TEN_MIN_MS ) * w;
-      const y = p => h - ( (p - min) / (max - min) ) * h;
-
-      // Price line
-      ctx.lineWidth = Math.max(1, devicePixelRatio);
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.moveTo(x(ring[0].t), y(ring[0].p));
-      for (let i=1;i<ring.length;i++){
-        ctx.lineTo(x(ring[i].t), y(ring[i].p));
-      }
-      ctx.stroke();
-
-      // 10m average reference line
-      const avg = avg10m(now);
-      if (isFinite(avg)) {
-        ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
-        ctx.setLineDash([6,4]);
-        ctx.beginPath();
-        ctx.moveTo(0, y(avg));
-        ctx.lineTo(w, y(avg));
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      requestAnimationFrame(renderChart);
-    }
-    requestAnimationFrame(renderChart);
-
-    // --- Coinbase WebSocket (public)
+    // Coinbase WS ticker (simple, stable)
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -249,15 +106,29 @@
     ws.onmessage = e => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'ticker' && msg.price) {
+        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
           const p = parseFloat(msg.price);
           if (!isNaN(p)) setPrice(p);
-        }
-        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
           addTrade(msg);
         }
       } catch {}
     };
+
+    // Lightweight canvas sizing (no fancy observers)
+    const canvas = document.getElementById('chartCanvas');
+    const ctx = canvas.getContext('2d');
+    function resizeCanvas(){
+      const r = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(r.width * devicePixelRatio);
+      canvas.height = Math.floor(r.height * devicePixelRatio);
+      // Optional: quick background hint
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    window.addEventListener('load', resizeCanvas);
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
+    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
+    resizeCanvas();
   </script>
 </body>
 </html>
