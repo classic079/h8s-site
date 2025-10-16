@@ -29,34 +29,37 @@
       display:flex;justify-content:center;gap:12px;align-items:baseline;
       font-variant-numeric:tabular-nums;
     }
-    .topbar .meta{display:flex;gap:10px;align-items:baseline}
-    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
+    .topbar .meta{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;justify-content:center}
+    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease,color .25s ease;text-shadow:0 0 18px rgba(0,0,0,.35);}
     .price.up{color:var(--up)} .price.down{color:var(--down)}
     .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;}
     .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
-    .avgBadge{
-      font-size:12px;opacity:.8;border:1px solid rgba(255,255,255,.08);
+    .badge{
+      font-size:12px;opacity:.85;border:1px solid rgba(255,255,255,.08);
       padding:3px 6px;border-radius:8px;background:rgba(255,255,255,.02)
     }
 
-    /* Chart */
+    /* Chart + backglow */
     #chartContainer{
       position:relative;width:min(920px,96vw);
       height:clamp(130px,26vh,220px);margin:8px auto 10px;
       filter: drop-shadow(0 0 18px var(--glow));
+      transition: filter .25s ease;
     }
     #chartCanvas{
       position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
       box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 0 30px var(--glow), 0 14px 34px rgba(0,0,0,.35);
+      transition: box-shadow .25s ease;
     }
 
-    /* Feed container */
+    /* Feed container shares the glow */
     #feedContainer{
       width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
       box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 0 30px var(--glow), 0 10px 30px rgba(0,0,0,.35);
+      transition: box-shadow .25s ease;
     }
     .feedRow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:14px;font-variant-numeric:tabular-nums;}
     .feedRow:nth-child(even){background:rgba(255,255,255,0.02);}
@@ -71,7 +74,8 @@
       <div class="meta">
         <div class="price" id="price">–</div>
         <div class="change flat" id="change">0.00%</div>
-        <div class="avgBadge" id="avgBadge">10m avg: —</div>
+        <div class="badge" id="avgBadge">10m avg: —</div>
+        <div class="badge" id="devBadge">Δ vs 10m: —</div>
       </div>
     </div>
 
@@ -84,10 +88,11 @@
 
   <script>
     // --- DOM refs
-    const priceEl = document.getElementById('price');
-    const changeEl = document.getElementById('change');
-    const feedEl  = document.getElementById('feedContainer');
-    const avgBadge = document.getElementById('avgBadge');
+    const priceEl   = document.getElementById('price');
+    const changeEl  = document.getElementById('change');
+    const feedEl    = document.getElementById('feedContainer');
+    const avgBadge  = document.getElementById('avgBadge');
+    const devBadge  = document.getElementById('devBadge');
     const rootStyle = document.documentElement.style;
 
     // --- Price + AVG tracking
@@ -97,7 +102,6 @@
     const ring = [];
 
     function pruneOld(now){
-      // drop anything older than 10 minutes
       for (let i = ring.length - 1; i >= 0; i--) {
         if (now - ring[i].t > TEN_MIN_MS) ring.splice(i, 1);
       }
@@ -110,18 +114,36 @@
       return sum / ring.length;
     }
 
-    // --- Glow controller
-    function setGlowByRelation(price, avg){
-      // Neutral if no avg yet
+    /** Map deviation to glow alpha with sane clamps.
+     *  spread = |p-avg|/avg (fraction). Example: 0.003 = 0.3%
+     *  alpha = base + slope * spread; clamped [minAlpha, maxAlpha]
+     *  Tweakables below.
+     */
+    const GLOW_CFG = {
+      minAlpha: 0.18,  // baseline glow
+      baseAlpha: 0.20, // starting alpha when spread ~0
+      slope: 1.8,      // how aggressively the glow ramps with spread
+      maxAlpha: 0.60,  // cap it so it doesn’t get silly
+      warmupColor: 'rgba(0,200,255,0.22)', // teal before avg exists
+      greenRGB: '0,255,179',
+      redRGB:   '255,60,60'
+    };
+
+    function setGlow(price, avg){
       if (!isFinite(avg)) {
-        rootStyle.setProperty('--glow', 'rgba(0,200,255,0.22)'); // teal while warming up
+        rootStyle.setProperty('--glow', GLOW_CFG.warmupColor);
         return;
       }
-      if (price >= avg) {
-        rootStyle.setProperty('--glow', 'rgba(0,255,179,0.35)'); // green
-      } else {
-        rootStyle.setProperty('--glow', 'rgba(255,60,60,0.35)'); // red
-      }
+      const spread = Math.abs(price - avg) / avg;          // fractional deviation
+      let alpha = GLOW_CFG.baseAlpha + GLOW_CFG.slope * spread;
+      alpha = Math.max(GLOW_CFG.minAlpha, Math.min(GLOW_CFG.maxAlpha, alpha));
+
+      const rgb = price >= avg ? GLOW_CFG.greenRGB : GLOW_CFG.redRGB;
+      rootStyle.setProperty('--glow', `rgba(${rgb},${alpha.toFixed(3)})`);
+
+      // For visibility in UI badges:
+      const sign = price >= avg ? '+' : '−';
+      devBadge.textContent = `Δ vs 10m: ${sign}${(spread*100).toFixed(2)}%`;
     }
 
     // --- UI updates
@@ -129,7 +151,6 @@
       const now = Date.now();
       ring.push({ t: now, p });
 
-      // Show price
       if (lastPrice !== null) {
         const diff = p - lastPrice;
         const pct = (diff / lastPrice * 100);
@@ -140,13 +161,13 @@
       priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
       lastPrice = p;
 
-      // Compute 10m avg and set glow
       const a = avg10m(now);
       avgBadge.textContent = '10m avg: ' + (isFinite(a) ? a.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }) : '—');
-      setGlowByRelation(p, a);
 
-      // keep buffer size sane (not strictly needed but tidy)
-      if (ring.length > 36000) ring.shift(); // ~10 updates/sec cap safety
+      setGlow(p, a);
+
+      // keep buffer size sane (safety)
+      if (ring.length > 36000) ring.shift();
     }
 
     // --- Feed rendering
@@ -162,7 +183,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // --- Simple canvas sparkline (optional lightweight viz)
+    // --- Simple canvas sparkline for last 10m
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
@@ -182,7 +203,6 @@
 
       if (ring.length < 2) { requestAnimationFrame(renderChart); return; }
 
-      // Determine window & scale
       const t0 = now - TEN_MIN_MS;
       let min = Infinity, max = -Infinity;
       for (const r of ring){ if (r.p < min) min = r.p; if (r.p > max) max = r.p; }
@@ -202,7 +222,7 @@
       }
       ctx.stroke();
 
-      // 10m average line (flat reference at current avg)
+      // 10m average reference line
       const avg = avg10m(now);
       if (isFinite(avg)) {
         ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
