@@ -7,7 +7,7 @@
   <style>
     :root {
       --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
-      --up:#00ffb3; --down:#ff3c3c; --muted:#c8d6cf;
+      --up:#00ffb3; --down:#ff3c3c; --glow: rgba(0,255,179,0.25); --muted:#c8d6cf;
     }
     *{box-sizing:border-box}
     html,body{
@@ -48,7 +48,6 @@
     .feedRow.buy{color:var(--up)} .feedRow.sell{color:var(--down)}
     .feedTime{opacity:.6;font-size:12px;}
     .feedQty{opacity:.8;font-weight:600;}
-
   </style>
 </head>
 <body>
@@ -95,7 +94,7 @@
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
     }
 
-    // Coinbase WS ticker (stable)
+    // Coinbase WebSocket feed
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -114,7 +113,7 @@
       } catch {}
     };
 
-    // Canvas sizing
+    // Chart setup
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
