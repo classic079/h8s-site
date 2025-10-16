@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Live BTC/USD — Staging</title>
+  <style>
+    :root {
+      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
+      /* Neutral glow at boot; JS will flip this after a few ticks */
+      --glow: rgba(0,200,255,0.22);
+      --up:#00ffb3; --down:#ff3c3c;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    }
+    .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
+
+    /* Top bar */
+    .topbar{
+      position:sticky;top:0;z-index:10;width:100%;
+      background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
+      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+      padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
+      border-bottom:1px solid rgba(255,255,255,0.06);
+      display:flex;justify-content:center;gap:12px;align-items:baseline;
+      font-variant-numeric:tabular-nums;
+    }
+    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
+    .price.up{color:var(--up)} .price.down{color:var(--down)}
+    .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;}
+    .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
+    @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
+    .change.flash{animation:changeFlash 450ms ease-out;}
+
+    /* Chart container with safe, CSS-only glow */
+    #chartContainer{
+      position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;
+      /* Use box-shadow to show colorized glow; no filters that could mess with canvas */
+    }
+    #chartCanvas{
+      position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.04),
+        0 0 30px var(--glow),
+        0 10px 30px rgba(0,0,0,.35);
+      transition: box-shadow .25s ease;
+    }
+
+    /* Feed container mirrors the glow */
+    #feedContainer{
+      width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
+      overflow-y:auto;-webkit-overflow-scrolling:touch;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.04),
+        0 0 30px var(--glow),
+        0 10px 30px rgba(0,0,0,.35);
+      transition: box-shadow .25s ease;
+    }
+    .feedRow{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;font-size:14px;font-variant-numeric:tabular-nums;}
+    .feedRow:nth-child(even){background:rgba(255,255,255,0.02);}
+    .feedRow.buy{color:var(--up)} .feedRow.sell{color:var(--down)}
+    .feedTime{opacity:.6;font-size:12px;}
+    .feedQty{opacity:.8;font-weight:600;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="price" id="price">–</div>
+      <div class="change flat" id="change">0.00%</div>
+    </div>
+
+    <div id="chartContainer">
+      <canvas id="chartCanvas"></canvas>
+    </div>
+
+    <div id="feedContainer"></div>
+  </div>
+
+  <script>
+    // ===== Keep existing working logic intact =====
+    const priceEl = document.getElementById('price');
+    const changeEl = document.getElementById('change');
+    const feedEl = document.getElementById('feedContainer');
+    const rootStyle = document.documentElement.style;
+
+    let lastPrice = null;
+
+    // --- NEW: tiny rolling buffer for 10-minute average (isolated; no UI changes)
+    const TEN_MIN_MS = 10 * 60 * 1000;
+    const ring = []; // {t:number, p:number}
+    function pruneOld(now){
+      for (let i = ring.length - 1; i >= 0; i--) {
+        if (now - ring[i].t > TEN_MIN_MS) ring.splice(i, 1);
+      }
+    }
+    function avg10m(now){
+      pruneOld(now);
+      if (ring.length === 0) return NaN;
+      let sum = 0;
+      for (const r of ring) sum += r.p;
+      return sum / ring.length;
+    }
+    // Small deadband to avoid color flicker when very close to avg
+    const DEADBAND_FRAC = 0.002; // ±0.2%
+
+    function setPrice(p) {
+      // --- original ticker behavior (unchanged)
+      if (lastPrice !== null) {
+        const diff = p - lastPrice;
+        const pct = ((p - lastPrice) / lastPrice * 100).toFixed(2);
+        changeEl.textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+        changeEl.className = 'change ' + (pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat') + ' flash';
+        priceEl.className = 'price ' + (diff > 0 ? 'up' : diff < 0 ? 'down' : '');
+      }
+      priceEl.textContent = p.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+      lastPrice = p;
+
+      // --- NEW: update buffer + glow (doesn't touch any DOM besides --glow var)
+      const now = Date.now();
+      ring.push({ t: now, p });
+      const a = avg10m(now);
+      if (isFinite(a)) {
+        const spread = Math.abs(p - a) / a;
+        if (spread <= DEADBAND_FRAC) {
+          rootStyle.setProperty('--glow','rgba(0,200,255,0.22)'); // neutral cyan
+        } else if (p > a) {
+          rootStyle.setProperty('--glow','rgba(0,255,179,0.35)'); // green
+        } else {
+          rootStyle.setProperty('--glow','rgba(255,60,60,0.35)');  // red
+        }
+      } else {
+        // warmup until avg forms
+        rootStyle.setProperty('--glow','rgba(0,200,255,0.22)');
+      }
+      if (ring.length > 36000) ring.shift(); // safety cap
+    }
+
+    function addTrade({side, price, size, time}) {
+      const row = document.createElement('div');
+      row.className = `feedRow ${side}`;
+      row.innerHTML = `
+        <div class="feedTime">${new Date(time).toLocaleTimeString()}</div>
+        <div class="feedQty">${parseFloat(size).toFixed(4)} BTC</div>
+        <div>${parseFloat(price).toLocaleString('en-US',{style:'currency',currency:'USD'})}</div>
+      `;
+      feedEl.prepend(row);
+      if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
+    }
+
+    // ===== Coinbase WS ticker (unchanged) =====
+    const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        channels: [{ name: 'ticker', product_ids: ['BTC-USD'] }]
+      }));
+    };
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'ticker' && msg.price && msg.side && msg.time) {
+          const p = parseFloat(msg.price);
+          if (!isNaN(p)) setPrice(p);
+          addTrade(msg);
+        }
+      } catch {}
+    };
+
+    // ===== Canvas sizing (unchanged) =====
+    const canvas = document.getElementById('chartCanvas');
+    const ctx = canvas.getContext('2d');
+    function resizeCanvas(){
+      const r = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(r.width * devicePixelRatio);
+      canvas.height = Math.floor(r.height * devicePixelRatio);
+      // simple background hint so you can see it alive immediately
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+    window.addEventListener('load', resizeCanvas);
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
+    window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
+    resizeCanvas();
+  </script>
+</body>
+</html>
