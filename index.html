@@ -25,6 +25,8 @@
       #chart-section { background: #0e121a; border-radius: 16px; padding: 8px; min-height: 36svh; height: clamp(220px, 36svh, 48svh); display: grid; overflow: hidden; }
       #price-chart { width: 100%; height: 100%; display: block; }
       :focus-visible { outline: 2px solid #7aa2ff; outline-offset: 2px; }
+      /* Temporary debug helper (toggle with #debug in URL) */
+      #debug { position: fixed; top: 8px; left: 8px; padding: 6px 8px; background:#222a; color:#fff; font:12px/1.2 monospace; border-radius:8px; display:none; z-index:9999 }
     </style>
   </head>
   <body>
@@ -36,6 +38,7 @@
       <section id="chart-section" aria-label="History">
         <canvas id="price-chart"></canvas>
       </section>
+          <div id="debug"></div>
     </main>
 
     <script>
@@ -50,6 +53,8 @@
         } catch (_) {}
       }
       window.updatePrice = setPriceDisplay;
+      // Show something immediately so you know rendering works
+      priceEl.textContent = 'Loading…';
 
       // Size the chart canvas to its container
       const chartCanvas = document.getElementById('price-chart');
@@ -64,19 +69,37 @@
       window.addEventListener('orientationchange', () => setTimeout(initOrResizeChart, 250));
       initOrResizeChart();
 
-      // ===== Live BTC price via Binance (no API key) =====
+      // ===== Live BTC price via Binance (no API key) with CoinGecko fallback =====
       (function () {
+        const debug = document.getElementById('debug');
+        if (location.hash.includes('debug')) debug.style.display = 'block';
+        function log(m){ if (debug.style.display==='block') debug.textContent = m; }
+
+        let updatedFromWS = false;
         try {
           const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+          ws.onopen = () => log('WS: open');
           ws.onmessage = (e) => {
             const msg = JSON.parse(e.data);
             if (msg && msg.p) {
               const price = parseFloat(msg.p);
-              if (!Number.isNaN(price)) setPriceDisplay(price);
+              if (!Number.isNaN(price)) { setPriceDisplay(price); updatedFromWS = true; }
             }
           };
-          ws.onclose = () => { setTimeout(() => { try { location.reload(); } catch (_) {} }, 5000); };
-        } catch (err) { console.error(err); }
+          ws.onerror = () => log('WS: error');
+          ws.onclose = () => log('WS: close');
+        } catch (err) { log('WS: exception'); }
+
+        // Fallback: if no WS update after 5s, poll CoinGecko every 15s
+        async function pollCG(){
+          try {
+            const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { cache: 'no-store' });
+            const j = await r.json();
+            if (j && j.bitcoin && j.bitcoin.usd) setPriceDisplay(j.bitcoin.usd);
+            log('CG: ok');
+          } catch(e){ log('CG: error'); }
+        }
+        setTimeout(() => { if (!updatedFromWS) { log('WS: no data, using CoinGecko'); pollCG(); setInterval(pollCG, 15000); } }, 5000);
       })();
     </script>
   </body>
