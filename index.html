@@ -1,237 +1,145 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Coinbase Ticker Stream</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>h8s — Live</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #000;
-            color: #ddd;
-            margin: 0;
-            padding: 0;
-        }
-        h1 {
-            text-align: left;
-            padding: 1em;
-            background-color: #111;
-            color: #fff;
-            margin: 0;
-        }
-        #status {
-            text-align: left;
-            margin: 0.5em 1em;
-            font-weight: bold;
-            color: #aaa;
-        }
-        table {
-            border-collapse: collapse;
-            width: auto;
-            margin-left: 1em;
-            margin-right: auto;
-        }
-        th, td {
-            border: 1px solid #444;
-            padding: 6px 10px;
-            text-align: left;
-        }
-        th {
-            background-color: #111;
-            color: #fff;
-        }
-        tr:nth-child(even) {
-            background-color: #1a1a1a;
-        }
-        tr:nth-child(odd) {
-            background-color: #0f0f0f;
-        }
-        tr:hover {
-            background-color: #262626;
-        }
-        /* Color rows based on trade side. When the row has the class 'buy' its text is green, 'sell' text is red. */
-        tr.buy td { color: #00c000; }
-        tr.sell td { color: #ff5252; }
+      /* Reset-ish */
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: #0b0d12;
+        color: #eaf2ff;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* Safe areas for iPhone (notch/edges) */
+      #app {
+        min-height: 100dvh;
+        padding-top: max(12px, env(safe-area-inset-top));
+        padding-right: max(12px, env(safe-area-inset-right));
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        padding-left: max(12px, env(safe-area-inset-left));
+        display: grid;
+        grid-template-rows: 1fr auto; /* live price takes the top, chart at bottom */
+        gap: 16px;
+      }
+      /* Live price “hero” */
+      #price-section {
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 8px 0;
+      }
+      .live-price {
+        line-height: 1.05;
+        font-size: clamp(40px, 11vw, 72px);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .subline {
+        margin-top: 6px;
+        opacity: 0.7;
+        font-size: clamp(12px, 3.2vw, 14px);
+      }
+      /* Chart pinned to the bottom */
+      #chart-section {
+        background: #0e121a;
+        border-radius: 16px;
+        padding: 8px;
+        min-height: 36dvh; /* ~a third of the screen */
+        display: grid;
+        overflow: hidden;
+      }
+      #price-chart {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      :focus-visible { outline: 2px solid #7aa2ff; outline-offset: 2px; }
     </style>
-    <!-- No external dependencies; we'll draw the chart manually on the canvas -->
-</head>
-<body>
-    <h1>Real‑Time Coinbase Ticker (BTC‑USD)</h1>
-    <div id="status">Connecting...</div>
-    <!-- Chart for displaying price over the last hour -->
-    <canvas id="priceChart" width="600" height="300" style="display:block; margin-left:1em; margin-bottom:1em;"></canvas>
-    <table>
-        <thead>
-            <tr>
-                <th>Price (USD)</th>
-                <th>Volume (BTC)</th>
-            </tr>
-        </thead>
-        <tbody id="ticker-body">
-            <!-- Rows will be inserted here -->
-        </tbody>
-    </table>
+  </head>
+  <body>
+    <main id="app">
+      <!-- Header removed; opens straight to live price -->
+      <section id="price-section" aria-label="Live price">
+        <div id="live-price" class="live-price" role="status" aria-live="polite">—</div>
+        <div class="subline" id="subline">Updated • —</div>
+      </section>
+
+      <!-- Chart moved to bottom -->
+      <section id="chart-section" aria-label="History">
+        <canvas id="price-chart"></canvas>
+      </section>
+    </main>
+
+    <!-- Optional: bring your own chart lib. This page works even without it. -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script> -->
 
     <script>
-        (function() {
-            // Updated endpoint: Coinbase retired the old `pro.coinbase.com` feed. Use the
-            // official Exchange feed instead. See https://apidog.com/blog/coinbase-api-5/【695812260768369†L450-L457】 for reference.
-            const wsUrl = 'wss://ws-feed.exchange.coinbase.com';
-            const productIds = ['BTC-USD']; // Change this list to subscribe to other pairs
-            const tickerBody = document.getElementById('ticker-body');
-            const statusEl = document.getElementById('status');
-            let ws;
+      // ===== Live price helpers =====
+      const priceEl = document.getElementById('live-price');
+      const sublineEl = document.getElementById('subline');
 
-            // Canvas context for our custom chart
-            const priceCanvas = document.getElementById('priceChart');
-            const priceCtx = priceCanvas.getContext('2d');
-            const maxPoints = 3600; // roughly one hour at one update per second
-            let pricePoints = [];
+      function setPriceDisplay(value) {
+        const s = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+        priceEl.textContent = s;
+        sublineEl.textContent = 'Updated • ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
 
+      // Expose a simple hook you can call from your own feed:
+      // window.updatePrice(68901.24)
+      window.updatePrice = setPriceDisplay;
 
-            // Draw the price chart manually on the canvas
-            function updatePriceChart(price) {
-                if (isNaN(price)) return;
-                pricePoints.push(price);
-                if (pricePoints.length > maxPoints) {
-                    pricePoints.shift();
-                }
-                const width = priceCanvas.width;
-                const height = priceCanvas.height;
-                priceCtx.clearRect(0, 0, width, height);
-                if (pricePoints.length < 2) {
-                    return;
-                }
-                // Determine min and max for scaling
-                let minPrice = Math.min(...pricePoints);
-                let maxPrice = Math.max(...pricePoints);
-                // Prevent zero range
-                if (maxPrice - minPrice < 0.0001) {
-                    maxPrice += 0.0001;
-                    minPrice -= 0.0001;
-                }
-                const pointCount = pricePoints.length;
-                // Draw horizontal grid lines for reference
-                const gridLines = 5;
-                priceCtx.strokeStyle = '#222';
-                priceCtx.lineWidth = 1;
-                for (let i = 0; i <= gridLines; i++) {
-                    const y = (height / gridLines) * i;
-                    priceCtx.beginPath();
-                    priceCtx.moveTo(0, y);
-                    priceCtx.lineTo(width, y);
-                    priceCtx.stroke();
-                }
+      // (Optional) If you want a quick sanity check without wiring your feed yet:
+      // setInterval(() => setPriceDisplay(68000 + Math.random()*500), 3000);
 
-                // Draw the line chart
-                priceCtx.strokeStyle = '#00aaff';
-                priceCtx.lineWidth = 1;
-                priceCtx.beginPath();
-                for (let i = 0; i < pointCount; i++) {
-                    const x = (i / (maxPoints - 1)) * width;
-                    const p = pricePoints[i];
-                    const y = height - ((p - minPrice) / (maxPrice - minPrice)) * height;
-                    if (i === 0) {
-                        priceCtx.moveTo(x, y);
-                    } else {
-                        priceCtx.lineTo(x, y);
-                    }
-                }
-                priceCtx.stroke();
+      // ===== Chart sizing (library-agnostic) =====
+      const chartCanvas = document.getElementById('price-chart');
+      let chartInstance = null; // your chart lib can assign here
 
-                // Draw simple legend for the line
-                const legendX = 10;
-                const legendY = 12;
-                priceCtx.fillStyle = '#00aaff';
-                priceCtx.fillRect(legendX, legendY - 3, 20, 3);
-                priceCtx.fillStyle = '#888';
-                priceCtx.font = '10px Arial';
-                priceCtx.fillText('Price (USD)', legendX + 25, legendY);
+      function resizeCanvasToContainer(canvas) {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width  = Math.floor(rect.width);
+        canvas.height = Math.floor(rect.height);
+      }
 
-                // Draw the latest price next to its position on the chart
-                const lastPrice = pricePoints[pricePoints.length - 1];
-                if (lastPrice !== undefined) {
-                    // Compute y coordinate for the last price
-                    const yLast = height - ((lastPrice - minPrice) / (maxPrice - minPrice)) * height;
-                    const priceLabel = '$' + lastPrice.toFixed(2);
-                    priceCtx.font = '12px Arial';
-                    priceCtx.fillStyle = '#ffd700'; // yellow text
-                    const textWidth = priceCtx.measureText(priceLabel).width;
-                    // Position text a few pixels from the right edge and slightly above the line
-                    const xPos = width - textWidth - 5;
-                    const yPos = Math.max(12, Math.min(height - 5, yLast - 5));
-                    priceCtx.fillText(priceLabel, xPos, yPos);
-                }
-            }
-            
-            // No external initialization is needed for the custom chart
+      function initOrResizeChart() {
+        resizeCanvasToContainer(chartCanvas);
+        // If you hook up Chart.js/ECharts/etc., resize here:
+        if (chartInstance && chartInstance.resize) chartInstance.resize();
+        else if (chartInstance && chartInstance.setSize) chartInstance.setSize({ width: chartCanvas.width, height: chartCanvas.height });
+      }
 
-            function connect() {
-                statusEl.textContent = 'Connecting…';
-                ws = new WebSocket(wsUrl);
+      const ro = new ResizeObserver(initOrResizeChart);
+      ro.observe(document.getElementById('chart-section'));
+      window.addEventListener('orientationchange', () => setTimeout(initOrResizeChart, 250));
+      initOrResizeChart();
 
-                ws.onopen = function() {
-                    statusEl.textContent = 'Connected';
-                    // Subscribe to ticker channel for each product
-                    ws.send(JSON.stringify({
-                        type: 'subscribe',
-                        product_ids: productIds,
-                        channels: ['ticker']
-                    }));
-                };
-
-                ws.onmessage = function(event) {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'ticker' && productIds.includes(msg.product_id)) {
-                        // Filter out very small trades: skip if volume (last_size) is less than 0.001
-                        const volume = parseFloat(msg.last_size);
-                        if (!isNaN(volume) && volume < 0.001) {
-                            return;
-                        }
-                        addRow(msg);
-                        // Pass price as number to custom chart
-                        updatePriceChart(parseFloat(msg.price));
-                    }
-                };
-
-                ws.onclose = function() {
-                    statusEl.textContent = 'Disconnected – retrying in 5 seconds…';
-                    setTimeout(connect, 5000);
-                };
-
-                ws.onerror = function(err) {
-                    console.error('WebSocket error:', err);
-                };
-            }
-
-            function addRow(tick) {
-                const row = document.createElement('tr');
-                // Assign class to colour the row based on trade side
-                row.className = tick.side;
-                const cells = [
-                    parseFloat(tick.price).toFixed(2),
-                    parseFloat(tick.last_size).toFixed(8)
-                ];
-                // Append cells for price and volume
-                cells.forEach(text => {
-                    const td = document.createElement('td');
-                    td.textContent = text;
-                    row.appendChild(td);
-                });
-                // Insert at the top of the table
-                if (tickerBody.firstChild) {
-                    tickerBody.insertBefore(row, tickerBody.firstChild);
-                } else {
-                    tickerBody.appendChild(row);
-                }
-                // Keep only the last 20 rows
-                while (tickerBody.children.length > 20) {
-                    tickerBody.removeChild(tickerBody.lastChild);
-                }
-            }
-            
-            connect();
-        })();
+      // ===== (Optional) Example Chart.js hookup =====
+      // function buildChartWithChartJS(labels, data) {
+      //   if (!window.Chart) return; // Chart.js not loaded
+      //   if (chartInstance) chartInstance.destroy();
+      //   chartInstance = new Chart(chartCanvas.getContext('2d'), {
+      //     type: 'line',
+      //     data: { labels, datasets: [{ data, tension: 0.25, borderWidth: 2, pointRadius: 0 }] },
+      //     options: {
+      //       responsive: false, maintainAspectRatio: false,
+      //       plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      //       scales: { x: { ticks: { display: false }, grid: { display: false } },
+      //                y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.06)' } } }
+      //     }
+      //   });
+      // }
+      // // Example: buildChartWithChartJS(['', '', '', '', ''], [1,2,3,2.5,3.5]);
     </script>
-</body>
+  </body>
 </html>
