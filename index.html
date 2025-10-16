@@ -78,7 +78,7 @@
 
         let ws, reconnectDelay=1000, maxDelay=30000, lastPaint=0;
         let tradesInWindow=0; // for TPS
-        const maxItems = 200; // keep last N prints
+        const maxItems = 100; // keep last N prints
 
         function paintTrade(t){
           // throttle DOM writes
@@ -94,7 +94,7 @@
             <span class="q">${Number(t.size).toLocaleString(undefined,{maximumFractionDigits:6})}</span>
           `;
           list.insertBefore(li, list.firstChild);
-          if (list.children.length > maxItems) list.removeChild(list.lastChild);
+          while (list.children.length > maxItems) list.removeChild(list.lastChild);
         }
 
         // TPS meter (simple moving count per second)
