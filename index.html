@@ -98,6 +98,29 @@
       // Expose a simple hook you can call from your own feed:
       // window.updatePrice(68901.24)
       window.updatePrice = setPriceDisplay;
+<script>
+/* Live BTC price via Binance (BTC/USDT) */
+(function () {
+  try {
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg && msg.p) {
+        const price = parseFloat(msg.p);
+        if (!Number.isNaN(price) && window.updatePrice) {
+          window.updatePrice(price);
+        }
+      }
+    };
+    ws.onclose = () => {
+      // simple auto-retry after a disconnect
+      setTimeout(() => location.reload(), 5000);
+    };
+  } catch (err) {
+    console.error('WS error', err);
+  }
+})();
+</script>
 
       // (Optional) If you want a quick sanity check without wiring your feed yet:
       // setInterval(() => setPriceDisplay(68000 + Math.random()*500), 3000);
