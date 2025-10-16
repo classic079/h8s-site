@@ -31,7 +31,7 @@
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
 
-    /* Meta cards: only the two price extremes now */
+    /* Meta cards (price extremes only) */
     .meta{
       width:min(920px,96vw);
       display:grid; grid-template-columns: 1fr 1fr;
@@ -48,7 +48,7 @@
     .card.buy .value{color:var(--up)}
     .card.sell .value{color:var(--down)}
 
-    /* Chart */
+    /* Chart (same behavior as index.html: static canvas, no drawing loop) */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(150px,28vh,240px);margin:8px auto 10px;}
     #chartCanvas{
       position:absolute;inset:0;width:100%;height:100%;
@@ -76,7 +76,6 @@
       <div class="change flat" id="change">+0.00%</div>
     </div>
 
-    <!-- Only the 10m price extremes -->
     <div class="meta">
       <div class="card buy"><span class="label">10m Max Buy Price</span><span class="value" id="maxBuyPrice">—</span></div>
       <div class="card sell"><span class="label">10m Min Sell Price</span><span class="value" id="minSellPrice">—</span></div>
@@ -101,20 +100,16 @@
     let lastPrice = null;
 
     // Helpers
-    const safeParseFloat = v => {
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : NaN;
-    };
+    const safeParseFloat = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : NaN; };
     const fmtUSD = n => n.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: 2 });
 
-    // Normalize Coinbase message → {price,size,side,time}
+    // Normalizer (handles legacy + Advanced Trade shapes)
     function extractTrade(msg){
       let price = safeParseFloat(msg.price);
       let size  = safeParseFloat(msg.last_size ?? msg.size);
       let side  = msg.side || '';
       let time  = msg.time;
 
-      // Handle Advanced Trade event envelopes
       if (!Number.isFinite(price) || !side || !time) {
         const ev = Array.isArray(msg.events) && msg.events[0];
         if (ev) {
@@ -133,19 +128,7 @@
       return { price, size, side, time };
     }
 
-    // ===== 10-minute window (shared by stats & chart) =====
-    const TEN_MIN_MS = 10 * 60 * 1000;
-    const ring = []; // {t:number, p:number}
-
-    function pushPrice(p, ts){
-      const t = ts || Date.now();
-      ring.push({ t, p });
-      // prune old
-      const cutoff = t - TEN_MIN_MS;
-      while (ring.length && ring[0].t < cutoff) ring.shift();
-    }
-
-    // ===== Ticker =====
+    // Ticker (same behavior)
     function setPrice(p) {
       if (lastPrice !== null) {
         const diff = p - lastPrice;
@@ -158,7 +141,8 @@
       lastPrice = p;
     }
 
-    // ===== Stats: 10m price extremes =====
+    // 10-minute window stats (price extremes), prunes old rows
+    const TEN_MIN_MS = 10 * 60 * 1000;
     function pruneOldAndUpdateStats() {
       const cutoff = Date.now() - TEN_MIN_MS;
       let maxBuyPrice = -Infinity, minSellPrice = Infinity;
@@ -179,7 +163,7 @@
     }
     setInterval(pruneOldAndUpdateStats, 30_000);
 
-    // ===== Feed =====
+    // Feed
     function addTrade({side, price, size, time}) {
       const ts = time ? Date.parse(time) : Date.now();
       const qty = safeParseFloat(size);
@@ -202,64 +186,25 @@
       feedEl.prepend(row);
       if (feedEl.children.length > 120) feedEl.removeChild(feedEl.lastChild);
 
-      // keep stats fresh
       pruneOldAndUpdateStats();
     }
 
-    // ===== Chart (sparkline of last 10 minutes) =====
+    // Canvas sizing (index.html behavior)
     const canvas = document.getElementById('chartCanvas');
     const ctx = canvas.getContext('2d');
     function resizeCanvas(){
       const r = canvas.getBoundingClientRect();
       canvas.width  = Math.max(1, Math.floor(r.width  * devicePixelRatio));
       canvas.height = Math.max(1, Math.floor(r.height * devicePixelRatio));
+      // subtle background hint
+      ctx.fillStyle = 'rgba(255,255,255,0.02)';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
     }
-    function renderChart(){
-      const now = Date.now();
-      // prune the ring here too
-      const cutoff = now - TEN_MIN_MS;
-      while (ring.length && ring[0].t < cutoff) ring.shift();
-
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-
-      if (ring.length < 2) { requestAnimationFrame(renderChart); return; }
-
-      // y-scale from min/max in window
-      let min = Infinity, max = -Infinity;
-      for (const {p} of ring){ if (p < min) min = p; if (p > max) max = p; }
-      if (min === max) { min -= 1; max += 1; }
-
-      const w = canvas.width, h = canvas.height;
-      const x = t => ((t - cutoff) / TEN_MIN_MS) * w;
-      const y = p => h - ((p - min) / (max - min)) * h;
-
-      // grid line for current price band (subtle)
-      ctx.lineWidth = Math.max(1, devicePixelRatio);
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-      ctx.setLineDash([6,4]);
-      const last = ring[ring.length-1].p;
-      ctx.beginPath();
-      ctx.moveTo(0, y(last));
-      ctx.lineTo(w, y(last));
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // sparkline
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.moveTo(x(ring[0].t), y(ring[0].p));
-      for (let i=1;i<ring.length;i++){
-        ctx.lineTo(x(ring[i].t), y(ring[i].p));
-      }
-      ctx.stroke();
-
-      requestAnimationFrame(renderChart);
-    }
-    window.addEventListener('load', () => { resizeCanvas(); requestAnimationFrame(renderChart); });
+    window.addEventListener('load', () => { resizeCanvas(); pruneOldAndUpdateStats(); });
     window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 250));
     window.addEventListener('resize', () => requestAnimationFrame(resizeCanvas));
 
-    // ===== WebSocket =====
+    // WebSocket
     const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
     ws.onopen = () => {
       ws.send(JSON.stringify({
@@ -272,10 +217,7 @@
         const raw = JSON.parse(e.data);
         if (!raw) return;
         const t = extractTrade(raw);
-        if (Number.isFinite(t.price)) {
-          setPrice(t.price);
-          pushPrice(t.price, t.time ? Date.parse(t.time) : Date.now());
-        }
+        if (Number.isFinite(t.price)) setPrice(t.price);
         if (Number.isFinite(t.price) || Number.isFinite(t.size) || t.time) addTrade(t);
       } catch {}
     };
