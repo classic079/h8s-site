@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   />
-  <title>Coinbase Live Feed</title>
+  <title>Live BTC/USD</title>
   <style>
     :root{
       --bg:#0a0a0a;
@@ -28,7 +28,6 @@
       -moz-osx-font-smoothing: grayscale;
     }
 
-    /* Layout */
     .wrap{
       min-height:100%;
       padding-bottom: env(safe-area-inset-bottom);
@@ -37,6 +36,7 @@
       align-items:center;
     }
 
+    /* Top sticky bar with just the price */
     .topbar{
       position: sticky;
       top: 0;
@@ -45,36 +45,22 @@
       background: linear-gradient(180deg, rgba(10,10,10,.95), rgba(10,10,10,.7));
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      padding: calc(12px + env(safe-area-inset-top)) 16px 12px 16px;
+      padding: calc(10px + env(safe-area-inset-top)) 16px 10px 16px;
       border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-    .title{
-      margin:0;
-      font-size: clamp(16px, 3.8vw, 22px);
-      font-weight: 650;
-      color:#fff;
-      letter-spacing:.2px;
-    }
-    .priceRow{
-      margin-top:6px;
       display:flex;
-      align-items:baseline;
-      gap:10px;
-      font-variant-numeric: tabular-nums;
+      justify-content:center;
     }
     .price{
-      font-size: clamp(20px, 6vw, 34px);
-      font-weight: 700;
+      font-size: clamp(22px, 7vw, 40px);
+      font-weight: 800;
       line-height: 1;
+      font-variant-numeric: tabular-nums;
+      transition: color .25s ease;
+      color:#ffffff;
+      text-shadow: 0 0 18px rgba(0,0,0,.35);
     }
-    .sideBadge{
-      font-size: clamp(11px, 2.7vw, 12px);
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.15);
-    }
-    .buyBadge{color: var(--buy)}
-    .sellBadge{color: var(--sell)}
+    .price.up{ color: var(--buy); }
+    .price.down{ color: var(--sell); }
 
     /* Chart */
     #chartContainer{
@@ -115,14 +101,11 @@
     .row:nth-child(2n){
       background: rgba(255,255,255,0.02);
     }
-    .buy{ color: var(--buy); }
-    .sell{ color: var(--sell); }
     .col{min-width:0}
     .time{opacity:.8; white-space:nowrap}
-    .side{font-weight:600; white-space:nowrap}
     .priceCell{white-space:nowrap}
+    .amountCell{white-space:nowrap; opacity:.9}
 
-    /* Reduce motion preference */
     @media (prefers-reduced-motion: reduce){
       #chartCanvas{transition:none}
     }
@@ -131,11 +114,7 @@
 <body>
   <div class="wrap">
     <header class="topbar">
-      <h1 class="title">Coinbase Live Feed — BTC/USD</h1>
-      <div class="priceRow">
-        <div id="livePrice" class="price">$—</div>
-        <div id="liveSide" class="sideBadge">—</div>
-      </div>
+      <div id="livePrice" class="price">$—</div>
     </header>
 
     <section id="chartContainer">
@@ -146,29 +125,29 @@
   </div>
 
   <script>
-    // ---------- Helpers ----------
+    // ---------- DOM refs ----------
     const $ = sel => document.querySelector(sel);
     const feedEl = $('#feedContainer');
     const priceEl = $('#livePrice');
-    const sideEl = $('#liveSide');
 
     const chartCanvas = $('#chartCanvas');
     const ctx = chartCanvas.getContext('2d', { desynchronized: true });
 
-    // number formatter (fast & locale-friendly)
     const fmtUSD = new Intl.NumberFormat(undefined, { style:'currency', currency:'USD', maximumFractionDigits:2 });
+    const fmtBTC = new Intl.NumberFormat(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 8 });
 
-    // Ring buffer for last N trades & chart prices
-    const MAX_TRADES = 100;
-    const MAX_POINTS = 600; // ~10 minutes if ~1/s effective sampling
+    // Buffers
+    const MAX_TRADES = 50;   // show top 50 in the box
+    const MAX_POINTS = 600;  // ~10 minutes if ~1/s sampling
     let trades = [];
     let prices = [];
-    let lastSide = null;
+
+    // Price direction coloring
     let lastPrice = null;
 
-    // High-DPI canvas sizing
+    // Hi-DPI canvas
     function resizeCanvas(){
-      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3)); // cap DPR for perf
+      const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
       const cssW = chartCanvas.clientWidth;
       const cssH = chartCanvas.clientHeight;
       chartCanvas.width  = Math.round(cssW * dpr);
@@ -176,15 +155,12 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawChart(true);
     }
-
-    // Keep canvas crisp on resizes and orientation changes
     const ro = new ResizeObserver(resizeCanvas);
     ro.observe(chartCanvas);
     window.addEventListener('orientationchange', resizeCanvas, { passive:true });
 
-    // ---------- WebSocket (Coinbase Pro/Exchange) ----------
-    let ws;
-    let reconnectTimer;
+    // ---------- WebSocket ----------
+    let ws, reconnectTimer;
     const SUB_MSG = {
       type: 'subscribe',
       product_ids: ['BTC-USD'],
@@ -199,13 +175,12 @@
       ws.addEventListener('close', tryReconnect, { once:true });
       ws.addEventListener('error', () => ws.close(), { once:true });
     }
-
     function tryReconnect(){
       clearTimeout(reconnectTimer);
       reconnectTimer = setTimeout(connect, 1000);
     }
 
-    // Batch DOM & chart updates to avoid UI jank on mobile
+    // Batched updates
     let needsFeedRender = false;
     let latestTickForChart = null;
 
@@ -214,45 +189,46 @@
       if (msg.type !== 'match') return;
 
       const price = parseFloat(msg.price);
-      const side  = msg.side; // 'buy' or 'sell'
+      const size  = parseFloat(msg.size); // BTC amount
       const time  = new Date(msg.time);
 
+      // Price-up / price-down coloring on the header
+      if (lastPrice !== null){
+        priceEl.classList.remove('up','down');
+        if (price > lastPrice) priceEl.classList.add('up');
+        else if (price < lastPrice) priceEl.classList.add('down');
+      }
       lastPrice = price;
-      lastSide  = side;
+      priceEl.textContent = fmtUSD.format(price);
 
-      // Maintain ring buffer
-      trades.push({ price, side, time });
+      // Feed buffer (time, price, amount only)
+      trades.push({ price, size, time });
       if (trades.length > MAX_TRADES) trades.shift();
 
-      // Chart sampling: store only the most recent tick seen between frames
+      // Chart sampling
       latestTickForChart = price;
 
-      // Mark for batched UI updates
       needsFeedRender = true;
     }
 
-    // ---------- Render Loop ----------
+    // ---------- Rendering ----------
     function renderFeed(){
-      // Rebuild the feed in one go using a DocumentFragment (fastest for mobile)
       const frag = document.createDocumentFragment();
       for (let i = trades.length - 1; i >= 0; i--){
         const t = trades[i];
         const row = document.createElement('div');
-        row.className = `row ${t.side}`;
+        row.className = 'row';
         const timeStr = t.time.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-
         row.innerHTML = `
           <div class="col time">${timeStr}</div>
-          <div class="col side">${t.side.toUpperCase()}</div>
           <div class="col priceCell">${fmtUSD.format(t.price)}</div>
+          <div class="col amountCell">${fmtBTC.format(t.size)} BTC</div>
         `;
         frag.appendChild(row);
       }
-      // Replace content without blowing away scroll position when near top
       const prevScrollBottom = feedEl.scrollHeight - feedEl.scrollTop - feedEl.clientHeight;
       feedEl.innerHTML = '';
       feedEl.appendChild(frag);
-      // Keep view anchored to top (latest trades at top)
       if (prevScrollBottom < 40) {
         feedEl.scrollTop = 0;
       }
@@ -262,14 +238,12 @@
       const w = chartCanvas.clientWidth;
       const h = chartCanvas.clientHeight;
 
-      // background
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = '#101010';
       ctx.fillRect(0, 0, w, h);
 
       if (prices.length < 2) return;
 
-      // bounds
       let min = Infinity, max = -Infinity;
       for (let i=0;i<prices.length;i++){
         const p = prices[i];
@@ -278,7 +252,6 @@
       }
       const range = (max - min) || 1;
 
-      // grid (faint)
       ctx.strokeStyle = 'rgba(255,255,255,0.06)';
       ctx.lineWidth = 1;
       for (let i = 1; i < 6; i++) {
@@ -286,7 +259,6 @@
         ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
       }
 
-      // series
       ctx.beginPath();
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#00ffb3';
@@ -298,45 +270,25 @@
       ctx.stroke();
     }
 
-    // RAF loop to batch UI & chart updates (~60fps but light work each frame)
     function loop(){
-      // Update headline price/side
-      if (lastPrice != null){
-        priceEl.textContent = fmtUSD.format(lastPrice);
-      }
-      if (lastSide){
-        sideEl.textContent = lastSide.toUpperCase();
-        sideEl.className = 'sideBadge ' + (lastSide === 'buy' ? 'buyBadge' : 'sellBadge');
-      }
-
-      // Append the latest chart point at most once per frame
       if (latestTickForChart != null){
         prices.push(latestTickForChart);
         if (prices.length > MAX_POINTS) prices.shift();
         latestTickForChart = null;
         drawChart();
       }
-
-      // Re-render feed only when flagged (and not every frame)
       if (needsFeedRender){
         needsFeedRender = false;
         renderFeed();
       }
-
       requestAnimationFrame(loop);
     }
 
-    // Pause updates when tab is hidden (saves battery on mobile)
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        // do nothing special; RAF auto-throttles in background
-      } else {
-        // force a redraw on return
-        drawChart(true);
-      }
+      if (!document.hidden) drawChart(true);
     }, { passive:true });
 
-    // Kick things off
+    // Init
     resizeCanvas();
     connect();
     requestAnimationFrame(loop);
