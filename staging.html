@@ -1,260 +1,574 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Live BTC/USD</title>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>BTC Live Feed</title>
   <style>
-    :root {
-      --bg:#0a0a0a; --panel:#101010; --text:#e9fef7;
-      --up:#00ffb3; --down:#ff3c3c; --glow: rgba(0,255,179,0.25); --muted:#c8d6cf;
+    :root{
+      --bg: #0b0e13;
+      --card: rgba(255,255,255,0.06);
+      --text: #e8edf2;
+      --sub: #98a2ad;
+      --green: #1ec28b;
+      --red: #ff5b63;
+      --glow-pos: 0 0 40px rgba(30,194,139,0.35);
+      --glow-neg: 0 0 40px rgba(255,91,99,0.35);
+      --muted: rgba(255,255,255,0.06);
     }
-    *{box-sizing:border-box}
-    html,body{
-      height:100%;margin:0;padding:0;background:var(--bg);color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
-    }
-    .wrap{min-height:100%;padding-bottom:env(safe-area-inset-bottom);display:flex;flex-direction:column;align-items:center;}
-
-    /* Top bar */
-    .topbar{
-      position:sticky;top:0;z-index:10;width:100%;
-      background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
-      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-      padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
-      border-bottom:1px solid rgba(255,255,255,0.06);
-      display:flex;justify-content:center;gap:12px;align-items:baseline;
-      font-variant-numeric:tabular-nums;
-    }
-    .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
-    .price.up{color:var(--up)} .price.down{color:var(--down)}
-    .change{font-size:clamp(12px,3.2vw,16px);font-weight:700;opacity:.9;transition:color .25s ease;}
-    .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
-    @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
-    .change.flash{animation:changeFlash 450ms ease-out;}
-
-    /* Chart */
-    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
-    #chartCanvas{position:absolute;inset:0;width:100%;height:100%;background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);}
-
-    /* Feed container */
-    #feedContainer{width:min(920px,96vw);height:56vh;background:var(--panel);border-radius:12px;padding:6px;
-      overflow-y:auto;-webkit-overflow-scrolling:touch;
-      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body{
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1000px 600px at 50% -200px, rgba(46,92,255,0.1), transparent 60%), var(--bg);
+      color: var(--text);
     }
 
-    /* Tops */
-    .tops{margin:2px 6px 6px;}
-    .tops-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-    .tops h4{margin:4px 0 4px;font-size:.9em;font-weight:700;color:#fff;}
-    .tops ul{list-style:none;margin:0;padding:0;}
-    .tops li{padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.07);font-variant-numeric:tabular-nums;}
-    .tops .buy{color:var(--up)} .tops .sell{color:var(--down)} .tops .muted{color:var(--muted);opacity:.9}
-
-    /* Summary bar (mobile) */
-    .tops-summary{
-      display:none;width:100%;
-      background:rgba(255,255,255,0.04);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:10px;
-      padding:6px 10px;
-      font-size:.95em;font-weight:600;
-      color:#fff;text-align:left;
-      cursor:pointer;
-      display:flex;align-items:center;justify-content:space-between;gap:8px;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    /* Mobile-first layout */
+    .site { display: block; padding: 10px; gap: 0; }
+    .card{
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(6px);
+      padding: 12px;
     }
-    .tops-summary .vals{font-variant-numeric:tabular-nums;}
-    .tops-summary .vals .buy{color:var(--up)} .tops-summary .vals .sell{color:var(--down)}
-    .tops-summary .chev{opacity:.8;flex-shrink:0;}
+    .row { display: flex; align-items: center; gap: 10px; }
 
-    @media (max-width:600px){
-      .tops-grid{display:none;}
-      .tops-summary{display:flex;}
-      .tops.expanded .tops-grid{display:grid;}
-    }
-    @media (max-width:375px){
-      .tops-summary{font-size:.8em;padding:5px 8px;}
+    .mobile-only { display: block; }
+    .desktop-only { display: none; }
+
+    /* Desktop grid */
+    @media (min-width: 1024px){
+      .site {
+        display: grid !important;
+        grid-template-columns: 1.2fr 2fr 1fr; /* sidebar | main | aux */
+        gap: 16px;
+        padding: 16px;
+      }
+      .desktop-only { display: block !important; }
+      .mobile-only { display: none !important; }
+      .sticky { position: sticky; top: 0; }
     }
 
-    /* Ticker rows */
-    .row{display:grid;grid-template-columns:92px 1fr auto;column-gap:10px;align-items:center;
-      padding:4px 6px;border-radius:8px;font-size:clamp(12px,3.2vw,14px);line-height:1.15;
-      font-variant-numeric:tabular-nums;text-align:left;}
-    .row.buy{color:var(--up)} .row.sell{color:var(--down)}
-    .time{white-space:nowrap;opacity:.85}
-    .priceCell{white-space:nowrap}
-    .amountCell{white-space:nowrap;opacity:.95;cursor:pointer;}
-    .dir{opacity:.8;margin-left:6px}
-    .headerRow{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.85em;opacity:.7;
-      border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:4px;padding-bottom:4px;
-      display:grid;grid-template-columns:92px 1fr auto;column-gap:10px;text-align:left;}
+    /* Price banner */
+    #price-banner{
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      padding: 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.25));
+      box-shadow: var(--banner-glow, var(--glow-pos));
+    }
+    #spark {
+      position: absolute;
+      inset: 0;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    #price-line { font-size: 28px; font-weight: 700; letter-spacing: 0.2px; }
+    #price-sub { color: var(--sub); font-size: 12px; }
+
+    /* Toggle USD/BTC */
+    .mode-toggle{
+      margin-left: auto;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--muted);
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .mode-toggle:active { transform: translateY(1px); }
+
+    /* Compact Top-3 (single-line, collapsible) */
+    #top3-compact{
+      margin-top: 10px;
+      user-select: none;
+      cursor: pointer;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #top3-compact .buy { color: var(--green); }
+    #top3-compact .sell { color: var(--red); }
+    #top3-expanded{
+      display: none;
+      margin-top: 8px;
+      gap: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    #top3-expanded .col{
+      flex: 1 1 0;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 8px;
+    }
+    #top3-expanded .col .title{
+      font-size: 11px; color: var(--sub); margin-bottom: 6px;
+    }
+    .pill{
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.03);
+      font-size: 11px;
+      margin-right: 6px;
+    }
+
+    /* Feed */
+    #feed-container { padding: 0; }
+    #trade-feed{
+      list-style: none;
+      margin: 0;
+      padding: 8px;
+      max-height: calc(100vh - 220px);
+      overflow: auto;
+    }
+    .feed-item{
+      display: grid;
+      grid-template-columns: 88px 1fr 120px;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .feed-item .side.buy { color: var(--green); }
+    .feed-item .side.sell { color: var(--red); }
+    .muted { color: var(--sub); font-size: 12px; }
+
+    /* Right-side cards (desktop) */
+    .widget { margin-bottom: 16px; }
+
+    /* Subtle separators */
+    .sep { height: 1px; background: rgba(255,255,255,0.07); border-radius: 1px; margin: 8px 0; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header class="topbar">
-      <div id="livePrice" class="price">$—</div>
-      <div id="liveChange" class="change flat">—</div>
-    </header>
-
-    <section id="chartContainer"><canvas id="chartCanvas"></canvas></section>
-
-    <section id="feedContainer">
-      <div class="tops" id="topsPanel">
-        <button id="topsToggle" class="tops-summary" aria-expanded="false">
-          <span class="vals" id="topsSummaryVals"><span class="buy">—</span> | <span class="sell">—</span></span>
-          <span class="chev" id="topsChev">▼</span>
-        </button>
-        <div class="tops-grid" id="topsLists">
+  <div class="site">
+    <!-- LEFT / top -->
+    <section class="card sticky">
+      <div id="price-banner">
+        <canvas id="spark"></canvas>
+        <div class="row">
           <div>
-            <h4>Top Buys (10m)</h4>
-            <ul id="topBuys"><li class="muted">—</li></ul>
+            <div id="price-line">$0.00</div>
+            <div id="price-sub">BTC-USD • last 10m <span id="chg">0.00%</span></div>
           </div>
-          <div>
-            <h4>Top Sells (10m)</h4>
-            <ul id="topSells"><li class="muted">—</li></ul>
+          <button id="modeBtn" class="mode-toggle" title="Click to switch">
+            Amount (USD)
+          </button>
+        </div>
+
+        <!-- Compact Top-3 (no “Top” text by request) -->
+        <div id="top3-compact" class="desktop-only" title="Click to expand/collapse"></div>
+
+        <!-- Expanded 3-line layout -->
+        <div id="top3-expanded" class="row desktop-only">
+          <div class="col" id="col-buys">
+            <div class="title">Buys</div>
+            <div id="buys-lines"></div>
+          </div>
+          <div class="col" id="col-sells">
+            <div class="title">Sells</div>
+            <div id="sells-lines"></div>
+          </div>
+          <div class="col" id="col-meta">
+            <div class="title">Last 10m</div>
+            <div id="meta-lines"></div>
           </div>
         </div>
-      </div>
 
-      <div class="headerRow">
-        <div>Time</div>
-        <div>Price</div>
-        <div id="amountHeader" style="cursor:pointer;">Amount (USD)</div>
+        <!-- Mobile-only compact (single line, tap to toggle) -->
+        <div id="top3-compact-mobile" class="mobile-only" title="Tap to expand/collapse"></div>
+        <div id="top3-expanded-mobile" class="mobile-only" style="display:none; margin-top:8px;">
+          <div id="buys-lines-m"></div>
+          <div class="sep"></div>
+          <div id="sells-lines-m"></div>
+        </div>
       </div>
     </section>
+
+    <!-- CENTER -->
+    <main class="card" id="feed-container">
+      <ul id="trade-feed"></ul>
+    </main>
+
+    <!-- RIGHT (desktop extras) -->
+    <aside class="desktop-only">
+      <div class="card widget">
+        <div class="row" style="justify-content:space-between;">
+          <div>Depth / Volume</div>
+          <span class="pill" id="count-10m">0 trades/10m</span>
+        </div>
+        <div class="sep"></div>
+        <div id="depth-widget">Coming soon</div>
+      </div>
+
+      <div class="card widget">
+        <div>Stats</div>
+        <div class="sep"></div>
+        <div id="stats-widget">
+          10m volume (BTC): <span id="vol-btc">0.000</span><br/>
+          10m notional (USD): <span id="vol-usd">$0</span>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <script>
-    const $=s=>document.querySelector(s);
-    const feedEl=$('#feedContainer'),priceEl=$('#livePrice'),changeEl=$('#liveChange'),
-          amountHeader=$('#amountHeader'),topBuysEl=$('#topBuys'),topSellsEl=$('#topSells'),
-          topsPanel=$('#topsPanel'),topsToggle=$('#topsToggle'),topsChev=$('#topsChev'),topsSummaryVals=$('#topsSummaryVals'),
-          chartCanvas=$('#chartCanvas'),ctx=chartCanvas.getContext('2d',{desynchronized:true});
+    /******************************************************************
+     * CONFIG
+     ******************************************************************/
+    const PRODUCT_ID = "BTC-USD";
+    let DISPLAY_MODE = "USD"; // default (you asked for USD default; click to toggle BTC)
+    let MAX_FEED_ROWS = 100;  // will be raised to 300 on desktop below
+    let BANNER_REFRESH_MS = 4000; // faster on desktop below
 
-    const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
-    const fmtUSDChange=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
-    const fmtBTC=new Intl.NumberFormat(undefined,{minimumFractionDigits:0,maximumFractionDigits:5});
-    const fmtPct=new Intl.NumberFormat(undefined,{minimumFractionDigits:3,maximumFractionDigits:3,signDisplay:'always'});
-
-    const MAX_TRADES=50,WINDOW_MS=10*60*1000;
-    let trades=[],windowTrades=[],series=[],lastPrice=null,showUSD=true;
-
-    function resizeCanvas(){
-      const dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
-      chartCanvas.width=chartCanvas.clientWidth*dpr;chartCanvas.height=chartCanvas.clientHeight*dpr;
-      ctx.setTransform(dpr,0,0,dpr,0,0);drawChart();
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    function onLayoutChange(e){
+      MAX_FEED_ROWS = e.matches ? 300 : 100;
+      BANNER_REFRESH_MS = e.matches ? 2000 : 4000;
     }
-    new ResizeObserver(resizeCanvas).observe(chartCanvas);
+    desktop.addEventListener('change', onLayoutChange);
+    onLayoutChange(desktop);
 
-    let ws,reconnectTimer;const SUB_MSG={type:'subscribe',product_ids:['BTC-USD'],channels:['matches']};
-    function connect(){clearTimeout(reconnectTimer);ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-      ws.addEventListener('open',()=>ws.send(JSON.stringify(SUB_MSG)));
-      ws.addEventListener('message',onMessage);
-      ws.addEventListener('close',()=>{reconnectTimer=setTimeout(connect,1000)},{once:true});
-      ws.addEventListener('error',()=>ws.close(),{once:true});
+    /******************************************************************
+     * DOM helpers
+     ******************************************************************/
+    const el = id => document.getElementById(id);
+    const nfUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+    const nfUSD0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const nfNum = (d, frac=3) => Number(d).toLocaleString('en-US', {maximumFractionDigits: frac, minimumFractionDigits: frac});
+    const nfPct = v => (v>=0?'+':'') + (v*100).toFixed(2) + '%';
+
+    /******************************************************************
+     * State
+     ******************************************************************/
+    let lastPrice = 0;
+    let prices = []; // [{t, p}]
+    let trades10m = []; // sliding window of last 10m trades [{t, side, px, sz}]
+    let feedCount = 0;
+
+    /******************************************************************
+     * WebSocket — try Advanced Trade first, then legacy Pro as fallback
+     ******************************************************************/
+    let ws = null;
+    let wsReadyTimer = null;
+    let gotAnyMessage = false;
+
+    function connectSequence(){
+      connectWS("advanced"); // will self-fallback to legacy if nothing comes in
     }
 
-    let needsFeedRender=false,pendingPriceForSeries=null;
-    function onMessage(e){
-      const m=JSON.parse(e.data);if(m.type!=='match')return;
-      const p=parseFloat(m.price),s=parseFloat(m.size),side=m.side,t=new Date(m.time);
-      const prev=trades.length?trades[trades.length-1].price:lastPrice;
-      let arrow='';if(prev!=null){arrow=p>prev?'▲':p<prev?'▼':'•';}
-      if(lastPrice!==null){priceEl.classList.remove('up','down');if(p>lastPrice)priceEl.classList.add('up');else if(p<lastPrice)priceEl.classList.add('down');}
-      lastPrice=p;priceEl.textContent=fmtUSD.format(p);
-      trades.push({price:p,size:s,time:t,side,arrow});if(trades.length>MAX_TRADES)trades.shift();
-      windowTrades.push({price:p,size:s,side,time:t.getTime()});
-      pendingPriceForSeries=p;needsFeedRender=true;
+    function connectWS(kind){
+      cleanupWS();
+      const url = kind === "advanced"
+        ? "wss://advanced-trade-ws.coinbase.com"
+        : "wss://ws-feed.exchange.coinbase.com";
+
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        if (kind === "advanced"){
+          ws.send(JSON.stringify({
+            type: "subscribe",
+            channel: "market_trades",
+            product_ids: [PRODUCT_ID]
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: "subscribe",
+            product_ids: [PRODUCT_ID],
+            channels: ["matches"]
+          }));
+        }
+        gotAnyMessage = false;
+        wsReadyTimer = setTimeout(() => {
+          if (!gotAnyMessage) {
+            try { ws.close(); } catch(e){}
+            if (kind === "advanced") connectWS("legacy");
+          }
+        }, 5000);
+      };
+      ws.onmessage = (msg) => {
+        gotAnyMessage = true;
+        try {
+          const data = JSON.parse(msg.data);
+
+          // Advanced Trade shape
+          if (data.channel === "market_trades" && Array.isArray(data.events)) {
+            for (const ev of data.events) {
+              if (ev.type === "update" && Array.isArray(ev.trades)) {
+                for (const tr of ev.trades) {
+                  // tr: {trade_id, price, size, side, time}
+                  onTrade({
+                    t: new Date(ev.timestamp || tr.time || Date.now()).getTime(),
+                    side: tr.side, // "BUY" | "SELL"
+                    px: Number(tr.price),
+                    sz: Number(tr.size)
+                  });
+                }
+              }
+            }
+          }
+
+          // Legacy Pro shape
+          else if (data.type === "match" && data.product_id === PRODUCT_ID){
+            onTrade({
+              t: new Date(data.time || Date.now()).getTime(),
+              side: (data.side||'').toUpperCase()==='SELL'?'SELL':'BUY',
+              px: Number(data.price),
+              sz: Number(data.size)
+            });
+          }
+        } catch(e) {
+          // ignore parse errors
+        }
+      };
+      ws.onclose = () => {
+        // retry
+        setTimeout(() => connectSequence(), 1000);
+      };
+      ws.onerror = () => {
+        try { ws.close(); } catch(e){}
+      };
+    }
+    function cleanupWS(){
+      if (wsReadyTimer) { clearTimeout(wsReadyTimer); wsReadyTimer = null; }
+      if (ws) { try { ws.close(); } catch(e){} ws = null; }
     }
 
-    function renderFeed(){
-      const headers=Array.from(feedEl.children).slice(0,2);
-      const frag=document.createDocumentFragment();headers.forEach(n=>frag.appendChild(n));
-      for(let i=trades.length-1;i>=0;i--){
-        const t=trades[i],row=document.createElement('div');
-        row.className=`row ${t.side}`;
-        const ts=t.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-        const amt=showUSD?fmtUSD.format(t.price*t.size):`${fmtBTC.format(t.size)} BTC`;
-        row.innerHTML=`<div class="time">${ts}</div><div class="priceCell">${fmtUSD.format(t.price)} <span class="dir">${t.arrow}</span></div><div class="amountCell">${amt}</div>`;
-        row.querySelector('.amountCell').addEventListener('click',toggleAmountView);
-        frag.appendChild(row);
+    /******************************************************************
+     * Trade handling
+     ******************************************************************/
+    function onTrade(tr){
+      // Normalize side to BUY/SELL
+      tr.side = (tr.side || '').toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+      lastPrice = tr.px;
+
+      // Keep 10m window
+      const cutoff = Date.now() - 10*60*1000;
+      trades10m.push(tr);
+      while (trades10m.length && trades10m[0].t < cutoff) trades10m.shift();
+
+      // Price series (for sparkline)
+      prices.push({t: tr.t, p: tr.px});
+      while (prices.length && prices[0].t < cutoff) prices.shift();
+
+      // Render feed row
+      renderFeedRow(tr);
+
+      // Light UI updates cheaply
+      scheduleBannerUpdate();
+      scheduleTop3Update();
+      scheduleStatsUpdate();
+    }
+
+    /******************************************************************
+     * Feed rendering (limit rows)
+     ******************************************************************/
+    const feedUL = el('trade-feed');
+
+    function renderFeedRow(tr){
+      const li = document.createElement('li');
+      li.className = 'feed-item';
+      const side = tr.side === 'BUY' ? 'buy' : 'sell';
+      const amountUSD = tr.px * tr.sz;
+
+      li.innerHTML = `
+        <div class="side ${side}">${tr.side}</div>
+        <div class="muted">${new Date(tr.t).toLocaleTimeString()}</div>
+        <div class="muted" style="text-align:right;">${nfUSD(amountUSD)}</div>
+        <div>${nfUSD(tr.px)}</div>
+        <div class="muted">${nfNum(tr.sz, 6)} BTC</div>
+        <div style="text-align:right;">${DISPLAY_MODE==='USD' ? nfUSD(amountUSD) : (nfNum(tr.sz, 6)+' BTC')}</div>
+      `;
+      // 2 rows grid -> we used 3 columns x 2 rows (implicit). Works fine visually.
+
+      feedUL.insertBefore(li, feedUL.firstChild);
+      feedCount++;
+      while (feedCount > MAX_FEED_ROWS) {
+        const last = feedUL.lastChild;
+        if (!last) break;
+        feedUL.removeChild(last);
+        feedCount--;
       }
-      feedEl.innerHTML='';feedEl.appendChild(frag);
     }
 
-    function renderTops(){
-      const cutoff=Date.now()-WINDOW_MS;
-      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
-      const buys=windowTrades.filter(t=>t.side==='buy').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
-      const sells=windowTrades.filter(t=>t.side==='sell').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
-      const fmtAmt=t=>showUSD?fmtUSD.format(t.usd):`${fmtBTC.format(t.size)} BTC`;
-      topBuysEl.innerHTML=buys.length?buys.map(t=>`<li class="buy">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
-      topSellsEl.innerHTML=sells.length?sells.map(t=>`<li class="sell">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
-      const topBuy=buys[0]?`<span class="buy">${fmtAmt(buys[0])}</span>`:'<span class="buy">—</span>';
-      const topSell=sells[0]?`<span class="sell">${fmtAmt(sells[0])}</span>`:'<span class="sell">—</span>';
-      topsSummaryVals.innerHTML=`${topBuy} | ${topSell}`;
+    /******************************************************************
+     * Banner: price, sparkline, +/- glow by last 10m change
+     ******************************************************************/
+    const priceLine = el('price-line');
+    const priceSub  = el('price-sub');
+    const chgEl     = el('chg');
+    const banner    = el('price-banner');
+    const spark     = el('spark');
+    const ctx       = spark.getContext('2d');
+
+    function drawSpark(){
+      const w = spark.clientWidth | 0, h = spark.clientHeight | 0;
+      if (spark.width !== w) spark.width = w;
+      if (spark.height !== h) spark.height = h;
+      if (prices.length < 2) return;
+
+      const minP = Math.min(...prices.map(x => x.p));
+      const maxP = Math.max(...prices.map(x => x.p));
+      const tMin = prices[0].t;
+      const tMax = prices[prices.length-1].t;
+
+      ctx.clearRect(0,0,w,h);
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      prices.forEach((pt, i) => {
+        const x = (pt.t - tMin)/(tMax - tMin || 1) * w;
+        const y = h - (pt.p - minP)/(maxP - minP || 1) * h;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      // No explicit color per instructions; allow default stroke
+      ctx.stroke();
     }
 
-    function drawChart(){
-      const w=chartCanvas.clientWidth,h=chartCanvas.clientHeight;
-      ctx.clearRect(0,0,w,h);ctx.fillStyle='#101010';ctx.fillRect(0,0,w,h);
-      if(series.length<2)return;
-      let min=Infinity,max=-Infinity,sum=0;
-      for(const s of series){const p=s.p;if(p<min)min=p;if(p>max)max=p;sum+=p;}
-      const range=(max-min)||1,avg=sum/series.length;
-      ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
-      for(let i=1;i<6;i++){const gy=(h/6)*i;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(w,gy);ctx.stroke();}
-      const yAvg=h-((avg-min)/range)*h;
-      ctx.save();ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(200,214,207,0.6)';
-      ctx.beginPath();ctx.moveTo(0,yAvg);ctx.lineTo(w,yAvg);ctx.stroke();ctx.restore();
-      ctx.lineWidth=2;
-      for(let i=1;i<series.length;i++){
-        const p0=series[i-1].p,p1=series[i].p;
-        const x0=((i-1)/(series.length-1))*w,x1=(i/(series.length-1))*w;
-        const y0=h-((p0-min)/range)*h,y1=h-((p1-min)/range)*h;
-        ctx.strokeStyle=(p1>=avg)?'#00ffb3':'#ff3c3c';
-        ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
-      }
+    let bannerTimer = 0;
+    function scheduleBannerUpdate(){
+      if (bannerTimer) return;
+      bannerTimer = setTimeout(() => {
+        bannerTimer = 0;
+
+        priceLine.textContent = nfUSD(lastPrice);
+        drawSpark();
+
+        // Compute 10m change
+        if (prices.length >= 2){
+          const start = prices[0].p;
+          const chg = (lastPrice - start) / (start || 1);
+          chgEl.textContent = nfPct(chg);
+
+          // Glow sign swap: green when positive last 10m, red when negative
+          banner.style.setProperty('--banner-glow', chg >= 0 ? 'var(--glow-pos)' : 'var(--glow-neg)');
+        }
+      }, BANNER_REFRESH_MS);
     }
 
-    function updateTenMinuteChange(){
-      const cutoff=Date.now()-WINDOW_MS;
-      while(series.length&&series[0].t<cutoff)series.shift();
-      if(series.length<2){changeEl.textContent='—';changeEl.className='change flat';return;}
-      const start=series[0].p,now=series[series.length-1].p,diff=now-start,pct=((now-start)/start)*100;
-      const cls=diff>0?'up':diff<0?'down':'flat';
-      changeEl.textContent=`${fmtUSDChange.format(diff)} (${fmtPct.format(pct)}%)`;
-      changeEl.className=`change ${cls}`;
-      void changeEl.offsetWidth;changeEl.classList.add('flash');
+    /******************************************************************
+     * Top-3 buys/sells (last 10m), compact and expanded views
+     ******************************************************************/
+    const top3CompactD = el('top3-compact');
+    const top3ExpandedD = el('top3-expanded');
+    const buysLines = el('buys-lines');
+    const sellsLines = el('sells-lines');
+    const metaLines = el('meta-lines');
+
+    const top3CompactM = el('top3-compact-mobile');
+    const top3ExpandedM = el('top3-expanded-mobile');
+    const buysLinesM = el('buys-lines-m');
+    const sellsLinesM = el('sells-lines-m');
+
+    function fmtAmount(tr){
+      return DISPLAY_MODE==='USD' ? nfUSD(tr.px * tr.sz) : (nfNum(tr.sz, 6)+' BTC');
     }
 
-    function loop(){
-      if(pendingPriceForSeries!=null){series.push({t:Date.now(),p:pendingPriceForSeries});pendingPriceForSeries=null;}
-      const cutoff=Date.now()-WINDOW_MS;
-      while(series.length&&series[0].t<cutoff)series.shift();
-      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
-      drawChart();updateTenMinuteChange();renderTops();
-      if(needsFeedRender){needsFeedRender=false;renderFeed();}
-      requestAnimationFrame(loop);
+    function computeTop3(){
+      const cutoff = Date.now() - 10*60*1000;
+      const recent = trades10m.filter(t => t.t >= cutoff);
+      const buys = recent.filter(t => t.side==='BUY').sort((a,b)=> (b.px*b.sz)-(a.px*a.sz)).slice(0,3);
+      const sells= recent.filter(t => t.side==='SELL').sort((a,b)=> (b.px*b.sz)-(a.px*a.sz)).slice(0,3);
+
+      const volBTC = recent.reduce((s,t)=>s+t.sz,0);
+      const volUSD = recent.reduce((s,t)=>s+t.sz*t.px,0);
+
+      return { buys, sells, volBTC, volUSD, count: recent.length };
     }
 
-    function toggleAmountView(){
-      showUSD=!showUSD;
-      amountHeader.textContent=showUSD?'Amount (USD)':'Amount (BTC)';
-      renderFeed();renderTops();
-    }
-    amountHeader.addEventListener('click',toggleAmountView);
+    function renderTop3(){
+      const {buys, sells, volBTC, volUSD, count} = computeTop3();
 
-    topsToggle.addEventListener('click',()=>{
-      const exp=topsPanel.classList.toggle('expanded');
-      topsToggle.setAttribute('aria-expanded',exp?'true':'false');
-      topsChev.textContent=exp?'▲':'▼';
+      // Compact (no labels, single line) — desktop
+      const b = buys.map(t=>`<span class="buy">${fmtAmount(t)}</span>`).join(' • ');
+      const s = sells.map(t=>`<span class="sell">${fmtAmount(t)}</span>`).join(' • ');
+      top3CompactD.innerHTML = `${b} &nbsp;|&nbsp; ${s}`;
+
+      // Expanded desktop
+      buysLines.innerHTML = buys.map((t,i)=>`<div>${i+1}. ${fmtAmount(t)} <span class="muted">@ ${nfUSD(t.px)}</span></div>`).join('');
+      sellsLines.innerHTML= sells.map((t,i)=>`<div>${i+1}. ${fmtAmount(t)} <span class="muted">@ ${nfUSD(t.px)}</span></div>`).join('');
+      metaLines.innerHTML = `
+        <div>Trades: <b>${count}</b></div>
+        <div>Volume: <b>${nfNum(volBTC,3)} BTC</b></div>
+        <div>Notional: <b>${nfUSD0(volUSD)}</b></div>
+      `;
+      el('vol-btc').textContent = nfNum(volBTC,3);
+      el('vol-usd').textContent = nfUSD0(volUSD);
+      el('count-10m').textContent = `${count} trades/10m`;
+
+      // Mobile compact / expanded
+      top3CompactM.innerHTML = `${b} &nbsp;|&nbsp; ${s}`;
+      buysLinesM.innerHTML = buys.map((t,i)=>`<div>${i+1}. <span class="buy">${fmtAmount(t)}</span> <span class="muted">@ ${nfUSD(t.px)}</span></div>`).join('');
+      sellsLinesM.innerHTML= sells.map((t,i)=>`<div>${i+1}. <span class="sell">${fmtAmount(t)}</span> <span class="muted">@ ${nfUSD(t.px)}</span></div>`).join('');
+    }
+
+    let top3Timer = 0;
+    function scheduleTop3Update(){
+      if (top3Timer) return;
+      top3Timer = requestAnimationFrame(() => {
+        top3Timer = 0;
+        renderTop3();
+      });
+    }
+
+    // Toggle expand/collapse
+    top3CompactD.addEventListener('click', () => {
+      const isOpen = top3ExpandedD.style.display === 'flex';
+      top3ExpandedD.style.display = isOpen ? 'none' : 'flex';
+    });
+    top3CompactM.addEventListener('click', () => {
+      const isOpen = top3ExpandedM.style.display === 'block';
+      top3ExpandedM.style.display = isOpen ? 'none' : 'block';
     });
 
-    resizeCanvas();connect();requestAnimationFrame(loop);
+    /******************************************************************
+     * Stats quick update
+     ******************************************************************/
+    let statsTimer = 0;
+    function scheduleStatsUpdate(){
+      if (statsTimer) return;
+      statsTimer = requestAnimationFrame(() => {
+        statsTimer = 0;
+        renderTop3();
+      });
+    }
+
+    /******************************************************************
+     * Mode toggle (USD <-> BTC)
+     ******************************************************************/
+    const modeBtn = el('modeBtn');
+    modeBtn.addEventListener('click', () => {
+      DISPLAY_MODE = DISPLAY_MODE === 'USD' ? 'BTC' : 'USD';
+      modeBtn.textContent = DISPLAY_MODE === 'USD' ? 'Amount (USD)' : 'Amount (BTC)';
+      // Repaint top3 and feed headers (new rows use new mode automatically)
+      renderTop3();
+    });
+
+    /******************************************************************
+     * Resize handling for sparkline
+     ******************************************************************/
+    const ro = new ResizeObserver(() => drawSpark());
+    ro.observe(el('price-banner'));
+
+    /******************************************************************
+     * Kickoff
+     ******************************************************************/
+    connectSequence();
   </script>
 </body>
 </html>
