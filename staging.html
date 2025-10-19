@@ -94,7 +94,6 @@
     .tops-summary .vals{font-variant-numeric:tabular-nums;}
     .tops-summary .vals .buy{color:var(--up)} .tops-summary .vals .sell{color:var(--down)}
     .tops-summary .chev{opacity:.8;flex-shrink:0;}
-
     @media (max-width:600px){
       .tops-grid{display:none;}
       .tops.expanded .tops-grid{display:grid;}
@@ -129,6 +128,16 @@
     .legend{display:flex;gap:12px;font-size:12px;opacity:.9;margin-top:6px;}
     .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
     .dot.up{background:var(--up);} .dot.down{background:var(--down);}
+
+    /* 24h card */
+    .d24Box{padding:12px;}
+    .d24Row{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums;}
+    .d24Title{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+    .chg.up{color:var(--up)} .chg.down{color:var(--down)} .chg.flat{color:var(--muted)}
+    /* Histogram */
+    .histBox{padding:12px;margin-top:16px;}
+    .histTitle{font-weight:700;margin-bottom:8px;}
+    #histCanvas{width:100%;height:160px;display:block;border-radius:8px;}
   </style>
 </head>
 <body>
@@ -171,6 +180,7 @@
 
     <!-- RIGHT -->
     <aside class="desktop-only">
+      <!-- Detailed 10m stats -->
       <div class="card statsBox" style="margin-bottom:16px;">
         <div class="statsTitle">Last 10 minutes <span class="pill" id="statCount">—</span></div>
         <div class="statRow"><span>Trades / min</span><strong id="statTpm">—</strong></div>
@@ -184,7 +194,8 @@
         <div class="statRow"><span>Largest sell</span><strong id="statBigSell">—</strong></div>
       </div>
 
-      <div class="card volBox">
+      <!-- Per-minute volume -->
+      <div class="card volBox" style="margin-bottom:16px;">
         <div class="volTitle">
           <span>Per-minute volume (10m)</span>
           <span class="pill" id="statVolBtc">—</span>
@@ -195,6 +206,20 @@
           <span><span class="dot down"></span> Sells</span>
           <span style="margin-left:auto;">Notional: <strong id="statVolUsd">—</strong></span>
         </div>
+      </div>
+
+      <!-- 24h stats -->
+      <div class="card d24Box" style="margin-bottom:16px;">
+        <div class="d24Title">24h Stats <span id="d24Updated" class="pill">—</span></div>
+        <div class="d24Row"><span>Change</span><strong id="d24Change" class="chg flat">—</strong></div>
+        <div class="d24Row"><span>High / Low</span><strong id="d24HiLo">—</strong></div>
+        <div class="d24Row"><span>Volume (BTC)</span><strong id="d24Vol">—</strong></div>
+      </div>
+
+      <!-- Trade size histogram -->
+      <div class="card histBox">
+        <div class="histTitle">Trade size histogram (10m)</div>
+        <canvas id="histCanvas" width="400" height="160"></canvas>
       </div>
     </aside>
   </div>
@@ -213,11 +238,18 @@
           statBigBuy=$('#statBigBuy'),statBigSell=$('#statBigSell');
     const volCanvas=$('#volCanvas'), vctx=volCanvas.getContext('2d',{desynchronized:true});
 
+    // 24h stats
+    const d24Updated=$('#d24Updated'), d24Change=$('#d24Change'), d24HiLo=$('#d24HiLo'), d24Vol=$('#d24Vol');
+
+    // Histogram
+    const histCanvas=$('#histCanvas'), hctx=histCanvas.getContext('2d',{desynchronized:true});
+
     const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
     const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
     const fmtUSDChange=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
     const fmtBTC=new Intl.NumberFormat(undefined,{minimumFractionDigits:0,maximumFractionDigits:5});
-    const fmtPct=new Intl.NumberFormat(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
+    const fmtPct1=new Intl.NumberFormat(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
+    const fmtPct2=new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 
     let MAX_TRADES=50; // mobile default; bumped on desktop
     const WINDOW_MS=10*60*1000;
@@ -234,6 +266,9 @@
 
       volCanvas.width=volCanvas.clientWidth*dpr; volCanvas.height=volCanvas.clientHeight*dpr;
       vctx.setTransform(dpr,0,0,dpr,0,0); drawVolumeBars();
+
+      histCanvas.width=histCanvas.clientWidth*dpr; histCanvas.height=histCanvas.clientHeight*dpr;
+      hctx.setTransform(dpr,0,0,dpr,0,0); drawHistogram();
     }
     new ResizeObserver(resizeCanvas).observe(document.body);
 
@@ -377,13 +412,8 @@
         else { sellUsd+=usd; if(usd>sellMax) sellMax=usd; }
       }
       const vwap = volBtc ? (windowTrades.reduce((a,t)=>a+t.price*t.size,0)/volBtc) : NaN;
-      sizes.sort((a,b)=>a-b);
-      const median = sizes.length? (sizes.length%2? sizes[(sizes.length-1)/2] : (sizes[sizes.length/2-1]+sizes[sizes.length/2])/2) : NaN;
 
-      return {
-        count, volBtc, volUsd, buyUsd, sellUsd, buyMax, sellMax,
-        vwap, hi: (hi===-Infinity?NaN:hi), lo: (lo===Infinity?NaN:lo), median
-      };
+      return { count, volBtc, volUsd, buyUsd, sellUsd, buyMax, sellMax, vwap, hi:(hi===-Infinity?NaN:hi), lo:(lo===Infinity?NaN:lo) };
     }
 
     function renderStats(){
@@ -396,24 +426,32 @@
 
       if(statTpm) statTpm.textContent = (S.count/10).toFixed(1);
       const ratio = S.volUsd ? (S.buyUsd/S.volUsd*100) : 0;
-      if(statBuyRatio) statBuyRatio.textContent = `${fmtPct.format(ratio)}%`;
+      if(statBuyRatio) statBuyRatio.textContent = `${fmtPct1.format(ratio)}%`;
       if(statVWAP) statVWAP.textContent = isFinite(S.vwap) ? fmtUSD.format(S.vwap) : '—';
 
       const rangeUsd = isFinite(S.hi) && isFinite(S.lo) ? (S.hi - S.lo) : NaN;
       const rangePct = isFinite(S.hi) && isFinite(S.lo) && S.lo>0 ? ((S.hi/S.lo - 1)*100) : NaN;
       if(statHiLo) statHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo)) ? `${fmtUSD.format(S.hi)} / ${fmtUSD.format(S.lo)}` : '—';
-      if(statRange) statRange.textContent = (isFinite(rangeUsd)&&isFinite(rangePct)) ? `${fmtUSD.format(rangeUsd)} (${fmtPct.format(rangePct)}%)` : '—';
+      if(statRange) statRange.textContent = (isFinite(rangeUsd)&&isFinite(rangePct)) ? `${fmtUSD.format(rangeUsd)} (${fmtPct1.format(rangePct)}%)` : '—';
 
       const avgSz = S.count ? (S.volBtc / S.count) : NaN;
       if(statAvgSz) statAvgSz.textContent = isFinite(avgSz) ? avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
-      if(statMedSz) statMedSz.textContent = isFinite(S.median) ? S.median.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      if(statMedSz) statMedSz.textContent = windowTrades.length ? medianSize(windowTrades).toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
 
       if(statBigBuy) statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
       if(statBigSell) statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
     }
 
+    function medianSize(arr){
+      if(!arr.length) return NaN;
+      const sizes = arr.map(t=>t.size).sort((a,b)=>a-b);
+      const n = sizes.length;
+      return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
+    }
+
+    /* ===== 10m per-minute volume bars ===== */
     function minuteBuckets(){
-      // returns 10 bins for last 10 minutes: [{buyUsd, sellUsd}]
+      // returns 10 bins for last 10 minutes: [{buyUsd, sellUsd, tsMinute}]
       const now=Date.now();
       const start = now - 10*60*1000;
       const bins = Array.from({length:10}, (_,i)=>({buyUsd:0,sellUsd:0, ts: start + i*60*1000}));
@@ -450,6 +488,70 @@
         // buy segment (top)
         vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
         vctx.fillRect(x, yBase - hSell - hBuy, barW, hBuy);
+      });
+    }
+
+    /* ===== Trade size histogram (10m) ===== */
+    const BINS = [
+      {label:"<0.01", lo:0,    hi:0.01},
+      {label:"0.01–0.05", lo:0.01, hi:0.05},
+      {label:"0.05–0.1", lo:0.05, hi:0.1},
+      {label:"0.1–0.5",  lo:0.1,  hi:0.5},
+      {label:"0.5–1",    lo:0.5,  hi:1},
+      {label:"1–3",      lo:1,    hi:3},
+      {label:"3–10",     lo:3,    hi:10},
+      {label:">10",      lo:10,   hi:Infinity},
+    ];
+    function histogramBuckets(){
+      const cutoff=Date.now()-WINDOW_MS;
+      const buys = new Array(BINS.length).fill(0);
+      const sells= new Array(BINS.length).fill(0);
+      for(const t of windowTrades){
+        if(t.time<cutoff) continue;
+        const sz = t.size;
+        for(let i=0;i<BINS.length;i++){
+          const b=BINS[i];
+          if(sz>=b.lo && sz<b.hi){
+            const usd = t.price*sz;
+            if(t.side==='buy') buys[i]+=usd; else sells[i]+=usd;
+            break;
+          }
+        }
+      }
+      return {buys,sells};
+    }
+    function drawHistogram(){
+      if(!hctx) return;
+      const w=histCanvas.clientWidth, h=histCanvas.clientHeight;
+      hctx.clearRect(0,0,w,h);
+      const {buys,sells} = histogramBuckets();
+      const totals = buys.map((v,i)=>v + sells[i]);
+      const max = Math.max(1, ...totals);
+      const pad=12, barH=(h - pad*2)/BINS.length * 0.7, step=(h - pad*2)/BINS.length;
+
+      const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
+      const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim() || '#ff3c3c';
+
+      hctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      hctx.textBaseline = 'middle';
+      hctx.fillStyle = 'rgba(255,255,255,0.8)';
+
+      BINS.forEach((b, i)=>{
+        const y = pad + i*step + (step - barH)/2;
+        // label
+        hctx.fillText(b.label, 6, y + barH/2);
+
+        const total = totals[i];
+        const fullW = (total/max) * (w - 100); // leave room for labels
+        const x0 = 100;
+
+        // sell (left portion)
+        const sellW = total ? (sells[i]/total)*fullW : 0;
+        hctx.fillStyle = dn; hctx.fillRect(x0, y, sellW, barH);
+
+        // buy (right portion)
+        const buyW = fullW - sellW;
+        hctx.fillStyle = up; hctx.fillRect(x0 + sellW, y, buyW, barH);
       });
     }
 
@@ -505,10 +607,37 @@
       if(series.length<2){changeEl.textContent='—';changeEl.className='change flat';return;}
       const start=series[0].p,now=series[series.length-1].p,diff=now-start,pct=((now-start)/start)*100;
       const cls=diff>0?'up':diff<0?'down':'flat';
-      changeEl.textContent=`${fmtUSDChange.format(diff)} (${fmtPct.format(pct)}%)`;
+      changeEl.textContent=`${fmtUSDChange.format(diff)} (${fmtPct2.format(pct)}%)`;
       changeEl.className=`change ${cls}`;
       void changeEl.offsetWidth;changeEl.classList.add('flash');
     }
+
+    /* ===== 24h stats via REST (Coinbase Pro public endpoint, CORS-friendly) ===== */
+    async function fetch24h(){
+      try{
+        const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats', {headers:{'Accept':'application/json'}});
+        if(!r.ok) throw new Error('bad status');
+        const j = await r.json(); // {open, high, low, volume, last, volume_30day}
+        const open = +j.open, last = +j.last, high = +j.high, low = +j.low, vol = +j.volume;
+        if(Number.isFinite(open) && Number.isFinite(last)){
+          const diff = last - open;
+          const pct = open ? (diff/open*100) : 0;
+          d24Change.textContent = `${fmtUSDChange.format(diff)} (${fmtPct2.format(pct)}%)`;
+          d24Change.className = `chg ${diff>0?'up':diff<0?'down':'flat'}`;
+        }else{
+          d24Change.textContent = '—'; d24Change.className = 'chg flat';
+        }
+        d24HiLo.textContent = (Number.isFinite(high)&&Number.isFinite(low)) ? `${fmtUSD.format(high)} / ${fmtUSD.format(low)}` : '—';
+        d24Vol.textContent = Number.isFinite(vol) ? vol.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+        d24Updated.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      }catch(e){
+        // If REST fails (CORS/network), keep previous values
+        d24Updated.textContent = '—';
+      }
+    }
+
+    // Poll 24h stats every 60s
+    setInterval(fetch24h, 60000);
 
     function loop(){
       if(pendingPriceForSeries!=null){series.push({t:Date.now(),p:pendingPriceForSeries});pendingPriceForSeries=null;}
@@ -521,6 +650,7 @@
       renderTops();
       renderStats();
       drawVolumeBars();
+      drawHistogram();
 
       if(needsFeedRender){needsFeedRender=false;renderFeed();}
       requestAnimationFrame(loop);
@@ -529,7 +659,7 @@
     function toggleAmountView(){
       showUSD=!showUSD;
       amountHeader.textContent=showUSD?'AMOUNT (USD)':'AMOUNT (BTC)';
-      renderFeed();renderTops();renderStats();
+      renderFeed();renderTops();renderStats();drawHistogram();
     }
     amountHeader.addEventListener('click',toggleAmountView);
 
@@ -539,11 +669,11 @@
       topsChev.textContent=exp?'▲':'▼';
     });
 
-    // chart + ws boot
+    // Kickoff
     resizeCanvas();
     connectSequence();
+    fetch24h();
     requestAnimationFrame(loop);
   </script>
 </body>
 </html>
-
