@@ -61,7 +61,7 @@
     #chartCanvas{position:absolute;inset:0;width:100%;height:100%;border-radius:12px;}
     @media (min-width:1024px){ #chartContainer{width:auto; margin:8px 0 10px;} }
 
-    /* NEW: 1h / 1d charts (desktop only) */
+    /* 1h / 1d charts (desktop only) */
     .subchart{ margin:12px 0 0; padding:10px; }
     .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9;}
     .subchart canvas{width:100%;height:160px;display:block;border-radius:8px;}
@@ -95,19 +95,16 @@
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
       background:var(--panel);
     }
-    /* Mobile/Tablet – full-height feed in center column */
     @media (max-width:1023.98px){
       #feedContainer{ height:56vh; }
     }
-    /* Desktop – compact feed in RIGHT column */
     @media (min-width:1024px){
       #feedContainer{
-        width:auto; height:32vh;  /* smaller vertical footprint */
+        width:auto; height:32vh;
         padding:6px 6px 4px;
         font-size:12px; line-height:1.1;
       }
-      /* Hide the tops panel on desktop to save space */
-      #feedContainer .tops{ display:none; }
+      #feedContainer .tops{ display:none; } /* hide tops panel on desktop in compact feed */
     }
 
     .row{display:grid;grid-template-columns:82px 1fr auto;column-gap:8px;align-items:center;
@@ -310,31 +307,41 @@
     }
     new ResizeObserver(resizeCanvas).observe(document.body);
 
-    /* ===== WebSocket with fallback ===== */
+    /* ===== WebSocket + REST trades fallback ===== */
     let ws=null, reconnectTimer=null, firstMsgTimer=null, gotMessage=false;
+    let lastWsMsgAt = 0;
 
     function connectSequence(){ connectWS("advanced"); }
+
     function connectWS(kind){
       clearTimeout(reconnectTimer); clearTimeout(firstMsgTimer);
       if(ws){ try{ ws.close(); }catch(e){} ws=null; }
-      const url = kind==="advanced" ? "wss://advanced-trade-ws.coinbase.com"
-                                    : "wss://ws-feed.exchange.coinbase.com";
+
+      const url = kind==="advanced"
+        ? "wss://advanced-trade-ws.coinbase.com"
+        : "wss://ws-feed.exchange.coinbase.com";
+
       ws = new WebSocket(url);
+
       ws.onopen = () => {
         gotMessage=false;
         if(kind==="advanced"){
-          ws.send(JSON.stringify({type:"subscribe",channel:"market_trades",product_ids:["BTC-USD"]}));
+          ws.send(JSON.stringify({ type:"subscribe", channel:"market_trades", product_ids:["BTC-USD"] }));
         }else{
-          ws.send(JSON.stringify({type:"subscribe",product_ids:["BTC-USD"],channels:["matches"]}));
+          ws.send(JSON.stringify({ type:"subscribe", product_ids:["BTC-USD"], channels:["matches"] }));
         }
         firstMsgTimer = setTimeout(()=>{
           if(!gotMessage && kind==="advanced"){ try{ ws.close(); }catch(e){} connectWS("legacy"); }
         }, 5000);
       };
+
       ws.onmessage = (e) => {
         gotMessage=true;
+        lastWsMsgAt = Date.now();
         try{
           const msg = JSON.parse(e.data);
+
+          // Advanced Trade
           if(msg.channel==="market_trades" && Array.isArray(msg.events)){
             for(const ev of msg.events){
               if(ev.type==="update" && Array.isArray(ev.trades)){
@@ -345,15 +352,33 @@
             }
             return;
           }
+
+          // Legacy Pro
           if(msg.type==="match" && msg.product_id==="BTC-USD"){
             onTrade({ price:+msg.price, size:+msg.size, side:String(msg.side||"").toLowerCase(), time:new Date(msg.time||Date.now()) });
             return;
           }
-        }catch(_){ }
+        }catch(_){}
       };
-      ws.onclose = () => { clearTimeout(firstMsgTimer); reconnectTimer=setTimeout(connectSequence,1000); };
+
+      ws.onclose = () => { clearTimeout(firstMsgTimer); reconnectTimer=setTimeout(connectSequence, 1000); };
       ws.onerror = () => { try{ ws.close(); }catch(e){} };
     }
+
+    // REST polling fallback if socket is quiet
+    setInterval(async ()=>{
+      const QUIET_MS = 3500;
+      if(Date.now() - lastWsMsgAt < QUIET_MS) return;
+      try{
+        const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{'Accept':'application/json'}});
+        if(!r.ok) return;
+        const arr = await r.json(); // newest first
+        for(let i=arr.length-1;i>=0;i--){
+          const t = arr[i];
+          onTrade({ price:+t.price, size:+t.size, side:String(t.side||"").toLowerCase(), time:new Date(t.time||Date.now()) });
+        }
+      }catch(_){/* ignore */}
+    }, 1200);
 
     /* ===== Trade handling / rendering ===== */
     let needsFeedRender=false, pendingPriceForSeries=null;
@@ -617,6 +642,7 @@
       drawSubchart(ctx1h, data1h);
       drawSubchart(ctx1d, data1d);
     }
+    /* Subchart with price labels (min/avg/max) */
     function drawSubchart(context, seriesIn){
       const canvas = context.canvas;
       const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -628,7 +654,9 @@
       const min = Math.min(...seriesIn.map(d=>d.c));
       const max = Math.max(...seriesIn.map(d=>d.c));
       const range = (max-min)||1;
+      const avg = seriesIn.reduce((a,d)=>a+d.c,0)/seriesIn.length;
 
+      // grid
       context.strokeStyle = 'rgba(255,255,255,0.06)';
       context.lineWidth = 1;
       for(let i=1;i<=4;i++){
@@ -636,19 +664,29 @@
         context.beginPath(); context.moveTo(0,y); context.lineTo(w,y); context.stroke();
       }
 
-      const avg = seriesIn.reduce((a,d)=>a+d.c,0)/seriesIn.length;
+      // dashed avg
       const yAvg = h - ((avg-min)/range)*h;
       context.save(); context.setLineDash([6,6]); context.strokeStyle='rgba(200,214,207,0.6)';
       context.beginPath(); context.moveTo(0,yAvg); context.lineTo(w,yAvg); context.stroke(); context.restore();
 
+      // line
       context.lineWidth = 2;
       for(let i=1;i<seriesIn.length;i++){
         const p0=seriesIn[i-1].c, p1=seriesIn[i].c;
-        const x0=((i-1)/(seriesIn.length-1))*w, x1=(i/(seriesIn.length-1))*w;
+        const x0=((i-1)/(seriesIn.length-1))*w, x1=((i)/(seriesIn.length-1))*w;
         const y0=h-((p0-min)/range)*h, y1=h-((p1-min)/range)*h;
         context.strokeStyle = (p1>=avg)?'#00ffb3':'#ff3c3c';
         context.beginPath(); context.moveTo(x0,y0); context.lineTo(x1,y1); context.stroke();
       }
+
+      // labels
+      const lab = (v)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
+      context.fillStyle = 'rgba(255,255,255,0.75)';
+      context.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      context.textBaseline = 'middle';
+      context.fillText(lab(max), 6, 10);
+      context.fillText(lab(avg), 6, Math.max(14, Math.min(h-14, yAvg)));
+      context.fillText(lab(min), 6, h-10);
     }
 
     /* ===== Loop / UI ===== */
