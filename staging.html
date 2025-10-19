@@ -23,7 +23,7 @@
     @media (min-width:1024px){
       .site{
         display:grid !important;
-        grid-template-columns: 1.4fr 1.6fr 1fr; /* LEFT charts | CENTER analytics | RIGHT compact feed */
+        grid-template-columns: 1.4fr 1.6fr 1fr; /* LEFT charts | CENTER analytics | RIGHT feed */
         gap:16px;
         padding:16px;
         align-items:start;
@@ -39,8 +39,8 @@
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
 
-    /* Topbar */
-    .topbar{
+    /* ===== Center header (price) ===== */
+    .centerbar{
       position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -55,29 +55,28 @@
     .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
-    .conn{margin-left:auto;font-size:12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 8px;opacity:.9}
+    .conn{margin-left:12px;font-size:12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 8px;opacity:.9;display:none}
     .conn.bad{color:#ffadad;border-color:#ffadad}
     .conn.ok{color:#9affd9;border-color:#9affd9}
 
-    /* 10m micro-chart (live) */
-    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
+    /* LEFT column: charts */
+    #leftCol .card{ margin-bottom:12px; }
+    #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:0 auto;}
     #chartCanvas{position:absolute;inset:0;width:100%;height:100%;border-radius:12px;}
-    @media (min-width:1024px){ #chartContainer{width:auto; margin:8px 0 10px;} }
+    @media (min-width:1024px){ #chartContainer{width:auto;} }
 
-    /* Per-minute volume under 10m chart (desktop) */
-    .volBoxTop{padding:12px;margin-top:12px;}
+    .volBoxTop{padding:12px;}
     .volTitle{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
     #volCanvas{width:100%;height:140px;display:block;border-radius:8px;}
     .legend{display:flex;gap:12px;font-size:12px;opacity:.9;margin-top:6px;}
     .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
     .dot.up{background:var(--up);} .dot.down{background:var(--down);}
 
-    /* 1h / 1d charts (desktop only) */
-    .subchart{ margin:12px 0 0; padding:10px; }
+    .subchart{ padding:10px; }
     .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9;}
     .subchart canvas{width:100%;height:160px;display:block;border-radius:8px;}
 
-    /* Center analytics cards */
+    /* CENTER analytics */
     .statsBox{padding:12px;}
     .statsTitle{font-weight:700;margin-bottom:8px;}
     .statRow{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums;}
@@ -92,20 +91,20 @@
     .histTitle{font-weight:700;margin-bottom:8px;}
     #histCanvas{width:100%;height:160px;display:block;border-radius:8px;}
 
-    /* ===== Feed (compact on desktop, full on mobile) ===== */
+    /* ===== RIGHT feed ===== */
     #feedContainer{
-      width:min(920px,96vw);border-radius:12px;padding:6px;
+      border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
       background:var(--panel);
     }
     @media (max-width:1023.98px){
-      #feedContainer{ height:56vh; }
+      #feedContainer{ height:56vh; width:min(920px,96vw); }
     }
     @media (min-width:1024px){
       #feedContainer{
-        width:auto; height:32vh;
-        padding:6px 6px 4px;
+        position:sticky; top:0; /* stick like the left column */
+        height:auto; /* JS will set specific height to align with 1d bottom */
         font-size:12px; line-height:1.1;
       }
       #feedContainer .tops{ display:none; }
@@ -158,14 +157,8 @@
 </head>
 <body>
   <div class="site">
-    <!-- LEFT: price + 10m + per-minute volume + 1h + 1d charts -->
-    <div class="sticky">
-      <header class="topbar card">
-        <div id="livePrice" class="price">$—</div>
-        <div id="liveChange" class="change flat">—</div>
-        <div id="connPill" class="conn bad">WS — / REST —</div>
-      </header>
-
+    <!-- LEFT: price/vol + 1h + 1d charts -->
+    <div id="leftCol" class="sticky">
       <!-- 10m live micro-chart -->
       <section id="chartContainer" class="card"><canvas id="chartCanvas"></canvas></section>
 
@@ -186,15 +179,21 @@
         <div class="title">1 hour (1-min candles)</div>
         <canvas id="chart1h"></canvas>
       </section>
-      <section class="card subchart desktop-only">
+      <section id="oneDayCard" class="card subchart desktop-only">
         <div class="title">1 day (5-min candles)</div>
         <canvas id="chart1d"></canvas>
       </section>
     </div>
 
-    <!-- CENTER: analytics -->
-    <section class="desktop-only">
-      <div class="card statsBox" style="margin-bottom:16px;">
+    <!-- CENTER: live price header + analytics -->
+    <section id="centerCol">
+      <header class="centerbar card">
+        <div id="livePrice" class="price">$—</div>
+        <div id="liveChange" class="change flat">—</div>
+        <div id="connPill" class="conn bad">WS — / REST —</div>
+      </header>
+
+      <div class="card statsBox" style="margin:12px 0;">
         <div class="statsTitle">Last 10 minutes <span class="pill" id="statCount">—</span></div>
         <div class="statRow"><span>Trades / min</span><strong id="statTpm">—</strong></div>
         <div class="statRow"><span>Buy ratio (USD)</span><strong id="statBuyRatio">—</strong></div>
@@ -207,7 +206,21 @@
         <div class="statRow"><span>Largest sell</span><strong id="statBigSell">—</strong></div>
       </div>
 
-      <div class="card d24Box" style="margin-bottom:16px;">
+      <!-- NEW: 1 hour stats -->
+      <div class="card statsBox" style="margin:12px 0;">
+        <div class="statsTitle">Last 1 hour <span class="pill" id="statCount1h">—</span></div>
+        <div class="statRow"><span>Trades / min</span><strong id="statTpm1h">—</strong></div>
+        <div class="statRow"><span>Buy ratio (USD)</span><strong id="statBuyRatio1h">—</strong></div>
+        <div class="statRow"><span>VWAP</span><strong id="statVWAP1h">—</strong></div>
+        <div class="statRow"><span>High / Low</span><strong id="statHiLo1h">—</strong></div>
+        <div class="statRow"><span>Range</span><strong id="statRange1h">—</strong></div>
+        <div class="statRow"><span>Avg size (BTC)</span><strong id="statAvgSz1h">—</strong></div>
+        <div class="statRow"><span>Median size (BTC)</span><strong id="statMedSz1h">—</strong></div>
+        <div class="statRow"><span>Largest buy</span><strong id="statBigBuy1h">—</strong></div>
+        <div class="statRow"><span>Largest sell</span><strong id="statBigSell1h">—</strong></div>
+      </div>
+
+      <div class="card d24Box" style="margin:12px 0;">
         <div class="d24Title">24h Stats <span id="d24Updated" class="pill">—</span></div>
         <div class="d24Row"><span>Change</span><strong id="d24Change" class="chg flat">—</strong></div>
         <div class="d24Row"><span>High / Low</span><strong id="d24HiLo">—</strong></div>
@@ -220,7 +233,7 @@
       </div>
     </section>
 
-    <!-- RIGHT: COMPACT FEED (desktop) / FULL FEED (mobile) -->
+    <!-- RIGHT: COMPACT FEED (sticky, stretches) -->
     <section id="feedContainer" class="card">
       <div class="tops" id="topsPanel">
         <button id="topsToggle" class="tops-summary" aria-expanded="false">
@@ -255,6 +268,7 @@
     const priceEl=$('#livePrice'),changeEl=$('#liveChange');
     const connPill=$('#connPill');
 
+    const leftCol=$('#leftCol'), oneDayCard=$('#oneDayCard');
     const feedEl=$('#feedContainer'),amountHeader=$('#amountHeader');
     const topBuysEl=$('#topBuys'),topSellsEl=$('#topSells'),topsPanel=$('#topsPanel'),
           topsToggle=$('#topsToggle'),topsChev=$('#topsChev'),topsSummaryVals=$('#topsSummaryVals');
@@ -273,6 +287,12 @@
           statRange=$('#statRange'),statAvgSz=$('#statAvgSz'),statMedSz=$('#statMedSz'),
           statBigBuy=$('#statBigBuy'),statBigSell=$('#statBigSell');
 
+    /* 1h stats nodes */
+    const statCount1h=$('#statCount1h'), statTpm1h=$('#statTpm1h'), statBuyRatio1h=$('#statBuyRatio1h'),
+          statVWAP1h=$('#statVWAP1h'), statHiLo1h=$('#statHiLo1h'), statRange1h=$('#statRange1h'),
+          statAvgSz1h=$('#statAvgSz1h'), statMedSz1h=$('#statMedSz1h'),
+          statBigBuy1h=$('#statBigBuy1h'), statBigSell1h=$('#statBigSell1h');
+
     /* 24h stats */
     const d24Updated=$('#d24Updated'), d24Change=$('#d24Change'), d24HiLo=$('#d24HiLo'), d24Vol=$('#d24Vol');
 
@@ -286,14 +306,15 @@
 
     /* State */
     let MAX_TRADES=50; // mobile default; bumped on desktop
-    const WINDOW_MS=10*60*1000;
-    let trades=[],windowTrades=[],series=[],lastPrice=null,showUSD=true;
+    const WINDOW_10M_MS=10*60*1000;
+    const WINDOW_1H_MS=60*60*1000;
+    let trades=[],window10m=[],window1h=[],series=[],lastPrice=null,showUSD=true;
 
     const desktop=window.matchMedia('(min-width:1024px)');
     function onLayout(e){ MAX_TRADES = e.matches ? 300 : 50; }
     desktop.addEventListener('change',onLayout); onLayout(desktop);
 
-    /* ===== Sizing ===== */
+    /* ===== Sizing + right feed alignment ===== */
     function resizeCanvas(){
       const dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
       chartCanvas.width=chartCanvas.clientWidth*dpr; chartCanvas.height=chartCanvas.clientHeight*dpr;
@@ -307,16 +328,35 @@
 
       histCanvas.width=histCanvas.clientWidth*dpr; histCanvas.height=histCanvas.clientHeight*dpr;
       hctx.setTransform(dpr,0,0,dpr,0,0); drawHistogram();
+
+      alignRightFeedHeight();
+    }
+    function alignRightFeedHeight(){
+      if(!desktop.matches) return;
+      // Make the right feed stretch to the bottom of the 1d chart card
+      const topOffset = feedEl.getBoundingClientRect().top + window.scrollY;
+      const leftBottom = oneDayCard.getBoundingClientRect().bottom + window.scrollY;
+      const target = Math.max(220, leftBottom - topOffset); // guard minimum
+      feedEl.style.height = target + 'px';
     }
     new ResizeObserver(resizeCanvas).observe(document.body);
+    window.addEventListener('scroll', alignRightFeedHeight, {passive:true});
 
-    /* ===== WebSocket + REST trades + ticker fallbacks ===== */
+    /* ===== WebSocket + REST fallbacks + subtle status pill ===== */
     let ws=null, reconnectTimer=null, firstMsgTimer=null, gotMessage=false;
     let lastWsMsgAt = 0, lastRestAt = 0;
+    let pillShown = false;
 
     function setConnPill(txt, ok){
+      const ageOk = ok;
       connPill.textContent = txt;
-      connPill.className = 'conn ' + (ok?'ok':'bad');
+      connPill.className = 'conn ' + (ageOk?'ok':'bad');
+      // Only show if we've been “silent” for >= 3s OR explicitly failing
+      const now = Date.now();
+      const silentFor = now - Math.max(lastWsMsgAt,lastRestAt);
+      const shouldShow = !ok && silentFor >= 3000;
+      if(shouldShow && !pillShown){ connPill.style.display='inline-block'; pillShown=true; }
+      if(ok && pillShown){ connPill.style.display='none'; pillShown=false; }
     }
 
     function connectSequence(){ connectWS("advanced"); }
@@ -333,7 +373,6 @@
 
       ws.onopen = () => {
         gotMessage=false;
-        setConnPill('WS… / REST —', false);
         if(kind==="advanced"){
           ws.send(JSON.stringify({ type:"subscribe", channel:"market_trades", product_ids:["BTC-USD"] }));
         }else{
@@ -349,7 +388,6 @@
         lastWsMsgAt = Date.now();
         try{
           const msg = JSON.parse(e.data);
-
           // Advanced Trade
           if(msg.channel==="market_trades" && Array.isArray(msg.events)){
             for(const ev of msg.events){
@@ -361,7 +399,6 @@
             }
             return;
           }
-
           // Legacy Pro
           if(msg.type==="match" && msg.product_id==="BTC-USD"){
             onTrade({ price:+msg.price, size:+msg.size, side:String(msg.side||"").toLowerCase(), time:new Date(msg.time||Date.now()) });
@@ -380,7 +417,6 @@
       const now = Date.now();
       try{
         if(now - lastWsMsgAt >= QUIET_MS){
-          // First attempt: /trades
           const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{'Accept':'application/json'}});
           if(r.ok){
             const arr = await r.json(); // newest first
@@ -389,7 +425,7 @@
               onTrade({ price:+t.price, size:+t.size, side:String(t.side||"").toLowerCase(), time:new Date(t.time||now) });
             }
             lastRestAt = now;
-            setConnPill('WS — / REST ✓ ' + (now - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
+            setConnPill('WS — / REST ✓', true); // hide if previously shown
             return;
           }
         }
@@ -397,15 +433,14 @@
         if(now - Math.max(lastWsMsgAt,lastRestAt) >= QUIET_MS){
           const r2 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{'Accept':'application/json'}});
           if(r2.ok){
-            const t = await r2.json(); // {price, size, time, ...}
+            const t = await r2.json();
             onTrade({ price:+t.price, size:+(t.size||0.001), side:'buy', time:new Date(t.time||now) });
             lastRestAt = now;
-            setConnPill('WS — / REST ✓ ' + (now - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
+            setConnPill('WS — / REST ✓', true);
             return;
           }
         }
-        // if we got here, nothing came in
-        const age = now - Math.max(lastWsMsgAt,lastRestAt);
+        // No data
         setConnPill('WS — / REST —', false);
       }catch(_){
         setConnPill('WS — / REST —', false);
@@ -421,7 +456,8 @@
       const prev=trades.length?trades[trades.length-1].price:lastPrice;
       let arrow=''; if(prev!=null){ arrow = p>prev?'▲':p<prev?'▼':'•'; }
 
-      setConnPill('WS ✓ / REST ✓ ' + (Date.now() - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
+      // Hide pill while healthy
+      setConnPill('WS ✓ / REST ✓', true);
 
       if(lastPrice!==null){
         priceEl.classList.remove('up','down');
@@ -432,8 +468,17 @@
       trades.push({price:p,size:s,time,side,arrow});
       if(trades.length>MAX_TRADES) trades.shift();
 
-      windowTrades.push({price:p,size:s,side,time:time.getTime()});
+      const epoch=time.getTime();
+      window10m.push({price:p,size:s,side,time:epoch});
+      window1h.push({price:p,size:s,side,time:epoch});
       pendingPriceForSeries=p; needsFeedRender=true;
+    }
+
+    function pruneWindows(){
+      const cutoff10=Date.now()-WINDOW_10M_MS;
+      const cutoff1h=Date.now()-WINDOW_1H_MS;
+      window10m=window10m.filter(t=>t.time>=cutoff10);
+      window1h=window1h.filter(t=>t.time>=cutoff1h);
     }
 
     function renderFeed(){
@@ -451,58 +496,76 @@
       feedEl.innerHTML=''; feedEl.appendChild(frag);
     }
 
-    function computeWindow(){
-      const cutoff=Date.now()-WINDOW_MS;
-      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
-      const count=windowTrades.length;
-      const volBtc=windowTrades.reduce((a,t)=>a+t.size,0);
-      const volUsd=windowTrades.reduce((a,t)=>a+t.size*t.price,0);
+    function computeWindow(arr, minutes){
+      const count=arr.length;
+      const volBtc=arr.reduce((a,t)=>a+t.size,0);
+      const volUsd=arr.reduce((a,t)=>a+t.size*t.price,0);
 
       let buyUsd=0, sellUsd=0, buyMax=0, sellMax=0;
       let hi=-Infinity, lo=Infinity;
-      for(const t of windowTrades){
+      for(const t of arr){
         const usd=t.price*t.size;
         hi=Math.max(hi, t.price); lo=Math.min(lo, t.price);
         if(t.side==='buy'){ buyUsd+=usd; if(usd>buyMax) buyMax=usd; }
         else { sellUsd+=usd; if(usd>sellMax) sellMax=usd; }
       }
-      const vwap = volBtc ? (windowTrades.reduce((a,t)=>a+t.price*t.size,0)/volBtc) : NaN;
+      const vwap = volBtc ? (arr.reduce((a,t)=>a+t.price*t.size,0)/volBtc) : NaN;
+      const rangeUsd = isFinite(hi) && isFinite(lo) ? (hi - lo) : NaN;
+      const rangePct = isFinite(hi) && isFinite(lo) && lo>0 ? ((hi/lo - 1)*100) : NaN;
+      const avgSz = count ? (volBtc / count) : NaN;
+      const medSz = count ? medianSize(arr) : NaN;
 
-      return { count, volBtc, volUsd, buyUsd, sellUsd, buyMax, sellMax, vwap, hi:(hi===-Infinity?NaN:hi), lo:(lo===Infinity?NaN:lo) };
+      return {
+        count, volUsd, buyUsd, sellUsd, buyMax, sellMax, vwap,
+        hi:(hi===-Infinity?NaN:hi), lo:(lo===Infinity?NaN:lo),
+        rangeUsd, rangePct, avgSz, medSz, tpm: (count/minutes)
+      };
     }
 
     function renderStats(){
-      const S=computeWindow();
-      if(statCount) statCount.textContent = `${S.count} trades`;
-      if(statTpm) statTpm.textContent = (S.count/10).toFixed(1);
-      const ratio = S.volUsd ? (S.buyUsd/S.volUsd*100) : 0;
-      if(statBuyRatio) statBuyRatio.textContent = `${fmtPct1.format(ratio)}%`;
-      if(statVWAP) statVWAP.textContent = isFinite(S.vwap) ? fmtUSD.format(S.vwap) : '—';
-      const rangeUsd = isFinite(S.hi) && isFinite(S.lo) ? (S.hi - S.lo) : NaN;
-      const rangePct = isFinite(S.hi) && isFinite(S.lo) && S.lo>0 ? ((S.hi/S.lo - 1)*100) : NaN;
-      if(statHiLo) statHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo)) ? `${fmtUSD.format(S.hi)} / ${fmtUSD.format(S.lo)}` : '—';
-      if(statRange) statRange.textContent = (isFinite(rangeUsd)&&isFinite(rangePct)) ? `${fmtUSD0.format(rangeUsd)} (${fmtPct1.format(rangePct)}%)` : '—';
-      const avgSz = S.count ? (S.volBtc / S.count) : NaN;
-      if(statAvgSz) statAvgSz.textContent = isFinite(avgSz) ? avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
-      if(statMedSz) statMedSz.textContent = windowTrades.length ? medianSize(windowTrades).toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
-      if(statBigBuy) statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
-      if(statBigSell) statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
-      if(statVolUsd) statVolUsd.textContent = fmtUSD0.format(S.volUsd);
+      pruneWindows();
+
+      // 10 minutes
+      const S=computeWindow(window10m, 10);
+      statCount.textContent = `${S.count} trades`;
+      statTpm.textContent = S.tpm.toFixed(1);
+      statBuyRatio.textContent = `${fmtPct1.format(S.volUsd ? (S.buyUsd/S.volUsd*100) : 0)}%`;
+      statVWAP.textContent = isFinite(S.vwap) ? fmtUSD.format(S.vwap) : '—';
+      statHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo)) ? `${fmtUSD.format(S.hi)} / ${fmtUSD.format(S.lo)}` : '—';
+      statRange.textContent = (isFinite(S.rangeUsd)&&isFinite(S.rangePct)) ? `${fmtUSD0.format(S.rangeUsd)} (${fmtPct1.format(S.rangePct)}%)` : '—';
+      statAvgSz.textContent = isFinite(S.avgSz) ? S.avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      statMedSz.textContent = isFinite(S.medSz) ? S.medSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
+      statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
+      statVolUsd.textContent = fmtUSD0.format(S.volUsd);
+
+      // 1 hour
+      const H=computeWindow(window1h, 60);
+      statCount1h.textContent = `${H.count} trades`;
+      statTpm1h.textContent = H.tpm.toFixed(1);
+      statBuyRatio1h.textContent = `${fmtPct1.format(H.volUsd ? (H.buyUsd/H.volUsd*100) : 0)}%`;
+      statVWAP1h.textContent = isFinite(H.vwap) ? fmtUSD.format(H.vwap) : '—';
+      statHiLo1h.textContent = (isFinite(H.hi)&&isFinite(H.lo)) ? `${fmtUSD.format(H.hi)} / ${fmtUSD.format(H.lo)}` : '—';
+      statRange1h.textContent = (isFinite(H.rangeUsd)&&isFinite(H.rangePct)) ? `${fmtUSD0.format(H.rangeUsd)} (${fmtPct1.format(H.rangePct)}%)` : '—';
+      statAvgSz1h.textContent = isFinite(H.avgSz) ? H.avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      statMedSz1h.textContent = isFinite(H.medSz) ? H.medSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      statBigBuy1h.textContent = H.buyMax? fmtUSD0.format(H.buyMax) : '—';
+      statBigSell1h.textContent = H.sellMax? fmtUSD0.format(H.sellMax) : '—';
     }
 
     function medianSize(arr){
-      if(!arr.length) return NaN;
       const sizes = arr.map(t=>t.size).sort((a,b)=>a-b);
       const n = sizes.length;
+      if(!n) return NaN;
       return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
     }
 
     /* ===== Minute buckets (right->left) ===== */
     function minuteBuckets(){
       const now=Date.now();
-      const start = now - 10*60*1000;
+      const start = now - WINDOW_10M_MS;
       const bins = Array.from({length:10}, ()=>({buyUsd:0,sellUsd:0}));
-      for(const t of windowTrades){
+      for(const t of window10m){
         const idx = Math.min(9, Math.max(0, Math.floor((t.time - start)/(60*1000))));
         const usd = t.price*t.size;
         if(t.side==='buy') bins[idx].buyUsd += usd; else bins[idx].sellUsd += usd;
@@ -520,10 +583,9 @@
       const barW = (w - pad*2) / bins.length * 0.7;
       const step = (w - pad*2) / bins.length;
 
-      // draw newest on the RIGHT (reverse loop)
       for(let i=bins.length-1;i>=0;i--){
         const b=bins[i];
-        const xRight = w - pad - ((bins.length-1-i)*step) - (step - barW)/2; // anchor to right
+        const xRight = w - pad - ((bins.length-1-i)*step) - (step - barW)/2;
         const total = b.buyUsd + b.sellUsd;
         const hTotal = (total/max)*(h - 16);
         const hBuy = total ? (b.buyUsd/total)*hTotal : 0;
@@ -550,11 +612,9 @@
       {label:">10",      lo:10,   hi:Infinity},
     ];
     function histogramBuckets(){
-      const cutoff=Date.now()-WINDOW_MS;
       const buys = new Array(BINS.length).fill(0);
       const sells= new Array(BINS.length).fill(0);
-      for(const t of windowTrades){
-        if(t.time<cutoff) continue;
+      for(const t of window10m){
         const sz = t.size;
         for(let i=0;i<BINS.length;i++){
           const b=BINS[i];
@@ -623,7 +683,7 @@
     }
 
     function updateTenMinuteChange(){
-      const cutoff=Date.now()-WINDOW_MS;
+      const cutoff=Date.now()-WINDOW_10M_MS;
       while(series.length&&series[0].t<cutoff)series.shift();
       if(series.length<2){changeEl.textContent='—';changeEl.className='change flat';return;}
       const start=series[0].p,now=series[series.length-1].p,diff=now-start,pct=((now-start)/start)*100;
@@ -674,6 +734,7 @@
       try{ data1d = await fetchCandles(24*60*60, 300); }catch(_){}
       drawSubchart(ctx1h, data1h);
       drawSubchart(ctx1d, data1d);
+      alignRightFeedHeight();
     }
     /* Subchart with price labels (min/avg/max) */
     function drawSubchart(context, seriesIn){
@@ -725,9 +786,7 @@
     /* ===== Loop / UI ===== */
     function loop(){
       if(pendingPriceForSeries!=null){series.push({t:Date.now(),p:pendingPriceForSeries});pendingPriceForSeries=null;}
-      const cutoff=Date.now()-WINDOW_MS;
-      while(series.length&&series[0].t<cutoff)series.shift();
-      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
+      pruneWindows();
 
       drawChart();
       updateTenMinuteChange();
@@ -741,10 +800,8 @@
     }
 
     function renderTops(){
-      const cutoff=Date.now()-WINDOW_MS;
-      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
-      const buys=windowTrades.filter(t=>t.side==='buy').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
-      const sells=windowTrades.filter(t=>t.side==='sell').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
+      const buys=window10m.filter(t=>t.side==='buy').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
+      const sells=window10m.filter(t=>t.side==='sell').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
       const fmtAmt=t=>showUSD?fmtUSD.format(t.usd):`${fmtBTC.format(t.size)} BTC`;
       topBuysEl.innerHTML=buys.length?buys.map(t=>`<li class="buy">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
       topSellsEl.innerHTML=sells.length?sells.map(t=>`<li class="sell">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
