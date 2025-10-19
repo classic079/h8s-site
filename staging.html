@@ -382,7 +382,7 @@
 
       return {
         count, volBtc, volUsd, buyUsd, sellUsd, buyMax, sellMax,
-        vwap, hi: (hi===-Infinity?NaN:hi), lo: (lo===Infinity?NaN:lo)
+        vwap, hi: (hi===-Infinity?NaN:hi), lo: (lo===Infinity?NaN:lo), median
       };
     }
 
@@ -406,21 +406,14 @@
 
       const avgSz = S.count ? (S.volBtc / S.count) : NaN;
       if(statAvgSz) statAvgSz.textContent = isFinite(avgSz) ? avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
-      if(statMedSz) statMedSz.textContent = windowTrades.length ? medianSize(windowTrades).toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      if(statMedSz) statMedSz.textContent = isFinite(S.median) ? S.median.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
 
       if(statBigBuy) statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
       if(statBigSell) statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
     }
 
-    function medianSize(arr){
-      if(!arr.length) return NaN;
-      const sizes = arr.map(t=>t.size).sort((a,b)=>a-b);
-      const n = sizes.length;
-      return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
-    }
-
     function minuteBuckets(){
-      // returns 10 bins for last 10 minutes: [{buyUsd, sellUsd, tsMinute}]
+      // returns 10 bins for last 10 minutes: [{buyUsd, sellUsd}]
       const now=Date.now();
       const start = now - 10*60*1000;
       const bins = Array.from({length:10}, (_,i)=>({buyUsd:0,sellUsd:0, ts: start + i*60*1000}));
@@ -546,6 +539,7 @@
       topsChev.textContent=exp?'▲':'▼';
     });
 
+    // chart + ws boot
     resizeCanvas();
     connectSequence();
     requestAnimationFrame(loop);
