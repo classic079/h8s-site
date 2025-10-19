@@ -55,21 +55,24 @@
     .change.up{color:var(--up)} .change.down{color:var(--down)} .change.flat{color:var(--muted)}
     @keyframes changeFlash{0%{opacity:.4;transform:scale(.985)}60%{opacity:1;transform:scale(1)}100%{opacity:.95;transform:scale(1)}}
     .change.flash{animation:changeFlash 450ms ease-out;}
+    .conn{margin-left:auto;font-size:12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:2px 8px;opacity:.9}
+    .conn.bad{color:#ffadad;border-color:#ffadad}
+    .conn.ok{color:#9affd9;border-color:#9affd9}
 
-    /* 10m micro-chart */
+    /* 10m micro-chart (live) */
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:8px auto 10px;}
     #chartCanvas{position:absolute;inset:0;width:100%;height:100%;border-radius:12px;}
     @media (min-width:1024px){ #chartContainer{width:auto; margin:8px 0 10px;} }
 
-    /* Per-minute volume (now under 10m chart) */
-    .volBox{padding:12px;margin-top:12px;}
+    /* Per-minute volume under 10m chart (desktop) */
+    .volBoxTop{padding:12px;margin-top:12px;}
     .volTitle{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
     #volCanvas{width:100%;height:140px;display:block;border-radius:8px;}
     .legend{display:flex;gap:12px;font-size:12px;opacity:.9;margin-top:6px;}
     .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
     .dot.up{background:var(--up);} .dot.down{background:var(--down);}
 
-    /* 1h / 1d charts */
+    /* 1h / 1d charts (desktop only) */
     .subchart{ margin:12px 0 0; padding:10px; }
     .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9;}
     .subchart canvas{width:100%;height:160px;display:block;border-radius:8px;}
@@ -127,6 +130,7 @@
     .tops ul{list-style:none;margin:0;padding:0;}
     .tops li{padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.07);font-variant-numeric:tabular-nums;}
     .tops .buy{color:var(--up)} .tops .sell{color:var(--down)} .tops .muted{color:var(--muted);opacity:.9}
+
     .tops-summary{
       display:flex;width:100%;
       background:rgba(255,255,255,0.04);
@@ -154,29 +158,28 @@
 </head>
 <body>
   <div class="site">
-    <!-- LEFT: price + 10m + per-minute volume + 1h + 1d -->
+    <!-- LEFT: price + 10m + per-minute volume + 1h + 1d charts -->
     <div class="sticky">
       <header class="topbar card">
         <div id="livePrice" class="price">$—</div>
         <div id="liveChange" class="change flat">—</div>
+        <div id="connPill" class="conn bad">WS — / REST —</div>
       </header>
 
       <!-- 10m live micro-chart -->
       <section id="chartContainer" class="card"><canvas id="chartCanvas"></canvas></section>
 
-      <!-- Per-minute volume (10m) — now under 10m chart -->
-      <section class="card volBox desktop-only">
+      <!-- Per-minute volume just below (right->left) -->
+      <div class="card volBoxTop desktop-only">
         <div class="volTitle">
           <span>Per-minute volume (10m)</span>
-          <span class="pill" id="statVolBtc">—</span>
+          <span class="pill"><span class="dot up"></span> Buys &nbsp; <span class="dot down"></span> Sells</span>
         </div>
         <canvas id="volCanvas" width="400" height="140"></canvas>
-        <div class="legend">
-          <span><span class="dot up"></span> Buys</span>
-          <span><span class="dot down"></span> Sells</span>
-          <span style="margin-left:auto;">Notional: <strong id="statVolUsd">—</strong></span>
+        <div class="legend" style="justify-content:flex-end;">
+          <span>Notional: <strong id="statVolUsd">—</strong></span>
         </div>
-      </section>
+      </div>
 
       <!-- 1h / 1d charts -->
       <section class="card subchart desktop-only">
@@ -250,6 +253,8 @@
 
     /* ===== Element refs ===== */
     const priceEl=$('#livePrice'),changeEl=$('#liveChange');
+    const connPill=$('#connPill');
+
     const feedEl=$('#feedContainer'),amountHeader=$('#amountHeader');
     const topBuysEl=$('#topBuys'),topSellsEl=$('#topSells'),topsPanel=$('#topsPanel'),
           topsToggle=$('#topsToggle'),topsChev=$('#topsChev'),topsSummaryVals=$('#topsSummaryVals');
@@ -260,12 +265,10 @@
     const ctx1h=c1h.getContext('2d',{desynchronized:true});
     const ctx1d=c1d.getContext('2d',{desynchronized:true});
 
-    /* Left-column per-minute volume */
+    /* Canvases & nodes */
     const volCanvas=$('#volCanvas'), vctx=volCanvas.getContext('2d',{desynchronized:true});
-
-    /* Center analytics canvases & nodes */
     const histCanvas=$('#histCanvas'), hctx=histCanvas.getContext('2d',{desynchronized:true});
-    const statCount=$('#statCount'),statVolBtc=$('#statVolBtc'),statVolUsd=$('#statVolUsd');
+    const statCount=$('#statCount'),statVolUsd=$('#statVolUsd');
     const statTpm=$('#statTpm'),statBuyRatio=$('#statBuyRatio'),statVWAP=$('#statVWAP'),statHiLo=$('#statHiLo'),
           statRange=$('#statRange'),statAvgSz=$('#statAvgSz'),statMedSz=$('#statMedSz'),
           statBigBuy=$('#statBigBuy'),statBigSell=$('#statBigSell');
@@ -293,27 +296,28 @@
     /* ===== Sizing ===== */
     function resizeCanvas(){
       const dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
-
       chartCanvas.width=chartCanvas.clientWidth*dpr; chartCanvas.height=chartCanvas.clientHeight*dpr;
       ctx.setTransform(dpr,0,0,dpr,0,0); drawChart();
 
-      // per-minute volume
-      volCanvas.width=volCanvas.clientWidth*dpr; volCanvas.height=volCanvas.clientHeight*dpr;
-      vctx.setTransform(dpr,0,0,dpr,0,0); drawVolumeBars();
-
-      // subcharts
       c1h.width=c1h.clientWidth*dpr; c1h.height=c1h.clientHeight*dpr; ctx1h.setTransform(dpr,0,0,dpr,0,0); drawSubchart(ctx1h, data1h);
       c1d.width=c1d.clientWidth*dpr; c1d.height=c1d.clientHeight*dpr; ctx1d.setTransform(dpr,0,0,dpr,0,0); drawSubchart(ctx1d, data1d);
 
-      // center chart
+      volCanvas.width=volCanvas.clientWidth*dpr; volCanvas.height=volCanvas.clientHeight*dpr;
+      vctx.setTransform(dpr,0,0,dpr,0,0); drawVolumeBars();
+
       histCanvas.width=histCanvas.clientWidth*dpr; histCanvas.height=histCanvas.clientHeight*dpr;
       hctx.setTransform(dpr,0,0,dpr,0,0); drawHistogram();
     }
     new ResizeObserver(resizeCanvas).observe(document.body);
 
-    /* ===== WebSocket + REST trades fallback ===== */
+    /* ===== WebSocket + REST trades + ticker fallbacks ===== */
     let ws=null, reconnectTimer=null, firstMsgTimer=null, gotMessage=false;
-    let lastWsMsgAt = 0;
+    let lastWsMsgAt = 0, lastRestAt = 0;
+
+    function setConnPill(txt, ok){
+      connPill.textContent = txt;
+      connPill.className = 'conn ' + (ok?'ok':'bad');
+    }
 
     function connectSequence(){ connectWS("advanced"); }
 
@@ -329,6 +333,7 @@
 
       ws.onopen = () => {
         gotMessage=false;
+        setConnPill('WS… / REST —', false);
         if(kind==="advanced"){
           ws.send(JSON.stringify({ type:"subscribe", channel:"market_trades", product_ids:["BTC-USD"] }));
         }else{
@@ -369,21 +374,44 @@
       ws.onerror = () => { try{ ws.close(); }catch(e){} };
     }
 
-    // REST polling fallback if socket is quiet (no custom headers to avoid CORS preflight)
-    setInterval(async ()=>{
+    // Poll trades if socket is quiet; else poll ticker as last resort
+    async function pollTradesFallback(){
       const QUIET_MS = 3500;
-      if(Date.now() - lastWsMsgAt < QUIET_MS) return;
+      const now = Date.now();
       try{
-        const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20');
-        if(!r.ok) return;
-        const arr = await r.json(); // newest first
-        for(let i=arr.length-1;i>=0;i--){
-          const t = arr[i];
-          onTrade({ price:+t.price, size:+t.size, side:String(t.side||"").toLowerCase(), time:new Date(t.time||Date.now()) });
+        if(now - lastWsMsgAt >= QUIET_MS){
+          // First attempt: /trades
+          const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{'Accept':'application/json'}});
+          if(r.ok){
+            const arr = await r.json(); // newest first
+            for(let i=arr.length-1;i>=0;i--){
+              const t = arr[i];
+              onTrade({ price:+t.price, size:+t.size, side:String(t.side||"").toLowerCase(), time:new Date(t.time||now) });
+            }
+            lastRestAt = now;
+            setConnPill('WS — / REST ✓ ' + (now - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
+            return;
+          }
         }
-        lastWsMsgAt = Date.now();
-      }catch(_){/* ignore */}
-    }, 1200);
+        // Last resort: /ticker
+        if(now - Math.max(lastWsMsgAt,lastRestAt) >= QUIET_MS){
+          const r2 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{'Accept':'application/json'}});
+          if(r2.ok){
+            const t = await r2.json(); // {price, size, time, ...}
+            onTrade({ price:+t.price, size:+(t.size||0.001), side:'buy', time:new Date(t.time||now) });
+            lastRestAt = now;
+            setConnPill('WS — / REST ✓ ' + (now - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
+            return;
+          }
+        }
+        // if we got here, nothing came in
+        const age = now - Math.max(lastWsMsgAt,lastRestAt);
+        setConnPill('WS — / REST —', false);
+      }catch(_){
+        setConnPill('WS — / REST —', false);
+      }
+    }
+    setInterval(pollTradesFallback, 1200);
 
     /* ===== Trade handling / rendering ===== */
     let needsFeedRender=false, pendingPriceForSeries=null;
@@ -392,6 +420,8 @@
       const p=t.price, s=t.size, side=t.side==='sell'?'sell':'buy', time=t.time;
       const prev=trades.length?trades[trades.length-1].price:lastPrice;
       let arrow=''; if(prev!=null){ arrow = p>prev?'▲':p<prev?'▼':'•'; }
+
+      setConnPill('WS ✓ / REST ✓ ' + (Date.now() - Math.max(lastWsMsgAt,lastRestAt)) + 'ms', true);
 
       if(lastPrice!==null){
         priceEl.classList.remove('up','down');
@@ -444,25 +474,20 @@
     function renderStats(){
       const S=computeWindow();
       if(statCount) statCount.textContent = `${S.count} trades`;
-      if(statVolBtc) statVolBtc.textContent = S.volBtc.toLocaleString(undefined,{maximumFractionDigits:3});
-      if(statVolUsd) statVolUsd.textContent = fmtUSD0.format(S.volUsd);
-
       if(statTpm) statTpm.textContent = (S.count/10).toFixed(1);
       const ratio = S.volUsd ? (S.buyUsd/S.volUsd*100) : 0;
       if(statBuyRatio) statBuyRatio.textContent = `${fmtPct1.format(ratio)}%`;
       if(statVWAP) statVWAP.textContent = isFinite(S.vwap) ? fmtUSD.format(S.vwap) : '—';
-
       const rangeUsd = isFinite(S.hi) && isFinite(S.lo) ? (S.hi - S.lo) : NaN;
       const rangePct = isFinite(S.hi) && isFinite(S.lo) && S.lo>0 ? ((S.hi/S.lo - 1)*100) : NaN;
       if(statHiLo) statHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo)) ? `${fmtUSD.format(S.hi)} / ${fmtUSD.format(S.lo)}` : '—';
       if(statRange) statRange.textContent = (isFinite(rangeUsd)&&isFinite(rangePct)) ? `${fmtUSD0.format(rangeUsd)} (${fmtPct1.format(rangePct)}%)` : '—';
-
       const avgSz = S.count ? (S.volBtc / S.count) : NaN;
       if(statAvgSz) statAvgSz.textContent = isFinite(avgSz) ? avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
       if(statMedSz) statMedSz.textContent = windowTrades.length ? medianSize(windowTrades).toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
-
       if(statBigBuy) statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
       if(statBigSell) statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
+      if(statVolUsd) statVolUsd.textContent = fmtUSD0.format(S.volUsd);
     }
 
     function medianSize(arr){
@@ -472,55 +497,45 @@
       return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
     }
 
-    /* ===== Per-minute volume (10m) — newest on the RIGHT ===== */
+    /* ===== Minute buckets (right->left) ===== */
     function minuteBuckets(){
       const now=Date.now();
       const start = now - 10*60*1000;
-      const bins = Array.from({length:10}, (_,i)=>({buyUsd:0,sellUsd:0, ts: start + i*60*1000}));
+      const bins = Array.from({length:10}, ()=>({buyUsd:0,sellUsd:0}));
       for(const t of windowTrades){
         const idx = Math.min(9, Math.max(0, Math.floor((t.time - start)/(60*1000))));
         const usd = t.price*t.size;
         if(t.side==='buy') bins[idx].buyUsd += usd; else bins[idx].sellUsd += usd;
       }
-      return bins;
+      return bins; // 0 = oldest, 9 = newest
     }
+
     function drawVolumeBars(){
       if(!vctx) return;
       const w=volCanvas.clientWidth, h=volCanvas.clientHeight;
       vctx.clearRect(0,0,w,h);
-
-      const bins = minuteBuckets();       // bins[0] = oldest … bins[9] = newest
+      const bins = minuteBuckets();
       const max = Math.max(1, ...bins.map(b=>b.buyUsd + b.sellUsd));
       const pad = 10;
+      const barW = (w - pad*2) / bins.length * 0.7;
       const step = (w - pad*2) / bins.length;
-      const barW = step * 0.7;
-      const yBase = h - 8;
 
-      // Draw RIGHT -> LEFT (newest on the right, sliding like price chart)
-      for(let i=0;i<bins.length;i++){
-        const b = bins[i];
+      // draw newest on the RIGHT (reverse loop)
+      for(let i=bins.length-1;i>=0;i--){
+        const b=bins[i];
+        const xRight = w - pad - ((bins.length-1-i)*step) - (step - barW)/2; // anchor to right
         const total = b.buyUsd + b.sellUsd;
         const hTotal = (total/max)*(h - 16);
         const hBuy = total ? (b.buyUsd/total)*hTotal : 0;
         const hSell = hTotal - hBuy;
+        const yBase = h - 8;
 
-        const xRightIndex = i;                  // 0 oldest … 9 newest
-        const x = (w - pad) - (xRightIndex+1)*step + (step - barW)/2;
-
-        // sell (bottom)
         vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--down').trim() || '#ff3c3c';
-        vctx.fillRect(x, yBase - hSell, barW, hSell);
+        vctx.fillRect(xRight-barW, yBase - hSell, barW, hSell);
 
-        // buy (top)
         vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
-        vctx.fillRect(x, yBase - hSell - hBuy, barW, hBuy);
+        vctx.fillRect(xRight-barW, yBase - hSell - hBuy, barW, hBuy);
       }
-
-      // update totals shown in the legend
-      const volBtc=windowTrades.reduce((a,t)=>a+t.size,0);
-      const volUsd=windowTrades.reduce((a,t)=>a+t.size*t.price,0);
-      statVolBtc.textContent = volBtc.toLocaleString(undefined,{maximumFractionDigits:3});
-      statVolUsd.textContent = fmtUSD0.format(volUsd);
     }
 
     /* ===== Histogram (10m) ===== */
@@ -621,7 +636,7 @@
     /* ===== 24h stats via REST ===== */
     async function fetch24h(){
       try{
-        const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats');
+        const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats', {headers:{'Accept':'application/json'}});
         if(!r.ok) throw new Error('bad status');
         const j = await r.json();
         const open = +j.open, last = +j.last, high = +j.high, low = +j.low, vol = +j.volume;
@@ -649,7 +664,7 @@
       const end = Date.now();
       const start = end - secsBack*1000;
       const url = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${granularity}&start=${encodeURIComponent(iso(start))}&end=${encodeURIComponent(iso(end))}`;
-      const r = await fetch(url);
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
       if(!r.ok) throw new Error('bad status');
       const arr = await r.json(); // [[time,low,high,open,close,volume],...]
       return arr.sort((a,b)=>a[0]-b[0]).map(x=>({t:x[0]*1000, c:+x[4]}));
@@ -660,6 +675,7 @@
       drawSubchart(ctx1h, data1h);
       drawSubchart(ctx1d, data1d);
     }
+    /* Subchart with price labels (min/avg/max) */
     function drawSubchart(context, seriesIn){
       const canvas = context.canvas;
       const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -696,7 +712,7 @@
         context.beginPath(); context.moveTo(x0,y0); context.lineTo(x1,y1); context.stroke();
       }
 
-      // labels (min / avg / max)
+      // labels
       const lab = (v)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
       context.fillStyle = 'rgba(255,255,255,0.75)';
       context.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
@@ -722,6 +738,19 @@
 
       if(needsFeedRender){needsFeedRender=false;renderFeed();}
       requestAnimationFrame(loop);
+    }
+
+    function renderTops(){
+      const cutoff=Date.now()-WINDOW_MS;
+      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
+      const buys=windowTrades.filter(t=>t.side==='buy').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
+      const sells=windowTrades.filter(t=>t.side==='sell').map(t=>({...t,usd:t.price*t.size})).sort((a,b)=>b.usd-a.usd).slice(0,3);
+      const fmtAmt=t=>showUSD?fmtUSD.format(t.usd):`${fmtBTC.format(t.size)} BTC`;
+      topBuysEl.innerHTML=buys.length?buys.map(t=>`<li class="buy">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
+      topSellsEl.innerHTML=sells.length?sells.map(t=>`<li class="sell">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
+      const topBuy=buys[0]?`<span class="buy">${fmtAmt(buys[0])}</span>`:'<span class="buy">—</span>';
+      const topSell=sells[0]?`<span class="sell">${fmtAmt(sells[0])}</span>`:'<span class="sell">—</span>';
+      topsSummaryVals.innerHTML=`${topBuy} | ${topSell}`;
     }
 
     function toggleAmountView(){
