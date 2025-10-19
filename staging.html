@@ -16,10 +16,8 @@
       -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     }
 
-    /* ===== Responsive shell ===== */
     .site { display:block; padding:10px; }
     .desktop-only{ display:none; }
-
     @media (min-width:1024px){
       .site{
         display:grid !important;
@@ -32,21 +30,20 @@
       .desktop-only{ display:block !important; }
     }
 
-    /* Cards */
     .card{
       background:var(--panel);
       border-radius:12px;
       box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35);
     }
 
-    /* ===== Center header (price) ===== */
+    /* Center header (price + 24h stats) */
     .centerbar{
       position:sticky;top:0;z-index:10;width:100%;
       background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.7));
       backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
       padding:calc(8px + env(safe-area-inset-top)) 14px 8px 14px;
       border-bottom:1px solid rgba(255,255,255,0.06);
-      display:flex;justify-content:center;gap:12px;align-items:baseline;
+      display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:center;
       font-variant-numeric:tabular-nums;
     }
     .price{font-size:clamp(22px,7vw,40px);font-weight:800;line-height:1;transition:color .25s ease;color:#fff;text-shadow:0 0 18px rgba(0,0,0,.35);}
@@ -59,6 +56,9 @@
     .conn.bad{color:#ffadad;border-color:#ffadad}
     .conn.ok{color:#9affd9;border-color:#9affd9}
 
+    .pill{border:1px solid rgba(255,255,255,0.12);border-radius:999px;padding:2px 8px;font-size:12px;opacity:.9}
+    .pillRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
     /* LEFT column: charts */
     #leftCol .card{ margin-bottom:12px; }
     #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:0 auto;}
@@ -67,7 +67,7 @@
 
     .volBoxTop{padding:12px;}
     .volTitle{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
-    #volCanvas{width:100%;height:140px;display:block;border-radius:8px;}
+    #volCanvas{width:100%;height:160px;display:block;border-radius:8px;}
     .legend{display:flex;gap:12px;font-size:12px;opacity:.9;margin-top:6px;}
     .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
     .dot.up{background:var(--up);} .dot.down{background:var(--down);}
@@ -76,22 +76,12 @@
     .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9;}
     .subchart canvas{width:100%;height:160px;display:block;border-radius:8px;}
 
-    /* CENTER analytics */
+    /* CENTER analytics (10m + 1h) */
     .statsBox{padding:12px;}
     .statsTitle{font-weight:700;margin-bottom:8px;}
     .statRow{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums;}
-    .pill{border:1px solid rgba(255,255,255,0.12);border-radius:999px;padding:2px 8px;font-size:12px;opacity:.9;}
 
-    .d24Box{padding:12px;}
-    .d24Row{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums;}
-    .d24Title{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
-    .chg.up{color:var(--up)} .chg.down{color:var(--down)} .chg.flat{color:var(--muted)}
-
-    .histBox{padding:12px;margin-top:16px;}
-    .histTitle{font-weight:700;margin-bottom:8px;}
-    #histCanvas{width:100%;height:160px;display:block;border-radius:8px;}
-
-    /* ===== RIGHT feed ===== */
+    /* RIGHT feed */
     #feedContainer{
       border-radius:12px;padding:6px;
       overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -103,8 +93,8 @@
     }
     @media (min-width:1024px){
       #feedContainer{
-        position:sticky; top:0; /* stick like the left column */
-        height:auto; /* JS will set specific height to align with 1d bottom */
+        position:sticky; top:0;
+        height:auto; /* JS sets height to line up with 1d bottom */
         font-size:12px; line-height:1.1;
       }
       #feedContainer .tops{ display:none; }
@@ -122,7 +112,6 @@
       border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:4px;padding-bottom:4px;
       display:grid;grid-template-columns:82px 1fr auto;column-gap:8px;text-align:left;}
 
-    /* Tops summary (mobile only) */
     .tops{margin:2px 6px 6px;}
     .tops-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
     .tops h4{margin:4px 0 4px;font-size:.9em;font-weight:700;color:#fff;}
@@ -145,36 +134,27 @@
     .tops-summary .vals{font-variant-numeric:tabular-nums;}
     .tops-summary .vals .buy{color:var(--up)} .tops-summary .vals .sell{color:var(--down)}
     .tops-summary .chev{opacity:.8;flex-shrink:0;}
-
-    @media (max-width:600px){
-      .tops-grid{display:none;}
-      .tops.expanded .tops-grid{display:grid;}
-    }
-    @media (min-width:1024px){
-      .tops-summary{display:none !important;}
-    }
+    @media (max-width:600px){ .tops-grid{display:none;} .tops.expanded .tops-grid{display:grid;} }
+    @media (min-width:1024px){ .tops-summary{display:none !important;} }
   </style>
 </head>
 <body>
   <div class="site">
-    <!-- LEFT: price/vol + 1h + 1d charts -->
+    <!-- LEFT: 10m chart + 10m vol + 1h + 1d -->
     <div id="leftCol" class="sticky">
-      <!-- 10m live micro-chart -->
       <section id="chartContainer" class="card"><canvas id="chartCanvas"></canvas></section>
 
-      <!-- Per-minute volume just below (right->left) -->
       <div class="card volBoxTop desktop-only">
         <div class="volTitle">
           <span>Per-minute volume (10m)</span>
           <span class="pill"><span class="dot up"></span> Buys &nbsp; <span class="dot down"></span> Sells</span>
         </div>
-        <canvas id="volCanvas" width="400" height="140"></canvas>
+        <canvas id="volCanvas" width="400" height="160"></canvas>
         <div class="legend" style="justify-content:flex-end;">
-          <span>Notional: <strong id="statVolUsd">—</strong></span>
+          <span>Max/min labels shown under bars</span>
         </div>
       </div>
 
-      <!-- 1h / 1d charts -->
       <section class="card subchart desktop-only">
         <div class="title">1 hour (1-min candles)</div>
         <canvas id="chart1h"></canvas>
@@ -185,11 +165,16 @@
       </section>
     </div>
 
-    <!-- CENTER: live price header + analytics -->
+    <!-- CENTER: price header (+ 24h stats) + analytics -->
     <section id="centerCol">
       <header class="centerbar card">
         <div id="livePrice" class="price">$—</div>
         <div id="liveChange" class="change flat">—</div>
+        <div class="pillRow">
+          <span id="d24Change" class="pill">24h Δ —</span>
+          <span id="d24HiLo" class="pill">H/L —</span>
+          <span id="d24Vol" class="pill">Vol —</span>
+        </div>
         <div id="connPill" class="conn bad">WS — / REST —</div>
       </header>
 
@@ -206,7 +191,6 @@
         <div class="statRow"><span>Largest sell</span><strong id="statBigSell">—</strong></div>
       </div>
 
-      <!-- NEW: 1 hour stats -->
       <div class="card statsBox" style="margin:12px 0;">
         <div class="statsTitle">Last 1 hour <span class="pill" id="statCount1h">—</span></div>
         <div class="statRow"><span>Trades / min</span><strong id="statTpm1h">—</strong></div>
@@ -220,20 +204,13 @@
         <div class="statRow"><span>Largest sell</span><strong id="statBigSell1h">—</strong></div>
       </div>
 
-      <div class="card d24Box" style="margin:12px 0;">
-        <div class="d24Title">24h Stats <span id="d24Updated" class="pill">—</span></div>
-        <div class="d24Row"><span>Change</span><strong id="d24Change" class="chg flat">—</strong></div>
-        <div class="d24Row"><span>High / Low</span><strong id="d24HiLo">—</strong></div>
-        <div class="d24Row"><span>Volume (BTC)</span><strong id="d24Vol">—</strong></div>
-      </div>
-
       <div class="card histBox">
         <div class="histTitle">Trade size histogram (10m)</div>
         <canvas id="histCanvas" width="400" height="160"></canvas>
       </div>
     </section>
 
-    <!-- RIGHT: COMPACT FEED (sticky, stretches) -->
+    <!-- RIGHT: live ticker -->
     <section id="feedContainer" class="card">
       <div class="tops" id="topsPanel">
         <button id="topsToggle" class="tops-summary" aria-expanded="false">
@@ -241,20 +218,12 @@
           <span class="chev" id="topsChev">▼</span>
         </button>
         <div class="tops-grid" id="topsLists">
-          <div>
-            <h4>Top Buys (10m)</h4>
-            <ul id="topBuys"><li class="muted">—</li></ul>
-          </div>
-          <div>
-            <h4>Top Sells (10m)</h4>
-            <ul id="topSells"><li class="muted">—</li></ul>
-          </div>
+          <div><h4>Top Buys (10m)</h4><ul id="topBuys"><li class="muted">—</li></ul></div>
+          <div><h4>Top Sells (10m)</h4><ul id="topSells"><li class="muted">—</li></ul></div>
         </div>
       </div>
-
       <div class="headerRow">
-        <div>Time</div>
-        <div>Price</div>
+        <div>Time</div><div>Price</div>
         <div id="amountHeader" style="cursor:pointer;">Amount (USD)</div>
       </div>
       <!-- rows injected by JS -->
@@ -264,7 +233,7 @@
   <script>
     const $=s=>document.querySelector(s);
 
-    /* ===== Element refs ===== */
+    /* ===== Refs ===== */
     const priceEl=$('#livePrice'),changeEl=$('#liveChange');
     const connPill=$('#connPill');
 
@@ -273,28 +242,24 @@
     const topBuysEl=$('#topBuys'),topSellsEl=$('#topSells'),topsPanel=$('#topsPanel'),
           topsToggle=$('#topsToggle'),topsChev=$('#topsChev'),topsSummaryVals=$('#topsSummaryVals');
 
-    /* Charts */
     const chartCanvas=$('#chartCanvas'),ctx=chartCanvas.getContext('2d',{desynchronized:true});
     const c1h=$('#chart1h'), c1d=$('#chart1d');
     const ctx1h=c1h.getContext('2d',{desynchronized:true});
     const ctx1d=c1d.getContext('2d',{desynchronized:true});
 
-    /* Canvases & nodes */
     const volCanvas=$('#volCanvas'), vctx=volCanvas.getContext('2d',{desynchronized:true});
     const histCanvas=$('#histCanvas'), hctx=histCanvas.getContext('2d',{desynchronized:true});
-    const statCount=$('#statCount'),statVolUsd=$('#statVolUsd');
-    const statTpm=$('#statTpm'),statBuyRatio=$('#statBuyRatio'),statVWAP=$('#statVWAP'),statHiLo=$('#statHiLo'),
-          statRange=$('#statRange'),statAvgSz=$('#statAvgSz'),statMedSz=$('#statMedSz'),
+
+    const statCount=$('#statCount'),statTpm=$('#statTpm'),statBuyRatio=$('#statBuyRatio'),statVWAP=$('#statVWAP'),
+          statHiLo=$('#statHiLo'),statRange=$('#statRange'),statAvgSz=$('#statAvgSz'),statMedSz=$('#statMedSz'),
           statBigBuy=$('#statBigBuy'),statBigSell=$('#statBigSell');
 
-    /* 1h stats nodes */
-    const statCount1h=$('#statCount1h'), statTpm1h=$('#statTpm1h'), statBuyRatio1h=$('#statBuyRatio1h'),
-          statVWAP1h=$('#statVWAP1h'), statHiLo1h=$('#statHiLo1h'), statRange1h=$('#statRange1h'),
-          statAvgSz1h=$('#statAvgSz1h'), statMedSz1h=$('#statMedSz1h'),
-          statBigBuy1h=$('#statBigBuy1h'), statBigSell1h=$('#statBigSell1h');
+    const statCount1h=$('#statCount1h'),statTpm1h=$('#statTpm1h'),statBuyRatio1h=$('#statBuyRatio1h'),statVWAP1h=$('#statVWAP1h'),
+          statHiLo1h=$('#statHiLo1h'),statRange1h=$('#statRange1h'),statAvgSz1h=$('#statAvgSz1h'),
+          statMedSz1h=$('#statMedSz1h'),statBigBuy1h=$('#statBigBuy1h'),statBigSell1h=$('#statBigSell1h');
 
-    /* 24h stats */
-    const d24Updated=$('#d24Updated'), d24Change=$('#d24Change'), d24HiLo=$('#d24HiLo'), d24Vol=$('#d24Vol');
+    // 24h pills (now in header)
+    const d24Change=$('#d24Change'), d24HiLo=$('#d24HiLo'), d24Vol=$('#d24Vol');
 
     /* Formatters */
     const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
@@ -305,16 +270,15 @@
     const fmtPct2=new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 
     /* State */
-    let MAX_TRADES=50; // mobile default; bumped on desktop
-    const WINDOW_10M_MS=10*60*1000;
-    const WINDOW_1H_MS=60*60*1000;
+    let MAX_TRADES=50;
+    const WINDOW_10M_MS=10*60*1000, WINDOW_1H_MS=60*60*1000;
     let trades=[],window10m=[],window1h=[],series=[],lastPrice=null,showUSD=true;
 
     const desktop=window.matchMedia('(min-width:1024px)');
     function onLayout(e){ MAX_TRADES = e.matches ? 300 : 50; }
     desktop.addEventListener('change',onLayout); onLayout(desktop);
 
-    /* ===== Sizing + right feed alignment ===== */
+    /* ===== Sizing + right feed align ===== */
     function resizeCanvas(){
       const dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
       chartCanvas.width=chartCanvas.clientWidth*dpr; chartCanvas.height=chartCanvas.clientHeight*dpr;
@@ -333,44 +297,34 @@
     }
     function alignRightFeedHeight(){
       if(!desktop.matches) return;
-      // Make the right feed stretch to the bottom of the 1d chart card
       const topOffset = feedEl.getBoundingClientRect().top + window.scrollY;
       const leftBottom = oneDayCard.getBoundingClientRect().bottom + window.scrollY;
-      const target = Math.max(220, leftBottom - topOffset); // guard minimum
+      const target = Math.max(220, leftBottom - topOffset);
       feedEl.style.height = target + 'px';
     }
     new ResizeObserver(resizeCanvas).observe(document.body);
     window.addEventListener('scroll', alignRightFeedHeight, {passive:true});
 
-    /* ===== WebSocket + REST fallbacks + subtle status pill ===== */
+    /* ===== Data: WS + REST + subtle status pill ===== */
     let ws=null, reconnectTimer=null, firstMsgTimer=null, gotMessage=false;
-    let lastWsMsgAt = 0, lastRestAt = 0;
-    let pillShown = false;
+    let lastWsMsgAt = 0, lastRestAt = 0, pillShown=false;
 
     function setConnPill(txt, ok){
-      const ageOk = ok;
       connPill.textContent = txt;
-      connPill.className = 'conn ' + (ageOk?'ok':'bad');
-      // Only show if we've been “silent” for >= 3s OR explicitly failing
+      connPill.className = 'conn ' + (ok?'ok':'bad');
       const now = Date.now();
       const silentFor = now - Math.max(lastWsMsgAt,lastRestAt);
       const shouldShow = !ok && silentFor >= 3000;
       if(shouldShow && !pillShown){ connPill.style.display='inline-block'; pillShown=true; }
       if(ok && pillShown){ connPill.style.display='none'; pillShown=false; }
     }
-
     function connectSequence(){ connectWS("advanced"); }
-
     function connectWS(kind){
       clearTimeout(reconnectTimer); clearTimeout(firstMsgTimer);
       if(ws){ try{ ws.close(); }catch(e){} ws=null; }
-
-      const url = kind==="advanced"
-        ? "wss://advanced-trade-ws.coinbase.com"
-        : "wss://ws-feed.exchange.coinbase.com";
-
+      const url = kind==="advanced" ? "wss://advanced-trade-ws.coinbase.com"
+                                    : "wss://ws-feed.exchange.coinbase.com";
       ws = new WebSocket(url);
-
       ws.onopen = () => {
         gotMessage=false;
         if(kind==="advanced"){
@@ -382,13 +336,10 @@
           if(!gotMessage && kind==="advanced"){ try{ ws.close(); }catch(e){} connectWS("legacy"); }
         }, 5000);
       };
-
       ws.onmessage = (e) => {
-        gotMessage=true;
-        lastWsMsgAt = Date.now();
+        gotMessage=true; lastWsMsgAt = Date.now();
         try{
           const msg = JSON.parse(e.data);
-          // Advanced Trade
           if(msg.channel==="market_trades" && Array.isArray(msg.events)){
             for(const ev of msg.events){
               if(ev.type==="update" && Array.isArray(ev.trades)){
@@ -399,19 +350,16 @@
             }
             return;
           }
-          // Legacy Pro
           if(msg.type==="match" && msg.product_id==="BTC-USD"){
             onTrade({ price:+msg.price, size:+msg.size, side:String(msg.side||"").toLowerCase(), time:new Date(msg.time||Date.now()) });
             return;
           }
         }catch(_){}
       };
-
       ws.onclose = () => { clearTimeout(firstMsgTimer); reconnectTimer=setTimeout(connectSequence, 1000); };
       ws.onerror = () => { try{ ws.close(); }catch(e){} };
     }
 
-    // Poll trades if socket is quiet; else poll ticker as last resort
     async function pollTradesFallback(){
       const QUIET_MS = 3500;
       const now = Date.now();
@@ -419,44 +367,35 @@
         if(now - lastWsMsgAt >= QUIET_MS){
           const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{'Accept':'application/json'}});
           if(r.ok){
-            const arr = await r.json(); // newest first
+            const arr = await r.json();
             for(let i=arr.length-1;i>=0;i--){
               const t = arr[i];
               onTrade({ price:+t.price, size:+t.size, side:String(t.side||"").toLowerCase(), time:new Date(t.time||now) });
             }
-            lastRestAt = now;
-            setConnPill('WS — / REST ✓', true); // hide if previously shown
+            lastRestAt = now; setConnPill('WS — / REST ✓', true);
             return;
           }
         }
-        // Last resort: /ticker
         if(now - Math.max(lastWsMsgAt,lastRestAt) >= QUIET_MS){
           const r2 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{'Accept':'application/json'}});
           if(r2.ok){
             const t = await r2.json();
             onTrade({ price:+t.price, size:+(t.size||0.001), side:'buy', time:new Date(t.time||now) });
-            lastRestAt = now;
-            setConnPill('WS — / REST ✓', true);
+            lastRestAt = now; setConnPill('WS — / REST ✓', true);
             return;
           }
         }
-        // No data
         setConnPill('WS — / REST —', false);
-      }catch(_){
-        setConnPill('WS — / REST —', false);
-      }
+      }catch(_){ setConnPill('WS — / REST —', false); }
     }
     setInterval(pollTradesFallback, 1200);
 
-    /* ===== Trade handling / rendering ===== */
+    /* ===== Trade handling ===== */
     let needsFeedRender=false, pendingPriceForSeries=null;
-
     function onTrade(t){
       const p=t.price, s=t.size, side=t.side==='sell'?'sell':'buy', time=t.time;
       const prev=trades.length?trades[trades.length-1].price:lastPrice;
-      let arrow=''; if(prev!=null){ arrow = p>prev?'▲':p<prev?'▼':'•'; }
-
-      // Hide pill while healthy
+      const arrow = (prev!=null) ? (p>prev?'▲':p<prev?'▼':'•') : '';
       setConnPill('WS ✓ / REST ✓', true);
 
       if(lastPrice!==null){
@@ -500,32 +439,25 @@
       const count=arr.length;
       const volBtc=arr.reduce((a,t)=>a+t.size,0);
       const volUsd=arr.reduce((a,t)=>a+t.size*t.price,0);
-
-      let buyUsd=0, sellUsd=0, buyMax=0, sellMax=0;
-      let hi=-Infinity, lo=Infinity;
+      let buyUsd=0, sellUsd=0, buyMax=0, sellMax=0, hi=-Infinity, lo=Infinity;
       for(const t of arr){
         const usd=t.price*t.size;
         hi=Math.max(hi, t.price); lo=Math.min(lo, t.price);
-        if(t.side==='buy'){ buyUsd+=usd; if(usd>buyMax) buyMax=usd; }
-        else { sellUsd+=usd; if(usd>sellMax) sellMax=usd; }
+        if(t.side==='buy'){ buyUsd+=usd; buyMax=Math.max(buyMax,usd); }
+        else { sellUsd+=usd; sellMax=Math.max(sellMax,usd); }
       }
       const vwap = volBtc ? (arr.reduce((a,t)=>a+t.price*t.size,0)/volBtc) : NaN;
       const rangeUsd = isFinite(hi) && isFinite(lo) ? (hi - lo) : NaN;
       const rangePct = isFinite(hi) && isFinite(lo) && lo>0 ? ((hi/lo - 1)*100) : NaN;
       const avgSz = count ? (volBtc / count) : NaN;
       const medSz = count ? medianSize(arr) : NaN;
-
-      return {
-        count, volUsd, buyUsd, sellUsd, buyMax, sellMax, vwap,
-        hi:(hi===-Infinity?NaN:hi), lo:(lo===Infinity?NaN:lo),
-        rangeUsd, rangePct, avgSz, medSz, tpm: (count/minutes)
-      };
+      return {count, volUsd, buyUsd, sellUsd, buyMax, sellMax, vwap, hi:(hi===-Infinity?NaN:hi),
+              lo:(lo===Infinity?NaN:lo), rangeUsd, rangePct, avgSz, medSz, tpm:(count/minutes)};
     }
 
     function renderStats(){
       pruneWindows();
 
-      // 10 minutes
       const S=computeWindow(window10m, 10);
       statCount.textContent = `${S.count} trades`;
       statTpm.textContent = S.tpm.toFixed(1);
@@ -537,9 +469,7 @@
       statMedSz.textContent = isFinite(S.medSz) ? S.medSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
       statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
       statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
-      statVolUsd.textContent = fmtUSD0.format(S.volUsd);
 
-      // 1 hour
       const H=computeWindow(window1h, 60);
       statCount1h.textContent = `${H.count} trades`;
       statTpm1h.textContent = H.tpm.toFixed(1);
@@ -555,49 +485,78 @@
 
     function medianSize(arr){
       const sizes = arr.map(t=>t.size).sort((a,b)=>a-b);
-      const n = sizes.length;
-      if(!n) return NaN;
+      const n = sizes.length; if(!n) return NaN;
       return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
     }
 
-    /* ===== Minute buckets (right->left) ===== */
+    /* ===== Volume (10m) — locked to 1-minute bins, right→left with labels ===== */
+    function minuteAlignedStart(){ // start timestamp of oldest bin boundary (aligned to minute)
+      const now = Date.now();
+      const minuteStart = now - (now % 60000);         // top of current minute
+      return minuteStart - (9 * 60000);                // 10 bins → 0..9 (0 oldest)
+    }
     function minuteBuckets(){
-      const now=Date.now();
-      const start = now - WINDOW_10M_MS;
-      const bins = Array.from({length:10}, ()=>({buyUsd:0,sellUsd:0}));
+      const start = minuteAlignedStart();
+      const bins = Array.from({length:10}, (_,i)=>({buyUsd:0,sellUsd:0, ts: start + i*60000}));
       for(const t of window10m){
-        const idx = Math.min(9, Math.max(0, Math.floor((t.time - start)/(60*1000))));
+        if(t.time < start-1 || t.time >= start + 10*60000) continue; // ignore outside window
+        const idx = Math.min(9, Math.max(0, Math.floor((t.time - start)/60000)));
         const usd = t.price*t.size;
         if(t.side==='buy') bins[idx].buyUsd += usd; else bins[idx].sellUsd += usd;
       }
-      return bins; // 0 = oldest, 9 = newest
+      return bins; // 0 oldest minute, 9 current minute
     }
-
     function drawVolumeBars(){
       if(!vctx) return;
       const w=volCanvas.clientWidth, h=volCanvas.clientHeight;
       vctx.clearRect(0,0,w,h);
+
       const bins = minuteBuckets();
       const max = Math.max(1, ...bins.map(b=>b.buyUsd + b.sellUsd));
-      const pad = 10;
-      const barW = (w - pad*2) / bins.length * 0.7;
-      const step = (w - pad*2) / bins.length;
+      const padX = 28, padYTop=8, padYBot=22; // leave room for labels
+      const chartH = h - padYTop - padYBot;
+      const barW = (w - padX*2) / bins.length * 0.7;
+      const step = (w - padX*2) / bins.length;
+
+      const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
+      const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim() || '#ff3c3c';
+
+      // horizontal grid (25%, 50%, 75%)
+      vctx.strokeStyle='rgba(255,255,255,0.06)'; vctx.lineWidth=1;
+      for(let i=1;i<=3;i++){
+        const y = padYTop + chartH*(i/4* (4/3)); // close enough spacing
+        vctx.beginPath(); vctx.moveTo(padX-6, y); vctx.lineTo(w-padX+6, y); vctx.stroke();
+      }
+
+      // draw newest on RIGHT
+      vctx.font='11px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      vctx.textAlign='center'; vctx.textBaseline='top';
+      vctx.fillStyle='rgba(255,255,255,0.75)';
 
       for(let i=bins.length-1;i>=0;i--){
         const b=bins[i];
-        const xRight = w - pad - ((bins.length-1-i)*step) - (step - barW)/2;
+        // right anchor position
+        const xCenter = w - padX - ((bins.length-1-i)*step) - step/2;
         const total = b.buyUsd + b.sellUsd;
-        const hTotal = (total/max)*(h - 16);
+        const hTotal = (total/max)*chartH;
         const hBuy = total ? (b.buyUsd/total)*hTotal : 0;
         const hSell = hTotal - hBuy;
-        const yBase = h - 8;
+        const yBase = padYTop + chartH;
 
-        vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--down').trim() || '#ff3c3c';
-        vctx.fillRect(xRight-barW, yBase - hSell, barW, hSell);
+        // bars
+        vctx.fillStyle = dn; vctx.fillRect(xCenter - barW/2, yBase - hSell, barW, hSell);
+        vctx.fillStyle = up; vctx.fillRect(xCenter - barW/2, yBase - hSell - hBuy, barW, hBuy);
 
-        vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
-        vctx.fillRect(xRight-barW, yBase - hSell - hBuy, barW, hBuy);
+        // minute label (":mm"), show every other for clarity
+        const d = new Date(b.ts);
+        const mm = d.toLocaleTimeString([], {minute:'2-digit'});
+        if((i%2)===1) vctx.fillText(':'+mm, xCenter, yBase + 4);
       }
+
+      // max scale label (top right)
+      vctx.textAlign='right'; vctx.textBaseline='alphabetic'; vctx.fillStyle='rgba(255,255,255,0.8)';
+      const maxLab = new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1}).format(max);
+      vctx.fillText(`max ${maxLab}`, w - 6, padYTop + 10);
     }
 
     /* ===== Histogram (10m) ===== */
@@ -659,7 +618,7 @@
       });
     }
 
-    /* ===== Live 10m chart ===== */
+    /* ===== Live 10m line chart ===== */
     function drawChart(){
       const w=chartCanvas.clientWidth,h=chartCanvas.clientHeight;
       ctx.clearRect(0,0,w,h);ctx.fillStyle='#101010';ctx.fillRect(0,0,w,h);
@@ -693,7 +652,7 @@
       void changeEl.offsetWidth;changeEl.classList.add('flash');
     }
 
-    /* ===== 24h stats via REST ===== */
+    /* ===== 24h stats (now in header pills) ===== */
     async function fetch24h(){
       try{
         const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats', {headers:{'Accept':'application/json'}});
@@ -703,16 +662,16 @@
         if(Number.isFinite(open) && Number.isFinite(last)){
           const diff = last - open;
           const pct = open ? (diff/open*100) : 0;
-          d24Change.textContent = `${fmtUSDChange.format(diff)} (${fmtPct2.format(pct)}%)`;
-          d24Change.className = `chg ${diff>0?'up':diff<0?'down':'flat'}`;
+          d24Change.textContent = `24h Δ ${fmtUSDChange.format(diff)} (${fmtPct2.format(pct)}%)`;
+          d24Change.classList.remove('chg'); // was used before; keep pill styling
+          d24Change.style.color = diff>0 ? 'var(--up)' : (diff<0 ? 'var(--down)' : 'var(--muted)');
         }else{
-          d24Change.textContent = '—'; d24Change.className = 'chg flat';
+          d24Change.textContent = '24h Δ —'; d24Change.style.color='var(--muted)';
         }
-        d24HiLo.textContent = (Number.isFinite(high)&&Number.isFinite(low)) ? `${fmtUSD.format(high)} / ${fmtUSD.format(low)}` : '—';
-        d24Vol.textContent = Number.isFinite(vol) ? vol.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
-        d24Updated.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        d24HiLo.textContent = (Number.isFinite(high)&&Number.isFinite(low)) ? `H/L ${fmtUSD0.format(high)} / ${fmtUSD0.format(low)}` : 'H/L —';
+        d24Vol.textContent = Number.isFinite(vol) ? `Vol ${vol.toLocaleString(undefined,{maximumFractionDigits:0})}` : 'Vol —';
       }catch(e){
-        d24Updated.textContent = '—';
+        d24Change.textContent='24h Δ —'; d24HiLo.textContent='H/L —'; d24Vol.textContent='Vol —';
       }
     }
 
@@ -736,7 +695,6 @@
       drawSubchart(ctx1d, data1d);
       alignRightFeedHeight();
     }
-    /* Subchart with price labels (min/avg/max) */
     function drawSubchart(context, seriesIn){
       const canvas = context.canvas;
       const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -750,20 +708,14 @@
       const range = (max-min)||1;
       const avg = seriesIn.reduce((a,d)=>a+d.c,0)/seriesIn.length;
 
-      // grid
       context.strokeStyle = 'rgba(255,255,255,0.06)';
       context.lineWidth = 1;
-      for(let i=1;i<=4;i++){
-        const y=(h/5)*i;
-        context.beginPath(); context.moveTo(0,y); context.lineTo(w,y); context.stroke();
-      }
+      for(let i=1;i<=4;i++){ const y=(h/5)*i; context.beginPath(); context.moveTo(0,y); context.lineTo(w,y); context.stroke(); }
 
-      // dashed avg
       const yAvg = h - ((avg-min)/range)*h;
       context.save(); context.setLineDash([6,6]); context.strokeStyle='rgba(200,214,207,0.6)';
       context.beginPath(); context.moveTo(0,yAvg); context.lineTo(w,yAvg); context.stroke(); context.restore();
 
-      // line
       context.lineWidth = 2;
       for(let i=1;i<seriesIn.length;i++){
         const p0=seriesIn[i-1].c, p1=seriesIn[i].c;
@@ -773,7 +725,6 @@
         context.beginPath(); context.moveTo(x0,y0); context.lineTo(x1,y1); context.stroke();
       }
 
-      // labels
       const lab = (v)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
       context.fillStyle = 'rgba(255,255,255,0.75)';
       context.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
@@ -784,16 +735,18 @@
     }
 
     /* ===== Loop / UI ===== */
+    let needsFeedRender=false, pendingPriceForSeries=null;
     function loop(){
       if(pendingPriceForSeries!=null){series.push({t:Date.now(),p:pendingPriceForSeries});pendingPriceForSeries=null;}
-      pruneWindows();
+      const cutoff=Date.now()-WINDOW_10M_MS;
+      while(series.length&&series[0].t<cutoff)series.shift();
 
-      drawChart();
-      updateTenMinuteChange();
       renderTops();
       renderStats();
+      drawChart();
       drawVolumeBars();
       drawHistogram();
+      updateTenMinuteChange();
 
       if(needsFeedRender){needsFeedRender=false;renderFeed();}
       requestAnimationFrame(loop);
@@ -816,7 +769,6 @@
       renderFeed();renderTops();renderStats();drawHistogram();
     }
     amountHeader.addEventListener('click',toggleAmountView);
-
     topsToggle?.addEventListener('click',()=>{
       const exp=topsPanel.classList.toggle('expanded');
       topsToggle.setAttribute('aria-expanded',exp?'true':'false');
