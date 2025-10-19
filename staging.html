@@ -78,7 +78,7 @@
     .tops li{padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.07);font-variant-numeric:tabular-nums;}
     .tops .buy{color:var(--up)} .tops .sell{color:var(--down)} .tops .muted{color:var(--muted);opacity:.9}
 
-    /* Summary bar */
+    /* Summary bar (mobile only) */
     .tops-summary{
       display:flex;width:100%;
       background:rgba(255,255,255,0.04);
@@ -121,6 +121,14 @@
     .statsTitle{font-weight:700;margin-bottom:8px;}
     .statRow{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums;}
     .pill{border:1px solid rgba(255,255,255,0.12);border-radius:999px;padding:2px 8px;font-size:12px;opacity:.9;}
+
+    /* Per-minute volume card */
+    .volBox{padding:12px;}
+    .volTitle{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+    #volCanvas{width:100%;height:140px;display:block;border-radius:8px;}
+    .legend{display:flex;gap:12px;font-size:12px;opacity:.9;margin-top:6px;}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+    .dot.up{background:var(--up);} .dot.down{background:var(--down);}
   </style>
 </head>
 <body>
@@ -163,10 +171,30 @@
 
     <!-- RIGHT -->
     <aside class="desktop-only">
-      <div class="card statsBox">
+      <div class="card statsBox" style="margin-bottom:16px;">
         <div class="statsTitle">Last 10 minutes <span class="pill" id="statCount">—</span></div>
-        <div class="statRow"><span>Volume (BTC)</span><strong id="statVolBtc">—</strong></div>
-        <div class="statRow"><span>Notional (USD)</span><strong id="statVolUsd">—</strong></div>
+        <div class="statRow"><span>Trades / min</span><strong id="statTpm">—</strong></div>
+        <div class="statRow"><span>Buy ratio (USD)</span><strong id="statBuyRatio">—</strong></div>
+        <div class="statRow"><span>VWAP</span><strong id="statVWAP">—</strong></div>
+        <div class="statRow"><span>High / Low</span><strong id="statHiLo">—</strong></div>
+        <div class="statRow"><span>Range</span><strong id="statRange">—</strong></div>
+        <div class="statRow"><span>Avg size (BTC)</span><strong id="statAvgSz">—</strong></div>
+        <div class="statRow"><span>Median size (BTC)</span><strong id="statMedSz">—</strong></div>
+        <div class="statRow"><span>Largest buy</span><strong id="statBigBuy">—</strong></div>
+        <div class="statRow"><span>Largest sell</span><strong id="statBigSell">—</strong></div>
+      </div>
+
+      <div class="card volBox">
+        <div class="volTitle">
+          <span>Per-minute volume (10m)</span>
+          <span class="pill" id="statVolBtc">—</span>
+        </div>
+        <canvas id="volCanvas" width="400" height="140"></canvas>
+        <div class="legend">
+          <span><span class="dot up"></span> Buys</span>
+          <span><span class="dot down"></span> Sells</span>
+          <span style="margin-left:auto;">Notional: <strong id="statVolUsd">—</strong></span>
+        </div>
       </div>
     </aside>
   </div>
@@ -178,13 +206,18 @@
           topsPanel=$('#topsPanel'),topsToggle=$('#topsToggle'),topsChev=$('#topsChev'),topsSummaryVals=$('#topsSummaryVals'),
           chartCanvas=$('#chartCanvas'),ctx=chartCanvas.getContext('2d',{desynchronized:true});
 
+    // Right-side stats
     const statCount=$('#statCount'),statVolBtc=$('#statVolBtc'),statVolUsd=$('#statVolUsd');
+    const statTpm=$('#statTpm'),statBuyRatio=$('#statBuyRatio'),statVWAP=$('#statVWAP'),statHiLo=$('#statHiLo'),
+          statRange=$('#statRange'),statAvgSz=$('#statAvgSz'),statMedSz=$('#statMedSz'),
+          statBigBuy=$('#statBigBuy'),statBigSell=$('#statBigSell');
+    const volCanvas=$('#volCanvas'), vctx=volCanvas.getContext('2d',{desynchronized:true});
 
     const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
     const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
     const fmtUSDChange=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
     const fmtBTC=new Intl.NumberFormat(undefined,{minimumFractionDigits:0,maximumFractionDigits:5});
-    const fmtPct=new Intl.NumberFormat(undefined,{minimumFractionDigits:3,maximumFractionDigits:3,signDisplay:'always'});
+    const fmtPct=new Intl.NumberFormat(undefined,{minimumFractionDigits:1,maximumFractionDigits:1});
 
     let MAX_TRADES=50; // mobile default; bumped on desktop
     const WINDOW_MS=10*60*1000;
@@ -198,8 +231,11 @@
       const dpr=Math.max(1,Math.min(window.devicePixelRatio||1,3));
       chartCanvas.width=chartCanvas.clientWidth*dpr;chartCanvas.height=chartCanvas.clientHeight*dpr;
       ctx.setTransform(dpr,0,0,dpr,0,0);drawChart();
+
+      volCanvas.width=volCanvas.clientWidth*dpr; volCanvas.height=volCanvas.clientHeight*dpr;
+      vctx.setTransform(dpr,0,0,dpr,0,0); drawVolumeBars();
     }
-    new ResizeObserver(resizeCanvas).observe(chartCanvas);
+    new ResizeObserver(resizeCanvas).observe(document.body);
 
     /* =========================
        WebSocket with fallback
@@ -232,7 +268,6 @@
             channels: ["matches"]
           }));
         }
-        // if no data arrives, fallback after 5s
         firstMsgTimer = setTimeout(()=>{
           if(!gotMessage && kind==="advanced"){
             try{ ws.close(); }catch(e){}
@@ -322,6 +357,109 @@
       feedEl.innerHTML=''; feedEl.appendChild(frag);
     }
 
+    function computeWindow(){
+      const cutoff=Date.now()-WINDOW_MS;
+      windowTrades=windowTrades.filter(t=>t.time>=cutoff);
+      const count=windowTrades.length;
+      const volBtc=windowTrades.reduce((a,t)=>a+t.size,0);
+      const volUsd=windowTrades.reduce((a,t)=>a+t.size*t.price,0);
+
+      // buy/sell splits
+      let buyUsd=0, sellUsd=0;
+      let buyMax=0, sellMax=0;
+      const sizes=[];
+      let hi=-Infinity, lo=Infinity;
+      for(const t of windowTrades){
+        const usd=t.price*t.size;
+        sizes.push(t.size);
+        hi=Math.max(hi, t.price); lo=Math.min(lo, t.price);
+        if(t.side==='buy'){ buyUsd+=usd; if(usd>buyMax) buyMax=usd; }
+        else { sellUsd+=usd; if(usd>sellMax) sellMax=usd; }
+      }
+      const vwap = volBtc ? (windowTrades.reduce((a,t)=>a+t.price*t.size,0)/volBtc) : NaN;
+      sizes.sort((a,b)=>a-b);
+      const median = sizes.length? (sizes.length%2? sizes[(sizes.length-1)/2] : (sizes[sizes.length/2-1]+sizes[sizes.length/2])/2) : NaN;
+
+      return {
+        count, volBtc, volUsd, buyUsd, sellUsd, buyMax, sellMax,
+        vwap, hi: (hi===-Infinity?NaN:hi), lo: (lo===Infinity?NaN:lo)
+      };
+    }
+
+    function renderStats(){
+      const S=computeWindow();
+
+      // top cards
+      if(statCount) statCount.textContent = `${S.count} trades`;
+      if(statVolBtc) statVolBtc.textContent = S.volBtc.toLocaleString(undefined,{maximumFractionDigits:3});
+      if(statVolUsd) statVolUsd.textContent = fmtUSD0.format(S.volUsd);
+
+      if(statTpm) statTpm.textContent = (S.count/10).toFixed(1);
+      const ratio = S.volUsd ? (S.buyUsd/S.volUsd*100) : 0;
+      if(statBuyRatio) statBuyRatio.textContent = `${fmtPct.format(ratio)}%`;
+      if(statVWAP) statVWAP.textContent = isFinite(S.vwap) ? fmtUSD.format(S.vwap) : '—';
+
+      const rangeUsd = isFinite(S.hi) && isFinite(S.lo) ? (S.hi - S.lo) : NaN;
+      const rangePct = isFinite(S.hi) && isFinite(S.lo) && S.lo>0 ? ((S.hi/S.lo - 1)*100) : NaN;
+      if(statHiLo) statHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo)) ? `${fmtUSD.format(S.hi)} / ${fmtUSD.format(S.lo)}` : '—';
+      if(statRange) statRange.textContent = (isFinite(rangeUsd)&&isFinite(rangePct)) ? `${fmtUSD.format(rangeUsd)} (${fmtPct.format(rangePct)}%)` : '—';
+
+      const avgSz = S.count ? (S.volBtc / S.count) : NaN;
+      if(statAvgSz) statAvgSz.textContent = isFinite(avgSz) ? avgSz.toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+      if(statMedSz) statMedSz.textContent = windowTrades.length ? medianSize(windowTrades).toLocaleString(undefined,{maximumFractionDigits:4}) : '—';
+
+      if(statBigBuy) statBigBuy.textContent = S.buyMax? fmtUSD0.format(S.buyMax) : '—';
+      if(statBigSell) statBigSell.textContent = S.sellMax? fmtUSD0.format(S.sellMax) : '—';
+    }
+
+    function medianSize(arr){
+      if(!arr.length) return NaN;
+      const sizes = arr.map(t=>t.size).sort((a,b)=>a-b);
+      const n = sizes.length;
+      return n%2 ? sizes[(n-1)/2] : (sizes[n/2-1]+sizes[n/2])/2;
+    }
+
+    function minuteBuckets(){
+      // returns 10 bins for last 10 minutes: [{buyUsd, sellUsd, tsMinute}]
+      const now=Date.now();
+      const start = now - 10*60*1000;
+      const bins = Array.from({length:10}, (_,i)=>({buyUsd:0,sellUsd:0, ts: start + i*60*1000}));
+      for(const t of windowTrades){
+        const idx = Math.min(9, Math.max(0, Math.floor((t.time - start)/(60*1000))));
+        const usd = t.price*t.size;
+        if(t.side==='buy') bins[idx].buyUsd += usd; else bins[idx].sellUsd += usd;
+      }
+      return bins;
+    }
+
+    function drawVolumeBars(){
+      if(!vctx) return;
+      const w=volCanvas.clientWidth, h=volCanvas.clientHeight;
+      vctx.clearRect(0,0,w,h);
+      const bins = minuteBuckets();
+      const max = Math.max(1, ...bins.map(b=>b.buyUsd + b.sellUsd));
+      const pad = 10;
+      const barW = (w - pad*2) / bins.length * 0.7;
+      const step = (w - pad*2) / bins.length;
+
+      bins.forEach((b, i)=>{
+        const x = pad + i*step + (step - barW)/2;
+        const total = b.buyUsd + b.sellUsd;
+        const hTotal = (total/max)*(h - 16);
+        const hBuy = total ? (b.buyUsd/total)*hTotal : 0;
+        const hSell = hTotal - hBuy;
+        const yBase = h - 8;
+
+        // sell segment (bottom)
+        vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--down').trim() || '#ff3c3c';
+        vctx.fillRect(x, yBase - hSell, barW, hSell);
+
+        // buy segment (top)
+        vctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--up').trim() || '#00ffb3';
+        vctx.fillRect(x, yBase - hSell - hBuy, barW, hBuy);
+      });
+    }
+
     function renderTops(){
       const cutoff=Date.now()-WINDOW_MS;
       windowTrades=windowTrades.filter(t=>t.time>=cutoff);
@@ -337,6 +475,7 @@
       const topSell=sells[0]?`<span class="sell">${fmtAmt(sells[0])}</span>`:'<span class="sell">—</span>';
       topsSummaryVals.innerHTML=`${topBuy} | ${topSell}`;
 
+      // Update right-side totals
       const count=windowTrades.length;
       const volBtc=windowTrades.reduce((a,t)=>a+t.size,0);
       const volUsd=windowTrades.reduce((a,t)=>a+t.size*t.price,0);
@@ -383,7 +522,13 @@
       const cutoff=Date.now()-WINDOW_MS;
       while(series.length&&series[0].t<cutoff)series.shift();
       windowTrades=windowTrades.filter(t=>t.time>=cutoff);
-      drawChart();updateTenMinuteChange();renderTops();
+
+      drawChart();
+      updateTenMinuteChange();
+      renderTops();
+      renderStats();
+      drawVolumeBars();
+
       if(needsFeedRender){needsFeedRender=false;renderFeed();}
       requestAnimationFrame(loop);
     }
@@ -391,7 +536,7 @@
     function toggleAmountView(){
       showUSD=!showUSD;
       amountHeader.textContent=showUSD?'AMOUNT (USD)':'AMOUNT (BTC)';
-      renderFeed();renderTops();
+      renderFeed();renderTops();renderStats();
     }
     amountHeader.addEventListener('click',toggleAmountView);
 
