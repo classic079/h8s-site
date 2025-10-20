@@ -11,20 +11,21 @@
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
 
-  .site{display:block;padding:10px;}
+  /* Make the whole grid at least viewport high to align columns */
+  .site{display:block;padding:10px;min-height:100vh;}
   .desktop-only{display:none}.mobile-only{display:block}
 
   /* 4 columns on desktop: Charts | Stats | Top Tx | Ticker */
   @media (min-width:1024px){
     .site{
       display:grid!important;
-      grid-template-columns:1.45fr 1.15fr 1.1fr 0.8fr;
+      grid-template-columns:1.35fr 1.15fr 1.1fr 0.9fr;
       gap:16px;padding:16px;align-items:start
     }
     #leftCol{grid-column:1/2}
     #centerCol{grid-column:2/3}
     #rightCol{grid-column:3/4}
-    #tickerCol{grid-column:4/5}
+    #tickerCol{grid-column:4/5;align-self:stretch;} /* stretch to full column height */
     .desktop-only{display:block!important}.mobile-only{display:none!important}
   }
   .card{background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35)}
@@ -46,6 +47,8 @@
   #chartContainer{position:relative;width:min(920px,96vw);height:clamp(130px,26vh,220px);margin:0 auto}
   #chartCanvas{position:absolute;inset:0;width:100%;height:100%;border-radius:12px}
   .chartTitle{position:absolute;left:10px;top:8px;font-size:12px;opacity:.8}
+  /* NEW small subtitle to add a bit of top padding/balance */
+  .chartSubtitle{position:absolute;left:10px;top:24px;font-size:11px;opacity:.55}
   @media (min-width:1024px){#chartContainer{width:auto}}
   .volBoxTop{padding:12px}
   .volTitle{font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
@@ -81,15 +84,16 @@
   .txMeta .usd{font-weight:800;color:#fff}
   .txMeta .btc{opacity:.85}.txMeta .t{opacity:.65}
 
-  /* Far Right: Ticker Column */
-  #tickerCol .card{margin-bottom:12px}
+  /* Far Right: Ticker Column — fill full height to align with other columns */
+  #tickerCol{display:flex;flex-direction:column}
+  #tickerCol .card{margin-bottom:12px;flex:1} /* let the card fill the column */
   #feedContainer{border-radius:12px;background:var(--panel);
-    box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow)}
-  @media (min-width:1024px){
-    #feedContainer{position:sticky;top:0;display:flex;flex-direction:column;max-height:calc(100vh - 24px)}
-    #tickerHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(16,16,16,1),rgba(16,16,16,.6));padding:6px 6px 4px;z-index:1}
-    #tickerScroll{overflow:auto;padding:0 6px 6px}
-  }
+    box-shadow:0 0 0 1px rgba(255,255,255,.04),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
+    height:100%;display:flex;flex-direction:column;min-height:0;}
+  /* Keep head sticky inside the card; scroll only the rows; match full column height */
+  #tickerHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(16,16,16,1),rgba(16,16,16,.6));padding:6px 6px 4px;z-index:1}
+  #tickerScroll{overflow:auto;padding:0 6px 6px;flex:1;min-height:0;}
+
   .headerRow{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.8em;opacity:.7;
     border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px;padding-bottom:4px;
     display:grid;grid-template-columns:70px 1fr 92px;column-gap:8px;text-align:left}
@@ -103,6 +107,7 @@
     #feedContainer{width:min(920px,96vw);margin:12px auto 0;padding:6px}
     .row,.headerRow{grid-template-columns:1fr 92px}.time,.headerRow>div:first-child{display:none}
   }
+
   /* Mobile tops (unchanged) */
   .tops{margin:2px 6px 6px}.tops-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .tops h4{margin:4px 0 4px;font-size:.9em;font-weight:700;color:#fff}.tops ul{list-style:none;margin:0;padding:0}
@@ -120,6 +125,7 @@
   <div id="leftCol">
     <section id="chartContainer" class="card">
       <div class="chartTitle">BTC-USD • Last 10 minutes</div>
+      <div class="chartSubtitle">Price (USD)</div>
       <canvas id="chartCanvas"></canvas>
     </section>
     <div class="card volBoxTop desktop-only">
@@ -257,7 +263,8 @@ const ul1dBuy=$('#tx1dBuy'),ul1dSell=$('#tx1dSell');
 const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
 const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
 const fmtUSDChange=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
-const fmtBTC=new Intl.NumberFormat(undefined,{maximumFractionDigits:5});
+const fmtBTC=new Intl.NumberFormat(undefined,{maximumFractionDigits:5});      // global BTC (unchanged)
+const fmtBTC3=new Intl.NumberFormat(undefined,{maximumFractionDigits:3});     // NEW: 3dp for top boxes
 const fmtBTCc=new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:2});
 const btcLabel=(v,compact=false)=>compact?`₿${fmtBTCc.format(v)}`:`₿${fmtBTC.format(v)}`;
 const fmtPct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
@@ -383,7 +390,7 @@ function renderTopTransactions(){
       return `<li class="txItem ${side}">
         <div class="txMeta">
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
-          <span class="btc">(${fmtBTC.format(t.size)} BTC)</span>
+          <span class="btc">(${fmtBTC3.format(t.size)} BTC)</span>
           <span class="t">${time}</span>
         </div>
       </li>`;
@@ -531,7 +538,7 @@ function loop(){renderStats();drawChart();drawVolumeBars();drawHistogram();updat
 function renderTops(){
   const buys=window10m.filter(t=>t.side==='buy').map(t=>({...t,btc:t.size})).sort((a,b)=>b.btc-a.btc).slice(0,3);
   const sells=window10m.filter(t=>t.side==='sell').map(t=>({...t,btc:t.size})).sort((a,b)=>b.btc-a.btc).slice(0,3);
-  const fmtAmt=t=>`${fmtBTC.format(t.btc)} BTC`;
+  const fmtAmt=t=>`${fmtBTC3.format(t.btc)} BTC`; /* 3dp here too */
   if(topBuysEl)topBuysEl.innerHTML=buys.length?buys.map(t=>`<li class="buy">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
   if(topSellsEl)topSellsEl.innerHTML=sells.length?sells.map(t=>`<li class="sell">${fmtAmt(t)}</li>`).join(''):`<li class="muted">—</li>`;
   if(topsSummaryVals){const tb=buys[0]?`<span class="buy">${fmtAmt(buys[0])}</span>`:'<span class="buy">—</span>';
