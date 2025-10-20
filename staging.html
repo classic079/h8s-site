@@ -10,9 +10,12 @@
     --up:#2dd4bf;   /* teal-ish “green” */
     --down:#f59e0b; /* amber for “red”  */
     --glow: rgba(45,212,191,.22);
-    --right-col-w: 390px;  /* Top lists */
-    --ticker-col-w: 280px; /* Ticker */
+
+    /* Layout knobs (updated widths) */
+    --right-col-w: 410px;  /* Top lists column (wider) */
+    --ticker-col-w: 265px; /* Ticker column (narrower) */
   }
+
   /* alt palettes (press T) */
   body[data-theme="cyan-magenta"]{ --up:#06b6d4; --down:#ec4899; --glow:rgba(6,182,212,.22); }
   body[data-theme="violet-gold"]{  --up:#8b5cf6; --down:#fbbf24; --glow:rgba(139,92,246,.22); }
@@ -28,19 +31,29 @@
   @media (min-width:1024px){
     .site{
       display:grid!important;
-      grid-template-columns:minmax(460px,1fr) minmax(380px,0.9fr) var(--right-col-w) var(--ticker-col-w);
+      grid-template-columns:
+        minmax(460px, 1fr)
+        minmax(380px, 0.9fr)
+        var(--right-col-w)
+        var(--ticker-col-w);
       gap:14px; padding:14px; align-items:start; width:100%; max-width:100vw; overflow-x:hidden;
     }
-    #leftCol{grid-column:1/2} #centerCol{grid-column:2/3} #rightCol{grid-column:3/4} #tickerCol{grid-column:4/5;align-self:stretch;}
+    #leftCol{grid-column:1/2}
+    #centerCol{grid-column:2/3}
+    #rightCol{grid-column:3/4}
+    #tickerCol{grid-column:4/5;align-self:stretch;}
   }
   @media (min-width:1024px) and (max-width:1368px){
-    :root{ --right-col-w: 375px; --ticker-col-w: 260px; }
+    :root{ --right-col-w: 395px; --ticker-col-w: 250px; }
     #leftCol .card{ margin-bottom:10px; }
-    .subchart canvas, #volCanvas { height:150px; }
+    .subchart canvas, #volCanvas{ height:150px; }
   }
-  @media (min-width:1600px){ :root{ --right-col-w: 410px; --ticker-col-w: 300px; } }
+  @media (min-width:1600px){
+    :root{ --right-col-w: 430px; --ticker-col-w: 280px; }
+  }
 
   .card{background:var(--panel);border-radius:12px;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35);max-width:100%}
+  .utilBar{display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 8px}
   .pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 10px;font-size:12px;opacity:.9;white-space:nowrap;cursor:pointer}
   .pill:hover{opacity:1}
 
@@ -48,8 +61,7 @@
   #connPill{position:fixed;left:12px;bottom:12px;z-index:20}
   .conn-ok{color:var(--up)} .conn-warn{color:#fbbf24} .conn-err{color:#fb7185}
 
-  /* header */
-  .utilBar{display:flex;justify-content:flex-end;gap:8px;margin:-4px 0 8px}
+  /* live header */
   .liveWrap{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;margin-bottom:8px}
   .liveCenter{display:flex;justify-content:center;align-items:baseline;gap:8px}
   .livePrice{font-size:clamp(22px,4.6vw,40px);font-weight:800;line-height:1}
@@ -73,15 +85,15 @@
   .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9}
   .subchart canvas{width:100%;height:160px;display:block;border-radius:8px;max-width:100%}
 
-  /* CENTER */
+  /* CENTER stats/hist */
   .statsBox{padding:12px}
-  .statsTitle{font-weight:700;margin:8px 0; white-space:nowrap;}
+  .statsTitle{font-weight:700;margin:8px 0;white-space:nowrap}
   .statRow{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums}
   .metricGood{color:var(--up)} .metricBad{color:var(--down)} .metricNeutral{color:var(--muted)}
   .histBox{padding:12px;margin-top:16px}
   #histCanvas{width:100%;height:160px;display:block;border-radius:8px;max-width:100%}
 
-  /* RIGHT: top lists */
+  /* RIGHT top lists */
   #rightCol .card{margin-bottom:12px}
   .topTx{padding:10px}
   .topTx h3{margin:0 0 6px;font-size:13px;opacity:.9;white-space:nowrap}
@@ -97,7 +109,7 @@
   .txMeta .usd{font-weight:800;color:#fff}
   .txMeta .btc{opacity:.85}.txMeta .t{opacity:.65}
 
-  /* Ticker (tight) */
+  /* Ticker (tight middle column) */
   #tickerCol{display:flex;flex-direction:column}
   #tickerCol .card{margin-bottom:12px;flex:1}
   #feedContainer{border-radius:12px;background:var(--panel);
@@ -108,23 +120,26 @@
   .headerRow{
     font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.78em;opacity:.7;
     border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px;padding-bottom:4px;
-    display:grid;grid-template-columns:64px 1fr 76px;column-gap:6px;text-align:left}
+    /* tightened price column to free space for right lists */
+    display:grid;grid-template-columns:64px 0.9fr 76px;column-gap:6px;text-align:left}
   .row{
-    display:grid;grid-template-columns:64px 1fr 76px;column-gap:6px;align-items:center;
+    display:grid;grid-template-columns:64px 0.9fr 76px;column-gap:6px;align-items:center;
     padding:2px 3px;border-radius:6px;font-variant-numeric:tabular-nums;font-size:12px;line-height:1.15
   }
   .row.buy{color:var(--up)} .row.sell{color:var(--down)}
   .time{white-space:nowrap;opacity:.75}
 </style>
 </head>
-<body>
+
+<body data-theme="">
+<!-- connection pill -->
 <span id="connPill" class="pill conn-warn">Connecting…</span>
 
 <div class="site">
   <!-- LEFT -->
   <div id="leftCol">
     <div class="utilBar">
-      <span id="themeToggle" class="pill" title="Press T to cycle theme">Theme: teal/amber</span>
+      <span id="themeToggle" class="pill" title="Press T to cycle">Theme: teal/amber</span>
     </div>
 
     <section id="chartContainer" class="card">
@@ -261,12 +276,12 @@ const ul10mBuy=$('#tx10mBuy'),ul10mSell=$('#tx10mSell'),
 const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
 const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
 const fmtUSDChange=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
+const fmtBTC2= new Intl.NumberFormat(undefined,{maximumFractionDigits:2}); // 2dp BTC
 const fmtBTC = new Intl.NumberFormat(undefined,{maximumFractionDigits:5});
-const fmtBTC3= new Intl.NumberFormat(undefined,{maximumFractionDigits:3});
 const fmtBTCc= new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:2});
 const pct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 const pct2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
-const btcLabel=(v,compact=false)=>compact?`₿${fmtBTCc.format(v)}`:`₿${fmtBTC.format(v)}`;
+const btcLabel=(v,compact=false)=>compact?`₿${fmtBTCc.format(v)}`:`₿${fmtBTC2.format(v)}`; // use 2dp when not compact
 
 /* ===== State ===== */
 let trades=[],win10=[],win1h=[],win1d=[],series=[],lastPrice=null,showUSD=true;
@@ -340,7 +355,7 @@ function renderTicker(){
   for(let i=trades.length-1;i>=start;i--){
     const t=trades[i],row=document.createElement('div'); row.className=`row ${t.side}`;
     const ts=new Date(t.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const amt=showUSD?fmtUSD.format(t.price*t.size):`${fmtBTC.format(t.size)} BTC`;
+    const amt=showUSD?fmtUSD.format(t.price*t.size):`${fmtBTC2.format(t.size)} BTC`;
     row.innerHTML=`<div class="time">${ts}</div>
                    <div>${fmtUSD.format(t.price)} <span style="opacity:.7;margin-left:2px">${t.arrow}</span></div>
                    <div style="white-space:nowrap">${amt}</div>`;
@@ -350,7 +365,7 @@ function renderTicker(){
 }
 amountHeader.addEventListener('click',()=>{showUSD=!showUSD;amountHeader.textContent=showUSD?'Amount (USD)':'Amount (BTC)';renderTicker();});
 
-/* ===== Top transactions (3dp BTC) ===== */
+/* ===== Top transactions (BTC 2dp) ===== */
 function renderTop(){
   const make=(arr,ul,limit,side)=>{
     if(!ul)return; const items=arr.filter(t=>t.side===side).map(t=>({...t,usd:t.price*t.size}))
@@ -360,7 +375,7 @@ function renderTop(){
       return `<li class="txItem ${side}">
         <div class="txMeta">
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
-          <span class="btc">(${fmtBTC3.format(t.size)} BTC)</span>
+          <span class="btc">(${fmtBTC2.format(t.size)} BTC)</span>
           <span class="t">${time}</span>
         </div>
       </li>`}).join('') : `<li style="opacity:.7;padding:6px 8px">—</li>`;
@@ -370,7 +385,7 @@ function renderTop(){
   make(win1d,ul1dBuy,10,'buy');  make(win1d,ul1dSell,10,'sell');
 }
 
-/* ===== Stats (Avg/Median in USD + comparisons) ===== */
+/* ===== Stats (Avg/Median USD + comparisons) ===== */
 function median(arr){const a=[...arr].sort((x,y)=>x-y),n=a.length;return n?(n&1?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2):NaN;}
 function winStats(arr,min){
   const n=arr.length, btc=arr.reduce((a,t)=>a+t.size,0), usd=arr.reduce((a,t)=>a+t.price*t.size,0);
@@ -514,8 +529,8 @@ function drawHist(){
   BINS.forEach((b,i)=>{const y=pad+i*step+(step-barH)/2;hctx.fillText(b.label,6,y+barH/2)});hctx.restore();
   BINS.forEach((b,i)=>{const y=pad+i*step+(step-barH)/2, total=totals[i], fullW=(total/max)*(w-x0-12), sellW=total?(sells[i]/total)*fullW:0, buyW=fullW-sellW;
     hctx.fillStyle=dn; hctx.fillRect(x0,y,sellW,barH); hctx.fillStyle=up; hctx.fillRect(x0+sellW,y,buyW,barH);
-    if(sells[i]>0&&sellW>48){hctx.fillStyle='rgba(0,0,0,.85)';hctx.textAlign='center';hctx.fillText(btcLabel(sells[i],true),x0+sellW/2,y+barH/2)}
-    if(buys[i] >0&& buyW>48){hctx.fillStyle='rgba(0,0,0,.85)';hctx.textAlign='center';hctx.fillText(btcLabel(buys[i],true) ,x0+sellW+buyW/2,y+barH/2)}
+    if(sells[i]>0&&sellW>48){hctx.fillStyle='rgba(0,0,0,.85)';hctx.textAlign='center';hctx.fillText(btcLabel(sells[i],false),x0+sellW/2,y+barH/2)}
+    if(buys[i] >0&& buyW>48){hctx.fillStyle='rgba(0,0,0,.85)';hctx.textAlign='center';hctx.fillText(btcLabel(buys[i] ,false),x0+sellW+buyW/2,y+barH/2)}
   });
 }
 
