@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<script>
+  // Detect if the visitor is on a mobile device
+  if (/Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+    // Redirect to mobile version (adjust the filename if needed)
+    window.location.href = "mobile.html";
+  }
+</script>
 <title>Coinbase Stalker</title>
 <style>
   :root{
