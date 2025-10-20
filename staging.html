@@ -9,7 +9,7 @@
     --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
     --up:#2dd4bf; --down:#f59e0b; --glow: rgba(45,212,191,.22);
     --right-col-w: 410px;  /* Top lists */
-    --ticker-col-w: 265px; /* Ticker */
+    --ticker-col-w: 0.8fr; /* You mentioned this change */
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
@@ -40,16 +40,17 @@
   .conn-ok{color:var(--up)} .conn-warn{color:#fbbf24} .conn-err{color:#fb7185}
 
   /* live header */
-  .statsBox{position:relative; z-index:5;}     /* ensure nothing draws “under” this card */
+  .statsBox{position:relative; z-index:5;}
   .liveWrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-bottom:8px}
   .liveLeft{display:flex;flex-direction:column;gap:6px;justify-content:flex-start;align-items:flex-start;min-width:0}
-  .liveCenter{display:flex;justify-content:center;align-items:baseline;gap:8px;min-width:0}
+  .liveCenter{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
   .liveRight{display:flex;gap:6px;justify-content:flex-end;min-width:0}
   .livePrice{font-size:clamp(22px,4.4vw,38px);font-weight:800;line-height:1}
   .livePrice.up{color:var(--up)} .livePrice.down{color:var(--down)}
   .liveChange{font-size:12px;font-weight:700;opacity:.9}
   .liveChange.up{color:var(--up)} .liveChange.down{color:var(--down)} .liveChange.flat{color:var(--muted)}
-  .liveRight .pill{max-width:170px; overflow:hidden; text-overflow:ellipsis}
+  /* H/L is stacked under change inside liveCenter now */
+  .liveCenter .pill{max-width:200px; overflow:hidden; text-overflow:ellipsis}
 
   /* left / charts */
   #leftCol .card{margin-bottom:12px}
@@ -84,12 +85,16 @@
   .txList{list-style:none;margin:0;padding:0;font-variant-numeric:tabular-nums}
   .txItem{padding:6px 6px;border-radius:8px}
   .txItem.buy{color:var(--up)} .txItem.sell{color:var(--down)}
-  .txMeta{display:flex;gap:8px;align-items:baseline;font-size:12px;color:rgba(233,254,247,.85)}
-  .txMeta .usd{font-weight:800;color:#fff}
-  .txMeta .btc{opacity:.85}.txMeta .t{opacity:.65}
+  .txMeta{
+    display:flex;gap:8px;align-items:baseline;font-size:12px;color:rgba(233,254,247,.9);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  .txMeta .usd{font-weight:800;color:#fff;flex:0 0 auto}
+  .txMeta .btc{opacity:.85;flex:0 0 auto}
+  .txMeta .t{opacity:.65;flex:0 0 auto}
 
   /* ticker */
-  #tickerCol{display:flex;flex-direction:column;min-width:var(--ticker-col-w);max-width:var(--ticker-col-w)}
+  #tickerCol{display:flex;flex-direction:column;}
   #tickerCol .card{margin-bottom:12px;flex:1}
   #feedContainer{border-radius:12px;background:var(--panel);
     box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
@@ -132,20 +137,19 @@
   <section id="centerCol">
     <div class="card statsBox" style="margin:12px 0;">
       <div class="liveWrap">
-        <!-- LEFT: stacked pills (smaller) -->
+        <!-- LEFT: stacked pills -->
         <div class="liveLeft">
           <span id="d24Change" class="pill">24h Δ —</span>
           <span id="d24Vol"  class="pill">Vol —</span>
         </div>
-        <!-- CENTER: price + 10m Δ -->
+        <!-- CENTER: price + 10m Δ + H/L stacked -->
         <div class="liveCenter">
           <div id="livePrice" class="livePrice">$—</div>
           <div id="liveChange" class="liveChange flat">—</div>
-        </div>
-        <!-- RIGHT: compact H/L pill -->
-        <div class="liveRight">
           <span id="d24HiLo" class="pill">H/L —</span>
         </div>
+        <!-- RIGHT: reserved -->
+        <div class="liveRight"></div>
       </div>
 
       <div class="statsTitle">Last 10 minutes <span class="pill" id="statCount">—</span></div>
@@ -449,28 +453,41 @@ function drawChart(){
 
 /* ===== 10m volume (₿), histogram, subcharts ===== */
 function startAligned(){const now=Date.now();const ms=now-(now%60000);return ms-(9*60000)}
-function bins10(){const start=startAligned();const bins=Array.from({length:10},(_,i)=>({buy:0,sell:0,ts:start+i*60000}));
-  for(const t of win10){ if(t.time<start-1||t.time>=start+10*60000) continue;
+function bins10(){
+  const start=startAligned();
+  const bins=Array.from({length:10},(_,i)=>({buy:0,sell:0,ts:start+i*60000}));
+  for(const t of win10){
+    if(t.time<start-1||t.time>=start+10*60000) continue;
     const idx=Math.min(9,Math.max(0,Math.floor((t.time-start)/60000)));
-    if(t.side==='buy') bins[idx].buy+=t.size; else bins[idx].sell+=t.size; }
-  return bins;}
+    if(t.side==='buy') bins[idx].buy+=t.size; else bins[idx].sell+=t.size;
+  }
+  return bins;
+}
 function drawVol(){
   const w=volCanvas.clientWidth,h=volCanvas.clientHeight; vctx.clearRect(0,0,w,h);
-  const bins=bins10(); const max=Math.max(1,...bins.map(b=>b.buy+b.sell));
+  const bins=bins10(); const sums=bins.map(b=>b.buy+b.sell);
+  const max=Math.max(1, ...sums);               // clamp to avoid collapse
   const padX=28,padTop=8,padBot=22,chartH=h-padTop-padBot, step=(w-padX*2)/bins.length, barW=step*0.7;
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
+
+  // grid
   vctx.strokeStyle='rgba(255,255,255,.06)'; for(let i=1;i<=3;i++){const y=padTop+chartH*(i/4*(4/3));vctx.beginPath();vctx.moveTo(padX-6,y);vctx.lineTo(w-padX+6,y);vctx.stroke();}
   vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';vctx.textAlign='center';vctx.textBaseline='top';vctx.fillStyle='rgba(255,255,255,.75)';
+
   for(let i=bins.length-1;i>=0;i--){
-    const b=bins[i], xC=w-padX-((bins.length-1-i)*step)-step/2, tot=b.buy+b.sell, hT=(tot/max)*chartH, hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy, yB=padTop+chartH;
+    const b=bins[i], xC=w-padX-((bins.length-1-i)*step)-step/2, tot=b.buy+b.sell;
+    const hT=Math.max(chartH*0.06, (tot/max)*chartH); // min 6% height for stability
+    const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy, yB=padTop+chartH;
+
     vctx.fillStyle=dn; vctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
     vctx.fillStyle=up; vctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
-    if(hSell>16&&b.sell>0){vctx.fillStyle='rgba(0,0,0,.85)';vctx.fillText(btcLabel(b.sell,true),xC,yB-hSell/2)}
-    if(hBuy >16&&b.buy >0){vctx.fillStyle='rgba(0,0,0,.85)';vctx.fillText(btcLabel(b.buy ,true),xC,yB-hSell-hBuy/2)}
+
+    if(hSell>16&&b.sell>0){vctx.fillStyle='rgba(0,0,0,.85)';vctx.fillText(`₿${b.sell.toFixed(2)}`,xC,yB-hSell/2)}
+    if(hBuy >16&&b.buy >0){vctx.fillStyle='rgba(0,0,0,.85)';vctx.fillText(`₿${b.buy.toFixed(2)}`,xC,yB-hSell-hBuy/2)}
     if((i%2)===1) vctx.fillStyle='rgba(255,255,255,.75)', vctx.fillText(':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'}),xC,yB+4);
   }
-  vctx.textAlign='right';vctx.fillStyle='rgba(255,255,255,.8)';vctx.fillText(`max ${btcLabel(max)}`,w-6,padTop+10);
+  vctx.textAlign='right';vctx.fillStyle='rgba(255,255,255,.8)';vctx.fillText(`max ₿${Math.max(...sums).toFixed(2)}`,w-6,padTop+10);
 }
 
 const BINS=[{label:"<0.01",lo:0,hi:0.01},{label:"0.01–0.05",lo:0.01,hi:0.05},{label:"0.05–0.1",lo:0.05,hi:0.1},{label:"0.1–0.5",lo:0.1,hi:0.5},{label:"0.5–1",lo:0.5,hi:1},{label:"1–3",lo:1,hi:3},{label:"3–10",lo:3,hi:10},{label:">10",lo:10,hi:Infinity}];
@@ -492,14 +509,14 @@ function drawHist(){
     if(sellW>46 && sells[i]>0){
       hctx.fillStyle='rgba(0,0,0,.9)';
       hctx.textAlign='center'; hctx.textBaseline='middle';
-      hctx.fillText(btcLabel(sells[i],false), x0+sellW/2, y+barH/2);
+      hctx.fillText(`₿${sells[i].toFixed(2)}`, x0+sellW/2, y+barH/2);
     }
 
     hctx.fillStyle=up; hctx.fillRect(x0+sellW,y,buyW,barH);
     if(buyW>46 && buys[i]>0){
       hctx.fillStyle='rgba(0,0,0,.9)';
       hctx.textAlign='center'; hctx.textBaseline='middle';
-      hctx.fillText(btcLabel(buys[i],false), x0+sellW+buyW/2, y+barH/2);
+      hctx.fillText(`₿${buys[i].toFixed(2)}`, x0+sellW+buyW/2, y+barH/2);
     }
   });
 }
