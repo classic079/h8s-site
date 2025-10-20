@@ -31,30 +31,28 @@
 
   .card{background:var(--panel);border-radius:12px;
         box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35)}
-  .pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 10px;font-size:12px;opacity:.9;white-space:nowrap}
+  .pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:3px 8px;font-size:11px;opacity:.9;white-space:nowrap;line-height:1}
   .pill.flash{animation:flashy .45s ease-out}
   @keyframes flashy{0%{opacity:.5}60%{opacity:1}100%{opacity:.9}}
 
   /* connection pill */
-  #connPill{position:fixed;left:12px;bottom:12px;z-index:20}
+  #connPill{position:fixed;left:12px;bottom:12px;z-index:50}
   .conn-ok{color:var(--up)} .conn-warn{color:#fbbf24} .conn-err{color:#fb7185}
 
   /* live header */
+  .statsBox{position:relative; z-index:5;}     /* ensure nothing draws “under” this card */
   .liveWrap{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-bottom:8px}
-  .liveLeft{display:flex;gap:8px;justify-content:flex-start}
+  .liveLeft{display:flex;flex-direction:column;gap:6px;justify-content:flex-start;align-items:flex-start;min-width:0}
   .liveCenter{display:flex;justify-content:center;align-items:baseline;gap:8px;min-width:0}
-  .liveRight{display:flex;gap:8px;justify-content:flex-end;min-width:0}
-  .livePrice{font-size:clamp(22px,4.6vw,40px);font-weight:800;line-height:1}
+  .liveRight{display:flex;gap:6px;justify-content:flex-end;min-width:0}
+  .livePrice{font-size:clamp(22px,4.4vw,38px);font-weight:800;line-height:1}
   .livePrice.up{color:var(--up)} .livePrice.down{color:var(--down)}
-  .liveChange{font-size:clamp(12px,2.2vw,16px);font-weight:700;opacity:.9}
+  .liveChange{font-size:12px;font-weight:700;opacity:.9}
   .liveChange.up{color:var(--up)} .liveChange.down{color:var(--down)} .liveChange.flat{color:var(--muted)}
-  /* keep the right pill compact so it doesn’t push the grid */
-  .liveRight .pill{max-width:180px; overflow:hidden; text-overflow:ellipsis}
+  .liveRight .pill{max-width:170px; overflow:hidden; text-overflow:ellipsis}
 
   /* left / charts */
   #leftCol .card{margin-bottom:12px}
-
-  /* FIX: canvas fills card; consistent draw padding inside JS */
   #chartContainer{width:100%;height:220px;padding:8px}
   #chartCanvas{display:block;width:100%;height:100%;border-radius:12px}
 
@@ -67,14 +65,11 @@
   .subchart .title{font-weight:700;margin:0 0 6px 2px;opacity:.9}
   .subchart canvas{width:100%;height:160px;display:block;border-radius:8px}
 
-  /* center stats + histogram */
-  .statsBox{padding:12px}
+  /* stats + histogram */
   .statsTitle{font-weight:700;margin:8px 0;white-space:nowrap}
   .statRow{display:flex;justify-content:space-between;margin:6px 0;font-variant-numeric:tabular-nums}
   .metricGood{color:var(--up)} .metricBad{color:var(--down)} .metricNeutral{color:var(--muted)}
   .histBox{padding:12px;margin-top:16px}
-
-  /* taller histogram, labels centered inside bars */
   #histCanvas{width:100%;height:190px;display:block;border-radius:8px}
 
   /* right lists */
@@ -93,7 +88,7 @@
   .txMeta .usd{font-weight:800;color:#fff}
   .txMeta .btc{opacity:.85}.txMeta .t{opacity:.65}
 
-  /* ticker — keep width stable and auto-fill rows */
+  /* ticker */
   #tickerCol{display:flex;flex-direction:column;min-width:var(--ticker-col-w);max-width:var(--ticker-col-w)}
   #tickerCol .card{margin-bottom:12px;flex:1}
   #feedContainer{border-radius:12px;background:var(--panel);
@@ -103,11 +98,12 @@
   #tickerScroll{overflow:auto;padding:4px 6px 10px;flex:1;min-height:0;}
   .headerRow{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.78em;opacity:.7;
     border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px;padding-bottom:4px;
-    display:grid;grid-template-columns:64px 0.9fr 76px;column-gap:6px;text-align:left}
-  .row{display:grid;grid-template-columns:64px 0.9fr 76px;column-gap:6px;align-items:center;
+    display:grid;grid-template-columns:64px 1fr 74px;column-gap:6px;text-align:left}
+  .row{display:grid;grid-template-columns:64px 1fr 74px;column-gap:6px;align-items:center;
     padding:6px 4px;border-radius:6px;font-variant-numeric:tabular-nums;font-size:13px;line-height:1.25}
   .row.buy{color:var(--up)} .row.sell{color:var(--down)}
   .time{white-space:nowrap;opacity:.75}
+  .row > div, .headerRow > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 </style>
 </head>
 <body>
@@ -136,14 +132,17 @@
   <section id="centerCol">
     <div class="card statsBox" style="margin:12px 0;">
       <div class="liveWrap">
+        <!-- LEFT: stacked pills (smaller) -->
         <div class="liveLeft">
           <span id="d24Change" class="pill">24h Δ —</span>
           <span id="d24Vol"  class="pill">Vol —</span>
         </div>
+        <!-- CENTER: price + 10m Δ -->
         <div class="liveCenter">
           <div id="livePrice" class="livePrice">$—</div>
           <div id="liveChange" class="liveChange flat">—</div>
         </div>
+        <!-- RIGHT: compact H/L pill -->
         <div class="liveRight">
           <span id="d24HiLo" class="pill">H/L —</span>
         </div>
@@ -368,7 +367,7 @@ function renderStats(){
   sCount.textContent=`${S.n} trades`; sTpm.textContent=S.tpm.toFixed(1);
   const sBR=S.usd?S.buy/S.usd*100:0; sBuyR.textContent=`${pct1.format(sBR)}%`;
   sVWAP.textContent=isFinite(S.vwap)?fmtUSD.format(S.vwap):'—';
-  sHiLo.textContent=(isFinite(S.hi)&&isFinite(S.lo))?`${fmtUSD0.format(S.hi)} / ${fmtUSD0.format(S.lo)}`:'—';  // 0-decimals for compact pill
+  sHiLo.textContent=(isFinite(S.hi)&&isFinite(S.lo))?`${fmtUSD0.format(S.hi)} / ${fmtUSD0.format(S.lo)}`:'—';
   sRange.textContent=(S.range)?`${fmtUSD0.format(S.range.usd)} (${pct1.format(S.range.pct)}%)`:'—';
   sAvgUsd.textContent=isFinite(S.avgUsd)?fmtUSD0.format(S.avgUsd):'—';
   sMedUsd.textContent=isFinite(S.medUsd)?fmtUSD0.format(S.medUsd):'—';
@@ -385,13 +384,6 @@ function renderStats(){
   hBigBuy.textContent=H.buyMax?fmtUSD0.format(H.buyMax):'—';
   hBigSell.textContent=H.sellMax?fmtUSD0.format(H.sellMax):'—';
 
-  // color compares
-  paintRatio(hBuyR, hBR, null, 'abs1h');       // 1h >=50 green, <50 amber
-  paintRatio(sBuyR, sBR, hBR, 'vs1h');         // 10m vs 1h
-  colorCompare(sVWAP,S.vwap,H.vwap);
-  colorCompare(sAvgUsd,S.avgUsd,H.avgUsd);
-  colorCompare(sMedUsd,S.medUsd,H.medUsd);
-
   // 10-minute price change next to live price
   const first=series[0]?.p, last=series.at(-1)?.p;
   if(first && last){
@@ -399,6 +391,13 @@ function renderStats(){
     changeEl.textContent=`${fmtUSDChange.format(diff)} (${pct2.format(pct)}%)`;
     changeEl.className=`liveChange ${diff>0?'up':diff<0?'down':'flat'}`;
   }
+
+  // styling comparisons
+  paintRatio(hBuyR, hBR, null, 'abs1h');
+  paintRatio(sBuyR, sBR, hBR, 'vs1h');
+  colorCompare(sVWAP,S.vwap,H.vwap);
+  colorCompare(sAvgUsd,S.avgUsd,H.avgUsd);
+  colorCompare(sMedUsd,S.medUsd,H.medUsd);
 }
 
 /* ===== 10m price chart ===== */
@@ -437,7 +436,6 @@ function drawChart(){
     ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
   }
 
-  // minute ticks along bottom, right-to-left time
   const now=Date.now(),start=now-MS10;
   ctx.fillStyle='rgba(255,255,255,.75)';ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';ctx.textAlign='center';ctx.textBaseline='top';
   ctx.strokeStyle='rgba(255,255,255,.05)';
