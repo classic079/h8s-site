@@ -9,7 +9,7 @@
     --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
     --up:#2dd4bf; --down:#f59e0b; --glow: rgba(45,212,191,.22);
     --right-col-w: 410px;     /* top lists column */
-    --ticker-col-w: 0.8fr;    /* your ticker width tweak */
+    --ticker-col-w: 0.8fr;    /* your chosen ticker width */
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
@@ -95,7 +95,8 @@
     box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
     height:100%;display:flex;flex-direction:column;min-height:0;}
   #tickerHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(16,16,16,1),rgba(16,16,16,.6));padding:10px 6px 6px;z-index:1}
-  #tickerScroll{overflow:auto;padding:4px 6px 10px;flex:1;min-height:0;}
+  /* IMPORTANT: fixed, non-growing window */
+  #tickerScroll{overflow:hidden; padding:4px 6px 10px; flex:1; min-height:0;}
   .headerRow{font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:.78em;opacity:.7;
     border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:4px;padding-bottom:4px;
     display:grid;grid-template-columns:64px 1fr 74px;column-gap:6px;text-align:left}
@@ -244,8 +245,32 @@ const btcLabel=(v,compact=false)=>compact?`₿${fmtBTCc.format(v)}`:`₿${fmtBTC
 
 /* ===== State ===== */
 let trades=[],win10=[],win1h=[],win1d=[],series=[],lastPrice=null,showUSD=true;
-let MAX_ROWS = 40;
 const MS10=600000, MS1H=3600000, MS1D=86400000;
+
+/* ===== Ticker sizing & memory cap ===== */
+let MAX_ROWS = 40;  // recalculated at runtime
+let ROW_H = 20;     // measured at runtime
+
+function measureRowHeight() {
+  const tmp = document.createElement('div');
+  tmp.className = 'row';
+  tmp.style.visibility = 'hidden';
+  tmp.innerHTML = `<div class="time">00:00:00</div><div>$0</div><div>$0</div>`;
+  document.body.appendChild(tmp);
+  ROW_H = Math.max(18, tmp.getBoundingClientRect().height || ROW_H);
+  tmp.remove();
+}
+function recalcMaxRows() {
+  const headH = document.getElementById('tickerHead')?.offsetHeight || 26;
+  const box   = document.getElementById('feedContainer');
+  const h     = box ? box.clientHeight : 320;
+  const usable = Math.max(0, h - headH - 8);
+  MAX_ROWS = Math.max(10, Math.floor(usable / ROW_H));
+}
+function enforceTradeCap() {
+  const HARD_CAP = MAX_ROWS + 4;      // tiny buffer above visible rows
+  while (trades.length > HARD_CAP) trades.shift();
+}
 
 /* ===== Canvas sizing (throttled) ===== */
 function sizeCanvas(c, ctx){
@@ -260,6 +285,7 @@ function resizeAll(){
   sizeCanvas(c1d,ctx1d); drawSubchart(ctx1d,d1d);
   sizeCanvas(volCanvas,vctx); drawVol();
   sizeCanvas(histCanvas,hctx); drawHist();
+  recalcMaxRows(); enforceTradeCap(); renderTicker();
 }
 let resizePending=false;
 const throttledResize=()=>{ if(resizePending) return; resizePending=true; requestAnimationFrame(()=>{ resizePending=false; resizeAll(); }); };
@@ -280,17 +306,6 @@ async function restFallback(){const QUIET=3500,now=Date.now();try{
 }catch{setConn('conn-err','Fallback');}}
 setInterval(restFallback,1200);
 
-/* ===== Ticker rows to fill column ===== */
-function recalcMaxRows(){
-  const rowHeight = 18;
-  const headH = document.getElementById('tickerHead')?.offsetHeight || 26;
-  const h = document.getElementById('feedContainer')?.clientHeight || 320;
-  const usable = Math.max(0, h - headH - 10);
-  MAX_ROWS = Math.max(40, Math.floor(usable / rowHeight) + 6);
-}
-window.addEventListener('resize', ()=>{ recalcMaxRows(); renderTicker(); });
-new ResizeObserver(()=>{ recalcMaxRows(); renderTicker(); }).observe(document.getElementById('feedContainer'));
-
 /* ===== Trade ingestion ===== */
 function onTrade(t){
   const p=t.price,s=t.size,side=t.side==='sell'?'sell':'buy',time=t.time;
@@ -298,18 +313,20 @@ function onTrade(t){
   if(lastPrice!==null){priceEl.classList.remove('up','down'); if(p>lastPrice)priceEl.classList.add('up'); else if(p<lastPrice)priceEl.classList.add('down')}
   lastPrice=p;priceEl.textContent=fmtUSD.format(p);
 
-  trades.push({price:p,size:s,time,side,arrow}); if(trades.length>MAX_ROWS)trades.shift();
+  trades.push({price:p,size:s,time,side,arrow});
+  enforceTradeCap();           // <<< hard cap the in-memory list
+
   const epoch=time.getTime(),o={price:p,size:s,side,time:epoch};
   win10.push(o);win1h.push(o);win1d.push(o);
   series.push({t:Date.now(),p});
   prune(); renderTicker(); renderTop();
 }
-function prune(){const now=Date.now(); win10=win10.filter(t=>t.time>=now-MS10); win1h=win1h.filter(t=>t.time>=now-MS1H); win1d=win1d.filter(t=>t.time>=now-MS1D); while(series.length&&series[0].t<now-MS10)series.shift();}
+function prune(){const now=Date.now(); win10=win10.filter(t=>t.time>=now-600000); win1h=win1h.filter(t=>t.time>=now-3600000); win1d=win1d.filter(t=>t.time>=now-86400000); while(series.length&&series[0].t<now-600000)series.shift();}
 
-/* ===== Ticker ===== */
+/* ===== Ticker (fixed window) ===== */
 function renderTicker(){
   const frag=document.createDocumentFragment();
-  const start=Math.max(0,trades.length-MAX_ROWS);
+  const start=Math.max(0,trades.length-MAX_ROWS);   // ONLY newest that fit
   for(let i=trades.length-1;i>=start;i--){
     const t=trades[i],row=document.createElement('div'); row.className=`row ${t.side}`;
     const ts=new Date(t.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -457,18 +474,17 @@ function bins10(){
 function drawVol(){
   const w=volCanvas.clientWidth,h=volCanvas.clientHeight; vctx.clearRect(0,0,w,h);
   const bins=bins10(); const sums=bins.map(b=>b.buy+b.sell);
-  const max=Math.max(1, ...sums);               // clamp to avoid collapse
+  const max=Math.max(1, ...sums);
   const padX=28,padTop=8,padBot=22,chartH=h-padTop-padBot, step=(w-padX*2)/bins.length, barW=step*0.7;
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
-  // grid
   vctx.strokeStyle='rgba(255,255,255,.06)'; for(let i=1;i<=3;i++){const y=padTop+chartH*(i/4*(4/3));vctx.beginPath();vctx.moveTo(padX-6,y);vctx.lineTo(w-padX+6,y);vctx.stroke();}
   vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';vctx.textAlign='center';vctx.textBaseline='top';vctx.fillStyle='rgba(255,255,255,.75)';
 
   for(let i=bins.length-1;i>=0;i--){
     const b=bins[i], xC=w-padX-((bins.length-1-i)*step)-step/2, tot=b.buy+b.sell;
-    const hT=Math.max(chartH*0.06, (tot/max)*chartH); // min height for stability
+    const hT=Math.max(chartH*0.06, (tot/max)*chartH);
     const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy, yB=padTop+chartH;
 
     vctx.fillStyle=dn; vctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
@@ -539,8 +555,11 @@ async function fetch24h(){try{const r=await fetch('https://api.exchange.coinbase
   d24Vol.textContent=Number.isFinite(vol)?`Vol ${vol.toLocaleString()}`:'Vol —';
 }catch{d24Change.textContent='24h Δ —';d24HiLo.textContent='H/L —';d24Vol.textContent='Vol —';}}
 
-resizeAll();
-recalcMaxRows();
+measureRowHeight();     // measure once
+resizeAll();            // size canvases + compute rows
+enforceTradeCap();
+renderTicker();
+
 startWS();
 fetch24h(); refreshSubs();
 setInterval(fetch24h,60000);
