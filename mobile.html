@@ -5,58 +5,62 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Coinbase Stalker — Mobile</title>
 <style>
-  :root{
+  :root {
     --bg:#0a0a0a; --panel:#101010; --ink:#0f0f0f;
     --text:#e9fef7; --muted:#c8d6cf; --ring:rgba(255,255,255,.08);
     --up:#2dd4bf; --down:#f59e0b;
   }
-  *{box-sizing:border-box}
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  * { box-sizing:border-box; }
+  html,body {
+    margin:0; height:100%; background:var(--bg); color:var(--text);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-  .wrap{max-width:760px;margin:0 auto;padding:10px 10px 60px;display:flex;flex-direction:column;gap:10px}
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:10px 10px 60px;
+          display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); border-radius:16px;
+          box-shadow:0 0 0 1px var(--ring); }
+  .pad { padding:14px; }
 
-  .card{background:var(--panel);border-radius:16px;box-shadow:0 0 0 1px var(--ring)}
-  .pad{padding:14px}
-
-  /* Header */
-  .live{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
-  .price{font-weight:900;line-height:1;font-size:clamp(28px,7vw,42px)}
+  .live { display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; }
+  .price { font-weight:900; line-height:1; font-size:clamp(28px,7vw,42px); }
   .price.up{color:var(--up)} .price.down{color:var(--down)}
-  .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
-  .chip{border:1px solid var(--ring);border-radius:999px;padding:6px 10px;font-size:12px}
+  .chips { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .chip { border:1px solid var(--ring); border-radius:999px;
+          padding:6px 10px; font-size:12px; }
   .chip.up{color:var(--up)} .chip.down{color:var(--down)} .chip.muted{color:var(--muted)}
 
-  /* Dynamic price chart */
-  .dynHead{font-weight:800;margin:8px 0 10px 2px}
-  #dyn{width:100%;height:180px;display:block;border-radius:12px}
+  .dynHead { font-weight:800; margin:8px 0 10px 2px; }
+  #dyn { width:100%; height:180px; display:block; border-radius:12px; }
 
-  /* Volume (fixed 1m bins, right→left) */
-  .volHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .legend{display:flex;gap:12px;align-items:center}
-  .dot{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:6px}
+  .volHead { display:flex; justify-content:space-between;
+             align-items:center; margin-bottom:8px; }
+  .titleRow { display:flex; align-items:baseline; gap:10px; }
+  .maxVol { font-size:12px; color:var(--muted); }
+  .legend { display:flex; gap:12px; align-items:center; }
+  .dot { width:12px; height:12px; border-radius:3px;
+         display:inline-block; margin-right:6px; }
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
-  #vol{width:100%;height:150px;display:block;border-radius:12px}
+  #vol{width:100%;height:150px;display:block;border-radius:12px;}
 
-  /* Stats tiles */
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .tile{border-radius:14px;background:var(--ink);box-shadow:0 0 0 1px var(--ring);padding:14px}
-  .k{font-size:12px;color:var(--muted);margin-bottom:6px}
-  .v{font-size:20px;font-weight:800;letter-spacing:.2px}
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tile { border-radius:14px; background:var(--ink);
+          box-shadow:0 0 0 1px var(--ring); padding:14px; }
+  .k { font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .v { font-size:20px; font-weight:800; letter-spacing:.2px; }
   .v.small{font-size:18px}
-  .hl{display:flex;flex-direction:column;line-height:1.15}
+  .hl { display:flex; flex-direction:column; line-height:1.15; }
   .good{color:var(--up)} .bad{color:var(--down)}
 
-  /* Connection indicator */
-  .conn{position:fixed;left:12px;bottom:12px;font-size:12px;padding:6px 10px;border-radius:999px;
-        border:1px solid var(--ring);background:var(--panel);z-index:50}
+  .conn { position:fixed; left:12px; bottom:12px; font-size:12px;
+          padding:6px 10px; border-radius:999px; border:1px solid var(--ring);
+          background:var(--panel); z-index:50; }
   .conn.ok{color:var(--up)} .conn.warn{color:#fbbf24} .conn.err{color:#fb7185}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <!-- Top: live price + chips -->
   <section class="card pad">
     <div class="live">
       <div id="price" class="price">$—</div>
@@ -65,16 +69,17 @@
         <span id="chipHL" class="chip">H/L —</span>
         <span id="chipVol" class="chip">24h Vol —</span>
       </div>
-
       <div class="dynHead">Dynamic price (1h → live 10m)</div>
       <canvas id="dyn"></canvas>
     </div>
   </section>
 
-  <!-- Per-minute volume (10m, ₿) -->
   <section class="card pad">
     <div class="volHead">
-      <div style="font-weight:800;font-size:22px">Per-minute volume (10m, <b>₿</b>)</div>
+      <div class="titleRow">
+        <div style="font-weight:800;font-size:22px">Per-minute volume (10m, <b>₿</b>)</div>
+        <span id="maxVolLabel" class="maxVol">max —</span>
+      </div>
       <div class="legend">
         <span><i class="dot up"></i>Buys</span>
         <span><i class="dot down"></i>Sells</span>
@@ -83,7 +88,6 @@
     <canvas id="vol"></canvas>
   </section>
 
-  <!-- Stats tiles -->
   <section class="grid">
     <div class="tile"><div class="k">Trades / min</div><div id="tpm" class="v">—</div></div>
     <div class="tile"><div class="k">Buy ratio (USD)</div><div id="buyRatio" class="v">—</div></div>
@@ -98,7 +102,6 @@
 <span id="conn" class="conn warn">Connecting…</span>
 
 <script>
-/* ===== utils ===== */
 const $=s=>document.querySelector(s);
 const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
 const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
@@ -108,250 +111,90 @@ const btc2=v=>`₿${(+v).toFixed(2)}`;
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const priceEl=$('#price'), chip10=$('#chip10'), chipHL=$('#chipHL'), chipVol=$('#chipVol');
 const tpmEl=$('#tpm'), buyEl=$('#buyRatio'), vwapEl=$('#vwap'), hlEl=$('#hl'), rangeEl=$('#range'), avgMedEl=$('#avgMed');
+const maxVolLabel=$('#maxVolLabel');
 const connEl=$('#conn');
 const dyn=$('#dyn'), dctx=dyn.getContext('2d',{desynchronized:true});
 const vol=$('#vol'), vctx=vol.getContext('2d',{desynchronized:true});
-function sizeCanvas(c,ctx){const dpr=Math.min(1.5,Math.max(1,(devicePixelRatio||1)));c.width=Math.max(1,Math.floor(c.clientWidth*dpr));c.height=Math.max(1,Math.floor(c.clientHeight*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);}
+function sizeCanvas(c,ctx){const dpr=Math.min(1.5,Math.max(1,(devicePixelRatio||1)));c.width=Math.floor(c.clientWidth*dpr);c.height=Math.floor(c.clientHeight*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}
 
-/* ===== state ===== */
-let ws,lastWS=0,lastREST=0,recon,lastPrice=null;
-let trades10=[];     // last 10m trades
-let seed1h=[];       // 60x minute closes for the last hour
-let live1m=[];       // rolling minute closes (≤10m)
-let needsDyn=true,needsVol=true;
+let ws,lastPrice=null,trades10=[],seed1h=[],live1m=[];
 const MS10=600000, MS1M=60000;
+let needsDyn=true,needsVol=true;
 
-/* ===== draw scheduling ===== */
-function drawIfNeeded(){ if(needsDyn){drawDyn();needsDyn=false;} if(needsVol){drawVol();needsVol=false;} }
-function markDyn(){needsDyn=true;drawIfNeeded()}
-function markVol(){needsVol=true;drawIfNeeded()}
+function drawIfNeeded(){if(needsDyn){drawDyn();needsDyn=false;}if(needsVol){drawVol();needsVol=false;}}
+function markDyn(){needsDyn=true;drawIfNeeded()} function markVol(){needsVol=true;drawIfNeeded()}
 
-/* ===== connection ===== */
-function conn(state,msg){connEl.classList.remove('ok','warn','err');connEl.classList.add(state==='ok'?'ok':state==='err'?'err':'warn');connEl.textContent=msg;}
-function startWS(){
-  try{ws&&ws.close()}catch{}
-  ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
+function conn(state,msg){connEl.className='conn '+(state==='ok'?'ok':state==='err'?'err':'warn');connEl.textContent=msg;}
+function startWS(){try{ws&&ws.close()}catch{};ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
   conn('warn','Connecting…');
   ws.onopen=()=>ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-  ws.onmessage=e=>{lastWS=Date.now();conn('ok','Live');try{
-    const m=JSON.parse(e.data);
-    if(m.type==='match'&&m.product_id==='BTC-USD'){ingest(+m.price,+m.size,(m.side||'buy').toLowerCase(),new Date(m.time).getTime());}
-  }catch{}};
-  ws.onclose=()=>{conn('warn','Reconnecting…');clearTimeout(recon);recon=setTimeout(startWS,900)};
-  ws.onerror=()=>{conn('err','Fallback');try{ws.close()}catch{}};
+  ws.onmessage=e=>{try{const m=JSON.parse(e.data);
+    if(m.type==='match'){ingest(+m.price,+m.size,(m.side||'buy').toLowerCase(),new Date(m.time).getTime());conn('ok','Live');}
+  }catch{}};ws.onclose=()=>{conn('warn','Reconnecting…');setTimeout(startWS,1000);};ws.onerror=()=>conn('err','Error');
 }
-async function fallback(){
-  const QUIET=3500,now=Date.now();
-  try{
-    if(now-lastWS>=QUIET){
-      const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{Accept:'application/json'}});
-      if(r.ok){const arr=await r.json();
-        for(let i=arr.length-1;i>=0;i--){const t=arr[i];ingest(+t.price,+t.size,(t.side||'buy').toLowerCase(),new Date(t.time||now).getTime());}
-        lastREST=now;conn('err','Fallback');
-      }
-    }
-  }catch{}
-}
-setInterval(fallback,2000);
 
-/* ===== seed 1h (minute candles) ===== */
 const iso=ms=>new Date(ms).toISOString();
-async function loadSeed1h(){
-  try{
-    const end=Date.now(),start=end-3600*1000;
-    const u=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${encodeURIComponent(iso(start))}&end=${encodeURIComponent(iso(end))}`;
-    const r=await fetch(u,{headers:{Accept:'application/json'}});
-    if(!r.ok) return;
-    const a=(await r.json()).sort((x,y)=>x[0]-y[0]).map(x=>({t:x[0]*1000,p:+x[4]}));
-    seed1h=a.slice(-60);
-    markDyn();
-  }catch{}
-}
+async function loadSeed1h(){try{const end=Date.now(),start=end-3600*1000;
+  const u=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${encodeURIComponent(iso(start))}&end=${encodeURIComponent(iso(end))}`;
+  const r=await fetch(u);if(!r.ok)return;const a=(await r.json()).sort((x,y)=>x[0]-y[0]);seed1h=a.map(x=>({t:x[0]*1000,p:+x[4]})).slice(-60);markDyn();}catch{}}
 
-/* ===== ingest trade ===== */
 function ingest(price,size,side,ts){
   if(lastPrice!==null){priceEl.classList.remove('up','down');priceEl.classList.add(price>lastPrice?'up':'down');}
   lastPrice=price;priceEl.textContent=fmtUSD.format(price);
-
-  // store trade (10m)
-  trades10.push({time:ts,price,size,side});
-  const now=Date.now(); trades10=trades10.filter(t=>t.time>=now-MS10);
-
-  // keep rolling minute close for live series (≤10m)
-  const m = ts - (ts%MS1M);
-  const last = live1m.at(-1);
-  if(!last || last.t!==m) live1m.push({t:m,c:price}); else last.c=price;
-  while(live1m.length && live1m[0].t < now-MS10) live1m.shift();
-
-  // stats + pills + charts
-  priceChange10m();
-  updateStats();
-  markDyn(); markVol();
+  trades10.push({time:ts,price,size,side});const now=Date.now();trades10=trades10.filter(t=>t.time>=now-MS10);
+  const m=ts-(ts%MS1M),last=live1m.at(-1);if(!last||last.t!==m)live1m.push({t:m,c:price});else last.c=price;
+  while(live1m.length&&live1m[0].t<now-MS10)live1m.shift();markDyn();markVol();
 }
 
-/* ===== stats & pill ===== */
-function median(a){if(!a.length)return NaN;const s=[...a].sort((x,y)=>x-y),n=s.length;return (n&1)?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;}
-function updateStats(){
-  const n=trades10.length; if(!n){tpmEl.textContent='—';buyEl.textContent='—';vwapEl.textContent='—';hlEl.innerHTML='<span>—</span><span>—</span>';rangeEl.textContent='—';avgMedEl.textContent='—';return;}
-  let usd=0,usdBuy=0,btc=0,hi=-Infinity,lo=Infinity;const usdEach=[];
-  for(const t of trades10){const u=t.price*t.size;usd+=u;if(t.side==='buy')usdBuy+=u;btc+=t.size;if(t.price>hi)hi=t.price;if(t.price<lo)lo=t.price;usdEach.push(u);}
-  const vwap=btc?usd/btc:NaN, br=usd?usdBuy/usd*100:0, avg=usd/n, med=median(usdEach);
-  tpmEl.textContent=(n/10).toFixed(1);
-  buyEl.textContent=pct1.format(br)+'%'; buyEl.classList.toggle('good',br>=50); buyEl.classList.toggle('bad',br<50);
-  vwapEl.textContent=isFinite(vwap)?fmtUSD.format(vwap):'—';
-  hlEl.innerHTML=`<span>${fmtUSD0.format(hi)}</span><span>${fmtUSD0.format(lo)}</span>`;
-  rangeEl.textContent=(isFinite(hi)&&isFinite(lo))?`${fmtUSD0.format(hi-lo)} (${pct1.format((hi/lo-1)*100)}%)`:'—';
-  avgMedEl.textContent=`${fmtUSD0.format(avg)} / ${fmtUSD0.format(med)}`;
-}
-function priceChange10m(){
-  const now=Date.now(),cut=now-MS10;
-  const ser=[...seed1h.filter(s=>s.t>=cut), ...live1m.filter(s=>s.t>=cut).map(s=>({t:s.t,p:s.c}))].sort((a,b)=>a.t-b.t);
-  if(ser.length<2){chip10.textContent='10m Δ —';chip10.className='chip muted';return;}
-  const first=ser[0].p,last=ser.at(-1).p,diff=last-first,pct=first?diff/first*100:0;
-  chip10.textContent=`10m Δ ${fmtUSD.format(diff)} (${pct2.format(pct)}%)`;
-  chip10.className='chip '+(diff>0?'up':diff<0?'down':'muted');
-}
-
-/* ===== dynamic chart (seed melts out as live fills 10m) ===== */
 function drawDyn(){
-  sizeCanvas(dyn,dctx);
-  const w=dyn.clientWidth,h=dyn.clientHeight,pad=10,xPad=34;
-  dctx.clearRect(0,0,w,h); dctx.fillStyle='#0f0f0f'; dctx.fillRect(0,0,w,h);
-
-  const now=Date.now(), start=now-3600*1000;
-  const seed = seed1h.filter(p=>p.t>=start);
-  const live = live1m.filter(p=>p.t>=start).map(p=>({t:p.t,p:p.c}));
-  if(seed.length+live.length<2) return;
-
-  const all=[...seed,...live];
-  const min=Math.min(...all.map(s=>s.p)), max=Math.max(...all.map(s=>s.p)), range=(max-min)||1;
-  const avg=all.reduce((a,s)=>a+s.p,0)/all.length;
-  const up=css('--up'), dn=css('--down');
-
-  // grid + labels
-  dctx.strokeStyle='rgba(255,255,255,.06)';
-  for(let i=1;i<=4;i++){const y=pad+(h-2*pad)/5*i; dctx.beginPath(); dctx.moveTo(pad+xPad,y); dctx.lineTo(w-pad,y); dctx.stroke();}
-  dctx.fillStyle='rgba(255,255,255,.85)'; dctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; dctx.textBaseline='middle';
-  const lab=v=>fmtUSD0.format(v), yMin=h-pad-10, yMax=pad+10, yAvg=pad+(h-2*pad)-((avg-min)/range)*(h-2*pad);
-  dctx.fillText(lab(max),pad+6,yMax); dctx.fillText(lab(avg),pad+6,Math.max(pad+14,Math.min(h-pad-14,yAvg))); dctx.fillText(lab(min),pad+6,yMin);
-  dctx.save(); dctx.setLineDash([6,6]); dctx.strokeStyle='rgba(200,214,207,.6)'; dctx.beginPath(); dctx.moveTo(pad+xPad,yAvg); dctx.lineTo(w-pad,yAvg); dctx.stroke(); dctx.restore();
-
-  // mappers
-  const X=t=> pad+xPad + ((t-start)/(3600*1000))*(w-2*pad-xPad);
-  const Y=p=> pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
-
-  // melt factor: portion of the last 10 minutes covered by live1m
-  let liveSpan = 0;
-  if(live.length){ const cover = Math.min(10, (now - live[0].t)/MS1M); liveSpan = Math.max(0, Math.min(1, cover/10)); }
-  const seedAlpha = 1 - liveSpan; // 1 → 0 over 10 minutes
-
-  // seed line (fading)
-  if(seed.length>1 && seedAlpha>0){
-    dctx.globalAlpha = Math.max(0,Math.min(1,seedAlpha));
-    dctx.lineWidth=1.5; dctx.strokeStyle='rgba(200,214,207,.55)';
-    dctx.beginPath(); dctx.moveTo(X(seed[0].t),Y(seed[0].p));
-    for(let i=1;i<seed.length;i++){ dctx.lineTo(X(seed[i].t),Y(seed[i].p)); }
-    dctx.stroke(); dctx.globalAlpha=1;
-  }
-
-  // live line (colored vs avg)
-  if(live.length>1){
-    dctx.lineWidth=2;
-    for(let i=1;i<live.length;i++){
-      const p0=live[i-1].p,p1=live[i].p,x0=X(live[i-1].t),x1=X(live[i].t),y0=Y(p0),y1=Y(p1);
-      dctx.strokeStyle=(p1>=avg)?up:dn; dctx.beginPath(); dctx.moveTo(x0,y0); dctx.lineTo(x1,y1); dctx.stroke();
-    }
-  }
-
-  // bottom ticks every 10m
-  dctx.strokeStyle='rgba(255,255,255,.06)'; dctx.fillStyle='rgba(255,255,255,.8)'; dctx.textAlign='center'; dctx.textBaseline='top'; dctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  for(let i=0;i<=60;i+=10){const t=start+i*MS1M,x=X(t); dctx.beginPath(); dctx.moveTo(x,h-pad-18); dctx.lineTo(x,h-pad-4); dctx.stroke(); dctx.fillText(':'+String(new Date(t).getMinutes()).padStart(2,'0'),x,h-pad-16);}
+  sizeCanvas(dyn,dctx);const w=dyn.clientWidth,h=dyn.clientHeight,pad=10,xPad=34;
+  dctx.clearRect(0,0,w,h);dctx.fillStyle='#0f0f0f';dctx.fillRect(0,0,w,h);
+  const now=Date.now(),start=now-3600*1000,fadeStart=now-MS10;
+  const seed=seed1h.filter(p=>p.t>=start),live=live1m.filter(p=>p.t>=start);
+  if(seed.length+live.length<2)return;
+  const all=[...seed,...live],min=Math.min(...all.map(s=>s.p)),max=Math.max(...all.map(s=>s.p)),range=(max-min)||1;
+  const avg=all.reduce((a,s)=>a+s.p,0)/all.length,up=css('--up'),dn=css('--down');
+  const X=t=>pad+xPad+((t-start)/3600000)*(w-2*pad-xPad),Y=p=>pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
+  const seedOld=seed.filter(s=>s.t<fadeStart),seedNew=seed.filter(s=>s.t>=fadeStart);
+  if(seedOld.length>1){dctx.strokeStyle='rgba(200,214,207,.55)';dctx.beginPath();dctx.moveTo(X(seedOld[0].t),Y(seedOld[0].p));
+    seedOld.forEach((s,i)=>{if(i)dctx.lineTo(X(s.t),Y(s.p));});dctx.stroke();}
+  if(seedNew.length>1){const liveStart=live.length?live[0].t:now,progress=Math.min(1,(now-liveStart)/MS10);
+    dctx.globalAlpha=1-progress;dctx.strokeStyle='rgba(200,214,207,.65)';dctx.beginPath();
+    dctx.moveTo(X(seedNew[0].t),Y(seedNew[0].p));seedNew.forEach((s,i)=>{if(i)dctx.lineTo(X(s.t),Y(s.p));});
+    dctx.stroke();dctx.globalAlpha=1;}
+  if(live.length>1){live.forEach((p,i)=>{if(i){const p0=live[i-1].p,p1=p.p;x0=X(live[i-1].t);x1=X(p.t);y0=Y(p0);y1=Y(p1);
+      dctx.strokeStyle=(p1>=avg)?up:dn;dctx.beginPath();dctx.moveTo(x0,y0);dctx.lineTo(x1,y1);dctx.stroke();}});}
 }
 
-/* ===== volume (right→left, fixed bins) ===== */
 function minuteAlignedStart(){const now=Date.now();const snap=now-(now%MS1M);return snap-9*MS1M;}
-function bins10(){
-  const start=minuteAlignedStart();
-  const bins=Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
-  for(const t of trades10){
-    if(t.time<start||t.time>=start+10*MS1M) continue;
+function bins10(){const start=minuteAlignedStart();const bins=Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
+  for(const t of trades10){if(t.time<start||t.time>=start+10*MS1M)continue;
     const idx=Math.min(9,Math.max(0,Math.floor((t.time-start)/MS1M)));
-    if(t.side==='buy') bins[idx].buy+=t.size; else bins[idx].sell+=t.size;
-  }
-  return bins;
-}
-function pill(ctx,x,y,w,h,r,fill){ctx.save();ctx.beginPath();const rr=Math.min(r,h/2);ctx.moveTo(x+rr,y);ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.restore();}
-function drawVol(){
-  sizeCanvas(vol,vctx);
-  const w=vol.clientWidth,h=vol.clientHeight; vctx.clearRect(0,0,w,h);
-  const up=css('--up'), dn=css('--down');
-  const bins=bins10(); const totals=bins.map(b=>b.buy+b.sell); const max=Math.max(1,...totals);
-  const padX=34,padTop=8,padBot=14, chartH=h-padTop-padBot, step=(w-padX*2)/bins.length, barW=Math.min(30,step*0.74);
+    if(t.side==='buy')bins[idx].buy+=t.size;else bins[idx].sell+=t.size;}return bins;}
+function pill(ctx,x,y,w,h,r,f){ctx.save();ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fillStyle=f;ctx.fill();ctx.restore();}
+function drawVol(){sizeCanvas(vol,vctx);const w=vol.clientWidth,h=vol.clientHeight;vctx.clearRect(0,0,w,h);
+  const up=css('--up'),dn=css('--down');const bins=bins10();const totals=bins.map(b=>b.buy+b.sell);const max=Math.max(0,...totals);
+  maxVolLabel.textContent=max?`max ${btc2(max)}`:'max —';
+  const padX=34,padTop=8,padBot=14,chartH=h-padTop-padBot,step=(w-padX*2)/bins.length,barW=Math.min(30,step*0.74);
+  for(let i=bins.length-1;i>=0;i--){const b=bins[i];const xC=w-padX-((bins.length-1-i)*step)-step/2;
+    const tot=b.buy+b.sell,hT=max?Math.max(chartH*0.06,(tot/max)*chartH):0,yB=padTop+chartH;
+    const hBuy=tot?(b.buy/tot)*hT:0,hSell=hT-hBuy;
+    vctx.fillStyle=dn;vctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
+    vctx.fillStyle=up;vctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
+    if(tot>=0.01){vctx.fillStyle='rgba(255,255,255,.95)';vctx.fillText(btc2(tot),xC,yB-hT-8);}
+    if(tot>=0.25&&hT>=18){const diff=b.buy-b.sell,text=(diff>=0?'+':'')+(Math.abs(diff)<1?diff.toFixed(3):diff.toFixed(2));
+      const tw=vctx.measureText(text).width+10,th=18,px=xC-tw/2,py=yB-hSell-th/2;
+      pill(vctx,px,py,tw,th,6,'rgba(0,0,0,.66)');vctx.fillStyle=diff>=0?up:dn;vctx.fillText(text,xC,py+th/2);}
+  }}
+function fetch24h(){fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats').then(r=>r.json()).then(j=>{
+  chipHL.textContent=`H/L ${fmtUSD0.format(j.high)} / ${fmtUSD0.format(j.low)}`;
+  chipVol.textContent=`24h Vol ${(+j.volume).toLocaleString()}`;}).catch(()=>{});}
 
-  // grid
-  vctx.strokeStyle='rgba(255,255,255,.06)';
-  for(let i=1;i<=3;i++){const y=padTop+(chartH/4)*i; vctx.beginPath(); vctx.moveTo(padX-6,y); vctx.lineTo(w-padX+6,y); vctx.stroke();}
+new ResizeObserver(()=>{needsDyn=true;needsVol=true;drawIfNeeded();}).observe(document.body);
+setInterval(()=>{needsDyn=true;needsVol=true;drawIfNeeded();},1000);
 
-  vctx.textAlign='center'; vctx.textBaseline='middle'; vctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  const MIN_TOTAL=0.01, MIN_BAR=18, MIN_DELTA=0.25;
-
-  // draw right→left (newest on right)
-  for(let i=bins.length-1;i>=0;i--){
-    const b=bins[i];
-    const xC = w - padX - ((bins.length-1-i)*step) - step/2; // RIGHT→LEFT
-    const tot=b.buy+b.sell, hT=Math.max(chartH*0.06,(tot/max)*chartH), yB=padTop+chartH;
-    const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
-
-    // stacked bars
-    vctx.fillStyle=dn; vctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
-    vctx.fillStyle=up; vctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
-
-    // total above if meaningful
-    if(tot>=MIN_TOTAL){ vctx.fillStyle='rgba(255,255,255,.95)'; vctx.fillText(btc2(tot), xC, yB-hT-8); }
-
-    // Δ pill in contrasting background
-    if(tot>=MIN_DELTA && hT>=MIN_BAR){
-      const diff=b.buy-b.sell, text=(diff>=0?'+':'')+(Math.abs(diff)<1?diff.toFixed(3):diff.toFixed(2));
-      const tw=vctx.measureText(text).width+10, th=18, px=xC-tw/2, py=yB-hSell-th/2;
-      pill(vctx,px,py,tw,th,6,'rgba(0,0,0,.66)'); vctx.fillStyle=diff>=0?up:dn; vctx.fillText(text,xC,py+th/2);
-    }
-
-    // segment labels if there is room
-    if(hSell>MIN_BAR && b.sell>MIN_TOTAL){ vctx.fillStyle='rgba(0,0,0,.92)'; vctx.fillText(btc2(b.sell), xC, yB-hSell/2); }
-    if(hBuy >MIN_BAR && b.buy >MIN_TOTAL){ vctx.fillStyle='rgba(0,0,0,.92)'; vctx.fillText(btc2(b.buy ), xC, yB-hSell-hBuy/2); }
-
-    // minute labels under every other bar
-    if((i%2)===1){ vctx.fillStyle='rgba(255,255,255,.78)'; vctx.textBaseline='top'; vctx.fillText(':'+String(new Date(b.ts).getMinutes()).padStart(2,'0'), xC, yB+6); vctx.textBaseline='middle'; }
-  }
-
-  // max helper
-  vctx.textAlign='right'; vctx.fillStyle='rgba(255,255,255,.86)'; vctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  vctx.fillText(`max ${btc2(Math.max(...totals))}`, w-6, padTop+8);
-}
-
-/* ===== 24h chips ===== */
-async function fetch24h(){
-  try{
-    const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats',{headers:{Accept:'application/json'}});
-    if(!r.ok) throw 0;
-    const j=await r.json(); const hi=+j.high, lo=+j.low, vol24=+j.volume;
-    chipHL.textContent=(isFinite(hi)&&isFinite(lo))?`H/L ${fmtUSD0.format(hi)} / ${fmtUSD0.format(lo)}`:'H/L —';
-    chipVol.textContent=Number.isFinite(vol24)?`24h Vol ${vol24.toLocaleString()}`:'24h Vol —';
-  }catch{ chipHL.textContent='H/L —'; chipVol.textContent='24h Vol —'; }
-}
-
-/* ===== resize & timers ===== */
-function onResize(){needsDyn=true;needsVol=true;drawIfNeeded()}
-new ResizeObserver(onResize).observe(document.body);
-// once per second: let time grid/locks advance + melt animation progress
-setInterval(()=>{needsDyn=true;needsVol=true;drawIfNeeded()},1000);
-
-/* ===== boot ===== */
-startWS();
-loadSeed1h();
-fetch24h();
-setInterval(fetch24h,60000);
-needsDyn=needsVol=true; drawIfNeeded();
+startWS();loadSeed1h();fetch24h();setInterval(fetch24h,60000);
+needsDyn=needsVol=true;drawIfNeeded();
 </script>
 </body>
 </html>
