@@ -106,7 +106,7 @@ const pct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 const fmt2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 
 const MS10=600000, MS1H=3600000;
-const FAST_BLEND_MS = 30000; // <<< 30s fast melt
+const FAST_BLEND_MS = 30000; // 30s to fully live
 
 let series10=[];         // {t,p}
 let firstLiveT=null;
@@ -178,6 +178,7 @@ setInterval(restTick,1500);
 const HARD_CAP=200; // mobile memory cap
 function onTrade(t){
   const p=t.price, tm=t.time.getTime();
+
   // price
   livePrice.textContent=fmtUSD.format(p);
   livePrice.style.color = (lastPrice==null)?'#e9fef7' : (p>lastPrice?'var(--up)':p<lastPrice?'var(--down)':'#e9fef7');
@@ -206,22 +207,28 @@ function drawDyn(){
   dctx.clearRect(0,0,w,h);
   dctx.fillStyle='#101010'; dctx.fillRect(0,0,w,h);
 
-  // FAST melt: blend goes to 100% over FAST_BLEND_MS from first live tick
+  // blend amount and window shrink (1h -> 10m)
   let fill = 0;
   if(firstLiveT!=null){
     fill = Math.min(1, (Date.now() - firstLiveT) / FAST_BLEND_MS);
   }
   liveBlend.textContent=`live ${Math.round(fill*100)}%`;
 
-  // merge 1h preload + live 10m
-  const base=preload1h.slice(-60);
+  // Window length lerp: 1h → 10m
+  const windowMs = Math.round((1-fill)*MS1H + fill*MS10);
+  const now = Date.now();
+  const t0  = now - windowMs;
+
+  // gather data within t0..now
   const merged=[];
-  const now=Date.now(), t0=now-MS1H;
-  for(const c of base){ if(c.t>=t0) merged.push({t:c.t,p:c.p,live:false}); }
-  for(const s of series10){ merged.push({t:s.t,p:s.p,live:true}); }
+  // 1h preload (use all that overlaps current window)
+  for(const c of preload1h){ if(c.t>=t0 && c.t<=now) merged.push({t:c.t,p:c.p,live:false}); }
+  // live 10m series
+  for(const s of series10){ if(s.t>=t0 && s.t<=now) merged.push({t:s.t,p:s.p,live:true}); }
+  merged.sort((a,b)=>a.t-b.t);
   if(merged.length<2) return;
 
-  // min/max/avg
+  // min/max/avg from merged
   let min=Infinity,max=-Infinity,sum=0;
   for(const m of merged){ if(m.p<min)min=m.p; if(m.p>max)max=m.p; sum+=m.p; }
   const range=(max-min)||1, avg=sum/merged.length;
@@ -238,18 +245,18 @@ function drawDyn(){
   dctx.beginPath(); dctx.moveTo(pad+xPad,yAvg); dctx.lineTo(w-pad,yAvg); dctx.stroke(); dctx.restore();
 
   // scales
-  const X=t=>pad+xPad+((t-t0)/MS1H)*(w-2*pad-xPad);
+  const X=t=>pad+xPad+((t-t0)/windowMs)*(w-2*pad-xPad);
   const Y=p=>pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
 
-  // line: non-live quickly fades out, live gains opacity quickly
+  // lines: non-live fades out quickly, live ramps quickly
   dctx.lineWidth=2;
   for(let i=1;i<merged.length;i++){
     const a=merged[i-1], b=merged[i];
     const x0=X(a.t), x1=X(b.t); if(x1<=x0) continue;
     const y0=Y(a.p), y1=Y(b.p);
 
-    const nonLiveAlpha = Math.max(0, 0.35*(1 - fill)**2);           // melts quickly
-    const liveAlpha    = Math.max(.35, .35 + .65*fill);              // ramps fast
+    const nonLiveAlpha = Math.max(0, 0.35*(1 - fill)**2);
+    const liveAlpha    = Math.max(.35, .35 + .65*fill);
     const col = b.live ? `rgba(45,212,191,${liveAlpha})`
                        : `rgba(255,255,255,${nonLiveAlpha})`;
 
@@ -264,13 +271,19 @@ function drawDyn(){
   dctx.fillText(fmtUSD0.format(avg), pad+6, Math.max(pad+14, Math.min(h-pad-14, yAvg)));
   dctx.fillText(fmtUSD0.format(min), pad+6, h-pad-10);
 
-  // minute ticks (every 6m)
-  dctx.fillStyle='rgba(255,255,255,.75)'; dctx.textAlign='center'; dctx.textBaseline='top';
+  // x labels (clean, non-stacking: 5 evenly spaced ticks)
+  const ticks = 5;
+  dctx.fillStyle='rgba(255,255,255,.82)';
+  dctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  dctx.textAlign='center'; dctx.textBaseline='top';
   dctx.strokeStyle='rgba(255,255,255,.05)';
-  for(let m=0;m<=60;m+=6){
-    const t=t0+m*60000, x=X(t);
+
+  for(let i=0;i<=ticks;i++){
+    const t = t0 + (windowMs/ticks)*i;
+    const x = X(t);
     dctx.beginPath(); dctx.moveTo(x,h-pad-18); dctx.lineTo(x,h-pad-4); dctx.stroke();
-    dctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-pad-16);
+    const mm = new Date(t).toLocaleTimeString([],{minute:'2-digit'});
+    dctx.fillText(':'+mm, x, h-pad-16);
   }
 }
 
