@@ -97,10 +97,12 @@
 
   /* ticker */
   #tickerCol{display:flex;flex-direction:column;}
-  #tickerCol .card{margin-bottom:12px;flex:1}
+  #tickerCol .card{margin-bottom:12px;flex:0 0 auto;}
   #feedContainer{border-radius:12px;background:var(--panel);
     box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35),0 0 18px var(--glow);
     height:100%;display:flex;flex-direction:column;min-height:0;}
+  /* Visually shorten the ticker box */
+  #feedContainer{ max-height: 540px; } /* tweak this number until it looks right */
   #tickerHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(16,16,16,1),rgba(16,16,16,.6));padding:10px 6px 6px;z-index:1}
   /* IMPORTANT: fixed, non-growing window */
   #tickerScroll{overflow:hidden; padding:4px 6px 10px; flex:1; min-height:0;}
