@@ -24,7 +24,7 @@
   .seg{display:flex;gap:6px;background:#0e0e0e;border-radius:12px;padding:6px;box-shadow:0 0 0 1px var(--glass) inset}
   .seg button{
     flex:1; padding:10px 0; border:0; border-radius:10px; background:transparent; color:var(--ink);
-    font-weight:800; letter-spacing:.2px; font-size:14px;
+    font-weight:800; letter-spacing:.2px; font-size:14px; cursor:pointer;
   }
   .seg button.active{background:#14201d;color:var(--up); box-shadow:0 0 0 1px rgba(45,212,191,.25) inset}
   .seg button:not(.active){color:var(--muted)}
@@ -79,7 +79,6 @@ const volMaxEl=$('#volMax');
 const segBtns=[...document.querySelectorAll('.seg button')];
 
 const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
-const fmtUSD0= new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
 const fmtBTC2= new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 const UP=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
 const DN=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
@@ -89,9 +88,9 @@ new ResizeObserver(()=>{fit(pCan,pctx);fit(vCan,vctx);drawPrice();drawVol();}).o
 
 /* =============== State =============== */
 const FRAMES={
-  '10m': { span: 10*60*1000, bins:10,  binMs:60*1000,  candleGran:60  }, // 1m candles
-  '1h' : { span: 60*60*1000, bins:12,  binMs:5*60*1000, candleGran:300 }, // 5m candles
-  '1d' : { span: 24*60*60*1000,bins:24,  binMs:60*60*1000,candleGran:3600} // 1h candles
+  '10m': { span: 10*60*1000, bins:10, binMs:60*1000,  prefer:[60,30] },   // try 1m then 30s
+  '1h' : { span: 60*60*1000, bins:12, binMs:5*60*1000, prefer:[300,60] },  // try 5m then 1m
+  '1d' : { span: 24*60*60*1000,bins:24, binMs:60*60*1000, prefer:[3600,900,300] } // 1h then 15m then 5m
 };
 let FRAME_KEY='10m';
 let frame=FRAMES[FRAME_KEY];
@@ -110,43 +109,85 @@ segBtns.forEach(b=>b.addEventListener('click',async e=>{
   await bootstrapFrame();   // pull candles + seed bins
 }));
 
-/* =============== Bootstrapping with candles =============== */
+/* =============== Candle fetching with fallbacks =============== */
 const iso=ms=>new Date(ms).toISOString();
-async function fetchCandles(spanMs, gran){
+
+async function fetchCandlesTry(spanMs, gran){
   const end=Date.now(), start=end-spanMs;
   const u=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${gran}&start=${encodeURIComponent(iso(start))}&end=${encodeURIComponent(iso(end))}`;
   const r=await fetch(u,{headers:{Accept:'application/json'}});
-  if(!r.ok) throw new Error('candles');
-  // response: [time, low, high, open, close, volume]
-  const raw=await r.json();
-  return raw.sort((a,b)=>a[0]-b[0]).map(c=>({t:c[0]*1000, p:+c[4], v:+c[5]}));
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const raw=await r.json(); // [time, low, high, open, close, volume]
+  const arr=raw.sort((a,b)=>a[0]-b[0]).map(c=>({t:c[0]*1000, p:+c[4], v:+c[5]}));
+  return arr;
 }
+
+async function fetchCandlesRobust(spanMs, preferGrans){
+  // Try preferred granularities in order; if an attempt returns <2 points, try next
+  for(const g of preferGrans){
+    try{
+      const arr=await fetchCandlesTry(spanMs,g);
+      if(arr && arr.length>=2) return arr;
+    }catch(_){}
+  }
+  // Last-ditch: try 60s
+  try{
+    const arr=await fetchCandlesTry(spanMs,60);
+    if(arr && arr.length>=2) return arr;
+  }catch(_){}
+  return []; // give up; UI will still run on live stream
+}
+
+/* Resample (downsample) to max N points to ensure smooth rendering on 1d */
+function resampleMax(points, maxN){
+  if(points.length<=maxN) return points;
+  const step=points.length/maxN;
+  const out=[];
+  for(let i=0;i<maxN;i++){
+    const idx=Math.floor(i*step);
+    out.push(points[idx]);
+  }
+  return out;
+}
+
 function seedFromCandles(candles){
-  // Price points: densify to ~1 point per candle (right→left render later)
-  linePts = candles.map(c=>({t:c.t, p:c.p}));
-  // Volume bins per frame definition (buy/sell unknown → split as sells=0, buys=volume proxy)
+  // price line from candles (cap points for 1d)
+  const cap = FRAME_KEY==='1d' ? 400 : (FRAME_KEY==='1h' ? 300 : 200);
+  linePts = resampleMax(candles, cap);
+
+  // show header price
+  if(linePts.length) {
+    lastPrice=linePts.at(-1).p;
+    priceEl.textContent=fmtUSD.format(lastPrice);
+  }
+
+  // seed volume bins: split candle volume 70/30 into buys/sells as a placeholder
   const start=Date.now()-frame.span;
   bins = Array.from({length:frame.bins},(_,i)=>({ts:start+i*frame.binMs, buy:0, sell:0}));
   for(const c of candles){
-    const idx=Math.min(frame.bins-1, Math.max(0, Math.floor((c.t-start)/frame.binMs)));
-    // use total volume as "buys" placeholder; live stream will correct going forward
-    bins[idx].buy += c.v;
+    const i=Math.min(frame.bins-1, Math.max(0, Math.floor((c.t-start)/frame.binMs)));
+    const buy=c.v*0.7, sell=c.v*0.3;
+    bins[i].buy += buy; bins[i].sell += sell;
   }
 }
+
 async function bootstrapFrame(){
+  // empty first to force redraws
+  linePts=[]; bins=[];
+  drawPrice(); drawVol();
+
   try{
-    const candles=await fetchCandles(frame.span, frame.candleGran);
-    if(candles.length){ lastPrice=candles.at(-1).p; priceEl.textContent=fmtUSD.format(lastPrice); }
-    seedFromCandles(candles);
-    drawPrice(); drawVol();
-  }catch(e){
-    // empty frame if candles fail
-    linePts=[]; bins=[]; drawPrice(); drawVol();
-  }
+    const candles=await fetchCandlesRobust(frame.span, frame.prefer);
+    if(candles.length>=2){
+      seedFromCandles(candles);
+    }
+  }catch(_){}
+  drawPrice(); drawVol();
 }
 
 /* =============== Live ingestion =============== */
 function setConn(txt,color){connEl.textContent=txt; if(color) connEl.style.color=color;}
+
 function startWS(){
   try{ws && ws.close()}catch{}
   ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
@@ -159,11 +200,12 @@ function startWS(){
         const t=+new Date(m.time), p=+m.price, s=+m.size, side=(m.side==='sell'?'sell':'buy');
         liveIngest(t,p,s,side);
       }
-    }catch{}
+    }catch(_){}
   };
   ws.onerror=()=>setConn('Fallback','#fb7185');
   ws.onclose =()=>{setConn('Reconnecting…','#fbbf24'); setTimeout(startWS,1000);}
 }
+
 function liveIngest(t,p,sz,side){
   // header price
   if(lastPrice!==null){priceEl.classList.remove('up','down'); if(p>lastPrice)priceEl.classList.add('up'); else if(p<lastPrice)priceEl.classList.add('down');}
@@ -174,15 +216,14 @@ function liveIngest(t,p,sz,side){
   const cut=Date.now()-frame.span;
   while(linePts.length && linePts[0].t<cut) linePts.shift();
 
-  // stacked volume bins
-  if(!bins.length){ // if not bootstrapped yet
+  // volume bins; shift forward as time moves
+  if(!bins.length){
     const start=Date.now()-frame.span;
     bins = Array.from({length:frame.bins},(_,i)=>({ts:start+i*frame.binMs, buy:0, sell:0}));
   }
   const start=Date.now()-frame.span;
-  // shift bins forward when time advances beyond last bin
-  while(bins.length && (Date.now() - (bins[0].ts + frame.binMs)) > frame.span){
-    // drop leftmost, push a new empty rightmost
+  // ensure newest bin timestamp alignment
+  while(bins.at(-1).ts + frame.binMs < start + frame.span){
     const lastTS=bins.at(-1).ts;
     bins.shift();
     bins.push({ts:lastTS+frame.binMs, buy:0, sell:0});
@@ -193,15 +234,14 @@ function liveIngest(t,p,sz,side){
   drawPrice(); drawVol();
 }
 
-/* =============== Price chart draw (R→L, minimal labels, fading tail) =============== */
+/* =============== Price chart draw (R→L, fading trail, minimal grid) =============== */
 function drawPrice(){
   fit(pCan,pctx);
   const w=pCan.clientWidth, h=pCan.clientHeight;
-  const padL=12, padR=10, padT=10, padB=18;
+  const padL=10, padR=10, padT=10, padB=18;
   const x0=padL, x1=w-padR, y0=padT, y1=h-padB;
 
   pctx.clearRect(0,0,w,h); pctx.fillStyle='#0f0f0f'; pctx.fillRect(0,0,w,h);
-
   const now=Date.now(), start=now-frame.span;
   const pts=linePts.filter(s=>s.t>=start);
   if(pts.length<2) return;
@@ -210,16 +250,16 @@ function drawPrice(){
   for(const s of pts){ if(s.p<lo)lo=s.p; if(s.p>hi)hi=s.p; sum+=s.p; }
   const avg=sum/pts.length, rng=(hi-lo)||1;
 
-  // mid grid + avg
+  // faint grid lines + avg
   pctx.strokeStyle='rgba(255,255,255,.06)'; pctx.lineWidth=1;
   for(let i=1;i<=2;i++){const y=y0+(y1-y0)*i/3; pctx.beginPath(); pctx.moveTo(x0,y); pctx.lineTo(x1,y); pctx.stroke();}
-  pctx.save(); pctx.setLineDash([6,6]); pctx.strokeStyle='rgba(200,214,207,.55)';
+  pctx.save(); pctx.setLineDash([6,6]); pctx.strokeStyle='rgba(200,214,207,.45)';
   const yAvg=y0+(y1-y0)*(1-(avg-lo)/rng);
   pctx.beginPath(); pctx.moveTo(x0,yAvg); pctx.lineTo(x1,yAvg); pctx.stroke(); pctx.restore();
 
-  // sparse time ticks (few, tiny)
-  const steps = (FRAME_KEY==='10m') ? 240000 : (FRAME_KEY==='1h'? 15*60000 : 2*60*60*1000); // 4m / 15m / 2h
-  pctx.fillStyle='rgba(255,255,255,.65)'; pctx.textAlign='center'; pctx.textBaseline='top'; pctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  // sparse time ticks
+  const steps = (FRAME_KEY==='10m') ? 240000 : (FRAME_KEY==='1h'? 15*60000 : 2*60*60*1000);
+  pctx.fillStyle='rgba(255,255,255,.55)'; pctx.textAlign='center'; pctx.textBaseline='top'; pctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
   const first=start + (steps - (start%steps));
   for(let t=first; t<=now; t+=steps){
     const rel=(t-start)/frame.span, x=x1 - rel*(x1-x0);
@@ -227,7 +267,7 @@ function drawPrice(){
                   x, y1+4);
   }
 
-  // fading tail line
+  // fading tail line (new→old alpha)
   const yMap=v=> y0+(y1-y0)*(1-(v-lo)/rng);
   pctx.lineWidth=2;
   for(let i=1;i<pts.length;i++){
@@ -235,9 +275,8 @@ function drawPrice(){
     const relB=(b.t-start)/frame.span; const xB=x1 - relB*(x1-x0);
     const relA=(a.t-start)/frame.span; const xA=x1 - relA*(x1-x0);
     const yA=yMap(a.p), yB=yMap(b.p);
-
     const age=(now-b.t)/frame.span;              // 0..1
-    const alpha=Math.max(0, 1 - age*1.6);        // quicker fade
+    const alpha=Math.max(0, 1 - age*1.6);
     pctx.strokeStyle=`rgba(45,212,191,${alpha.toFixed(3)})`;
     pctx.beginPath(); pctx.moveTo(xA,yA); pctx.lineTo(xB,yB); pctx.stroke();
   }
@@ -247,11 +286,11 @@ function drawPrice(){
 function drawVol(){
   fit(vCan,vctx);
   const w=vCan.clientWidth, h=vCan.clientHeight;
-  const padL=20, padR=10, padT=6, padB=20;
-  const chartH=h-padT-padB, step=(w-padL-padR)/frame.bins, barW=step*0.72;
+  const padL=16, padR=10, padT=6, padB=20;
+  const chartH=h-padT-padB, step=(w-padL-padR)/frame.bins, barW=Math.max(2,step*0.7);
 
   vctx.clearRect(0,0,w,h); vctx.fillStyle='#0f0f0f'; vctx.fillRect(0,0,w,h);
-  if(!bins.length) return;
+  if(!bins.length) { volMaxEl.textContent='max —'; return; }
 
   const totals=bins.map(b=>b.buy+b.sell);
   const maxRaw=Math.max(0.01,...totals), max=maxRaw*1.25;
@@ -262,7 +301,6 @@ function drawVol(){
   for(let i=1;i<=2;i++){const y=padT+chartH*i/3; vctx.beginPath(); vctx.moveTo(padL,y); vctx.lineTo(w-padR,y); vctx.stroke();}
 
   const now=Date.now(), start=now-frame.span, x0=padL, x1=w-padR;
-  vctx.textAlign='center'; vctx.textBaseline='top'; vctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
 
   for(let i=0;i<bins.length;i++){
     const b=bins[i], total=b.buy+b.sell;
@@ -271,21 +309,13 @@ function drawVol(){
 
     vctx.fillStyle=DN; vctx.fillRect(x-barW/2, yBase-(hT-hBuy), barW, hT-hBuy);
     vctx.fillStyle=UP; vctx.fillRect(x-barW/2, yBase-hT,       barW, hBuy);
-
-    // sparse bottom ticks: every 2 bins
-    if(i%2===0){
-      const lab = (FRAME_KEY==='10m')
-        ? ':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'})
-        : new Date(b.ts).toLocaleTimeString([],{hour:'2-digit'}).replace(' ','');
-      vctx.fillStyle='rgba(255,255,255,.65)'; vctx.fillText(lab, x, yBase+4);
-    }
   }
 }
 
 /* =============== Kickoff =============== */
 (async ()=>{
   fit(pCan,pctx); fit(vCan,vctx);
-  await bootstrapFrame();
+  await bootstrapFrame();   // ensures 1h / 1d show from candles even before live
   startWS();
 })();
 </script>
