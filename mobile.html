@@ -15,39 +15,45 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
 .wrap{padding:12px 12px 24px;display:flex;flex-direction:column;gap:12px;max-width:900px;margin:0 auto}
 .card{background:var(--card);border-radius:16px;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
 .pad{padding:14px}
+
+/* header (price only) */
 .hdr{display:flex;flex-direction:column;align-items:center;gap:8px}
 .price{font-size:40px;font-weight:900;letter-spacing:.3px;line-height:1}
-.pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
-.pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 10px;font-size:12px;line-height:1;white-space:nowrap}
-.pill.up{color:var(--up)} .pill.down{color:var(--down)} .pill.muted{color:var(--muted)}
+
+/* section titles */
 .secTitle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .secTitle h3{margin:0;font-size:22px;letter-spacing:.2px}
 .small{opacity:.85;font-size:13px;display:flex;align-items:center;gap:10px;white-space:nowrap}
+
+/* canvases */
+.canvasBox{width:100%;border-radius:14px;overflow:hidden}
+canvas{display:block;width:100%;height:200px;background:#101010;border-radius:14px}
+#volCanvas{height:150px}
+
+/* legend */
 .legend{display:flex;align-items:center;gap:14px}
 .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
 .dot.up{background:var(--up)} .dot.down{background:var(--down)}
-.canvasBox{width:100%;border-radius:14px;overflow:hidden}
-canvas{display:block;width:100%;height:200px;background:#101010;border-radius:14px}
-#volCanvas{height:150px} /* requested ~half height */
+
+/* stats */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .stat{background:var(--panel);border-radius:14px;padding:12px 14px}
 .stat h4{margin:0 0 6px 0;font-size:13px;opacity:.8}
 .stat strong{font-variant-numeric:tabular-nums;font-size:18px}
+
+/* connection indicator */
 .livePill{position:fixed;left:12px;bottom:12px;z-index:50}
+.pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 10px;font-size:12px;line-height:1;white-space:nowrap}
+.pill.up{color:var(--up)} .pill.down{color:var(--down)} .pill.muted{color:var(--muted)}
 </style>
 </head>
 <body>
 <span id="connPill" class="pill livePill muted">Connecting…</span>
 
 <div class="wrap">
-  <!-- Header -->
+  <!-- Header (price only) -->
   <section class="card pad hdr">
     <div id="livePrice" class="price">$—</div>
-    <div class="pills">
-      <span id="pill10m" class="pill muted">10m Δ —</span>
-      <span id="pillHL" class="pill">H/L —</span>
-      <span id="pill24v" class="pill">24h Vol —</span>
-    </div>
   </section>
 
   <!-- Dynamic price (1h -> live 10m) -->
@@ -74,7 +80,7 @@ canvas{display:block;width:100%;height:200px;background:#101010;border-radius:14
     <div class="canvasBox"><canvas id="volCanvas"></canvas></div>
   </section>
 
-  <!-- Quick stats (10m only for mobile) -->
+  <!-- Quick stats (10m) -->
   <section class="grid2">
     <div class="stat"><h4>Trades / min</h4><strong id="s_tpm">—</strong></div>
     <div class="stat"><h4>Buy ratio (USD)</h4><strong id="s_br">—</strong></div>
@@ -90,23 +96,22 @@ canvas{display:block;width:100%;height:200px;background:#101010;border-radius:14
 const $=s=>document.querySelector(s);
 const dynCanvas=$('#dynCanvas'), dctx=dynCanvas.getContext('2d',{desynchronized:true});
 const volCanvas=$('#volCanvas'), vctx=volCanvas.getContext('2d',{desynchronized:true});
-const livePrice=$('#livePrice'), pill10m=$('#pill10m'), pillHL=$('#pillHL'), pill24v=$('#pill24v');
-const maxNote=$('#maxNote'), liveBlend=$('#liveBlend'), connPill=$('#connPill');
+const livePrice=$('#livePrice'), liveBlend=$('#liveBlend'), connPill=$('#connPill');
+const maxNote=$('#maxNote');
 const s_tpm=$('#s_tpm'), s_br=$('#s_br'), s_vwap=$('#s_vwap'), s_hilo=$('#s_hilo'), s_range=$('#s_range'), s_avmed=$('#s_avmed');
 
 const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
 const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
 const pct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
-const pct2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 const fmt2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 
 const MS10=600000, MS1H=3600000;
-let series10=[];                 // {t, p}
-let preload1h=[];                // {t, p}  (candles mapped to line)
-let trades=[], win10=[];         // trades: memory-capped, win10: sliding 10m
+let series10=[];         // {t,p}
+let preload1h=[];        // {t,p}
+let trades=[], win10=[]; // trades, 10m window
 let lastPrice=null;
 
-/* ===== canvas utilities ===== */
+/* ===== canvas size ===== */
 function sizeCanvas(c,ctx){
   const dpr=Math.max(1, Math.min(devicePixelRatio||1, 3));
   c.width  = Math.max(1, c.clientWidth  * dpr);
@@ -135,7 +140,7 @@ async function load1h(){
   }catch{}
 }
 
-/* ===== websocket + fallbacks ===== */
+/* ===== websocket + fallback ===== */
 let ws,retry;
 function startWS(){
   clearTimeout(retry);
@@ -167,55 +172,24 @@ async function restTick(){
 setInterval(restTick,1500);
 
 /* ===== ingest trade ===== */
-const HARD_CAP=200; // keep it small on mobile
+const HARD_CAP=200; // mobile memory cap
 function onTrade(t){
   const p=t.price, tm=t.time.getTime();
-  // visible price
+  // price
   livePrice.textContent=fmtUSD.format(p);
   livePrice.style.color = (lastPrice==null)?'#e9fef7' : (p>lastPrice?'var(--up)':p<lastPrice?'var(--down)':'#e9fef7');
   lastPrice=p;
 
-  // series for 10m delta + dynamic chart blend
+  // 10m line series
   series10.push({t:tm, p});
   while(series10.length && series10[0].t < Date.now()-MS10) series10.shift();
 
-  // trade windows
+  // windows
   trades.push(t); if(trades.length>HARD_CAP) trades.shift();
-  win10.push({time:tm, price:p, size:+t.size, side:t.side}); // for volume + stats
+  win10.push({time:tm, price:p, size:+t.size, side:t.side});
   const cut=Date.now()-MS10; while(win10.length && win10[0].time<cut) win10.shift();
 
-  updateHeader();
-  drawDyn();
-  drawVol();
-  drawStats();
-}
-
-/* ===== header pills ===== */
-async function fetch24h(){
-  try{
-    const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats',{headers:{Accept:'application/json'}});
-    const j=await r.json();
-    const open=+j.open,last=+j.last,high=+j.high,low=+j.low,vol=+j.volume;
-    if(Number.isFinite(open)&&Number.isFinite(last)){
-      const diff=last-open,pct= open? diff/open*100 : 0;
-      pill10m.textContent=`10m Δ —`; // real 10m delta set in updateHeader()
-      pillHL.textContent=`H/L ${fmtUSD0.format(high)} / ${fmtUSD0.format(low)}`;
-      pill24v.textContent=`24h Vol ${vol.toLocaleString()}`;
-    }
-  }catch{
-    pill10m.textContent='10m Δ —';
-    pillHL.textContent='H/L —';
-    pill24v.textContent='24h Vol —';
-  }
-}
-function updateHeader(){
-  const first=series10[0]?.p, last=series10.at(-1)?.p;
-  if(first && last){
-    const diff=last-first, pct= first ? diff/first*100 : 0;
-    pill10m.textContent=`10m Δ ${fmtUSD.format(diff)} (${pct2.format(pct)}%)`;
-    pill10m.classList.remove('up','down','muted');
-    pill10m.classList.add(diff>0?'up':diff<0?'down':'muted');
-  }
+  drawDyn(); drawVol(); drawStats();
 }
 
 /* ===== dynamic price drawing ===== */
@@ -226,35 +200,27 @@ function drawDyn(){
   dctx.clearRect(0,0,w,h);
   dctx.fillStyle='#101010'; dctx.fillRect(0,0,w,h);
 
-  // Blend factor: how full the 10m window is (0..1)
+  // how much of the 10m window is filled (0..1)
   const fill=Math.min(1, Math.max(0, (Date.now() - (series10[0]?.t ?? Date.now()))/MS10));
   liveBlend.textContent=`live ${Math.round(fill*100)}%`;
 
-  // build a working series: take the last hour preload, then overwrite the tail with 10m series
-  // 1h series mapped to the last 60 minutes (every ~minute)
-  const base = preload1h.slice(-60);
-  // Convert to screen points
-  const merged = [];
-  const now=Date.now(), startH=now-MS1H;
-  // coarse from preload
-  for(const c of base){
-    if(c.t>=startH) merged.push({t:c.t,p:c.p, live:false});
-  }
-  // fine/live tail (10m)
-  for(const s of series10){
-    merged.push({t:s.t,p:s.p, live:true});
-  }
+  // merge 1h preload + live 10m
+  const base=preload1h.slice(-60);
+  const merged=[];
+  const now=Date.now(), t0=now-MS1H;
+  for(const c of base){ if(c.t>=t0) merged.push({t:c.t,p:c.p,live:false}); }
+  for(const s of series10){ merged.push({t:s.t,p:s.p,live:true}); }
   if(merged.length<2) return;
 
-  // compute min/max
+  // min/max/avg
   let min=Infinity,max=-Infinity,sum=0;
-  for(const m of merged){ if(m.p<min)min=m.p; if(m.p>max)max=m.p; sum+=m.p;}
+  for(const m of merged){ if(m.p<min)min=m.p; if(m.p>max)max=m.p; sum+=m.p; }
   const range=(max-min)||1, avg=sum/merged.length;
 
   // grid
   dctx.strokeStyle='var(--grid)';
   for(let i=1;i<=3;i++){
-    const y=pad+(h-2*pad)*(i/4* (4/3));
+    const y=pad+(h-2*pad)*(i/4 * (4/3));
     dctx.beginPath(); dctx.moveTo(pad+xPad,y); dctx.lineTo(w-pad,y); dctx.stroke();
   }
   // avg dashed
@@ -262,26 +228,22 @@ function drawDyn(){
   dctx.save(); dctx.setLineDash([6,6]); dctx.strokeStyle='rgba(200,214,207,.6)';
   dctx.beginPath(); dctx.moveTo(pad+xPad,yAvg); dctx.lineTo(w-pad,yAvg); dctx.stroke(); dctx.restore();
 
-  // line
-  const t0=now-MS1H;
-  const X = t => pad+xPad + ((t - t0)/MS1H) * (w-2*pad-xPad);
-  const Y = p => pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
+  // scales
+  const X=t=>pad+xPad+((t-t0)/MS1H)*(w-2*pad-xPad);
+  const Y=p=>pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
 
+  // line (fade 1h -> live)
   dctx.lineWidth=2;
   for(let i=1;i<merged.length;i++){
     const a=merged[i-1], b=merged[i];
     const x0=X(a.t), x1=X(b.t); if(x1<=x0) continue;
     const y0=Y(a.p), y1=Y(b.p);
-    // fade: older (from the 1h preload) is dim; live tail brightens with fill
-    const alphaA = a.live ? Math.max(.35, .35 + .65*fill) : .35;
-    const alphaB = b.live ? Math.max(.35, .35* (1-fill) + .65*fill) : .35;
-    // blend color towards live (teal) as we approach now
+    const alphaB = b.live ? Math.max(.35, .35 + .65*fill) : .35;
     const col = b.live ? `rgba(45,212,191,${alphaB})` : `rgba(255,255,255,${alphaB})`;
-    dctx.strokeStyle = col;
-    dctx.beginPath(); dctx.moveTo(x0,y0); dctx.lineTo(x1,y1); dctx.stroke();
+    dctx.strokeStyle=col; dctx.beginPath(); dctx.moveTo(x0,y0); dctx.lineTo(x1,y1); dctx.stroke();
   }
 
-  // y labels (min/avg/max)
+  // y labels
   dctx.fillStyle='rgba(255,255,255,.85)';
   dctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
   dctx.textBaseline='middle';
@@ -289,9 +251,9 @@ function drawDyn(){
   dctx.fillText(fmtUSD0.format(avg), pad+6, Math.max(pad+14, Math.min(h-pad-14, yAvg)));
   dctx.fillText(fmtUSD0.format(min), pad+6, h-pad-10);
 
-  // minute ticks (every 6 minutes)
-  dctx.fillStyle='rgba(255,255,255,.75)';
-  dctx.textAlign='center'; dctx.textBaseline='top'; dctx.strokeStyle= 'rgba(255,255,255,.05)';
+  // minute ticks (every 6m)
+  dctx.fillStyle='rgba(255,255,255,.75)'; dctx.textAlign='center'; dctx.textBaseline='top';
+  dctx.strokeStyle='rgba(255,255,255,.05)';
   for(let m=0;m<=60;m+=6){
     const t=t0+m*60000, x=X(t);
     dctx.beginPath(); dctx.moveTo(x,h-pad-18); dctx.lineTo(x,h-pad-4); dctx.stroke();
@@ -299,17 +261,17 @@ function drawDyn(){
   }
 }
 
-/* ===== per-minute volume with headroom + diff pills ===== */
-const DIFF_MIN_BTC=0.15; // threshold for showing +/- pill
+/* ===== per-minute volume (headroom + diff) ===== */
+const DIFF_MIN_BTC=0.15; // hide +/- pill if below this
 
-function startAligned(){ const now=Date.now(); const ms = now - (now%60000); return ms - 9*60000; }
+function startAligned(){ const now=Date.now(); const ms=now-(now%60000); return ms-9*60000; }
 function bins10(){
   const start=startAligned();
   const bins=Array.from({length:10},(_,i)=>({buy:0,sell:0,ts:start+i*60000}));
   for(const t of win10){
     if(t.time<start || t.time>=start+10*60000) continue;
     const idx=Math.min(9, Math.max(0, Math.floor((t.time-start)/60000)));
-    if(t.side==='buy') bins[idx].buy += t.size; else bins[idx].sell += t.size;
+    if(t.side==='buy') bins[idx].buy+=t.size; else bins[idx].sell+=t.size;
   }
   return bins;
 }
@@ -339,10 +301,10 @@ function drawVol(){
   const bins=bins10();
   const totals=bins.map(b=>b.buy+b.sell);
   const trueMax=Math.max(1, ...totals);
-  const maxWithHeadroom = trueMax * 1.15;      // ensure labels never clip
+  const maxWithHeadroom = trueMax * 1.15; // keep space for pills above bar
   maxNote.textContent = `max ₿${fmt2.format(trueMax)}`;
 
-  // background grid
+  // grid
   vctx.strokeStyle='var(--grid)';
   for(let i=1;i<=3;i++){
     const y=padT + innerH * (i/4 * (4/3));
@@ -354,32 +316,30 @@ function drawVol(){
   const down=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
   for(let i=bins.length-1;i>=0;i--){
-    const b=bins[i], xC = w-padX-((bins.length-1-i)*step)-step/2;
+    const b=bins[i], xC=w-padX-((bins.length-1-i)*step)-step/2;
     const tot=b.buy+b.sell;
-    const hTot = Math.max(innerH*0.06, (tot/maxWithHeadroom)*innerH);
-    const hBuy = tot ? (b.buy/tot)*hTot : 0;
+    const hTot=Math.max(innerH*0.06, (tot/maxWithHeadroom)*innerH);
+    const hBuy= tot ? (b.buy/tot)*hTot : 0;
     const hSell= hTot - hBuy;
 
-    // draw stacked
+    // bars
     vctx.fillStyle=down; vctx.fillRect(xC-barW/2, baseY-hSell, barW, hSell);
     vctx.fillStyle=up;   vctx.fillRect(xC-barW/2, baseY-hSell-hBuy, barW, hBuy);
 
-    // total pill above bar (if tall enough)
+    // total pill above
     if(hTot>16 && tot>0) pill(vctx, xC, baseY-hTot-16, `₿${fmt2.format(tot)}`, 'total');
 
-    // +/- diff pill
-    const diff=b.buy - b.sell;
-    if(Math.abs(diff) >= DIFF_MIN_BTC){
+    // +/- diff pill (hide if tiny)
+    const diff=b.buy-b.sell;
+    if(Math.abs(diff)>=DIFF_MIN_BTC){
       if(diff>=0){
-        const cy = baseY - hSell - hBuy/2;
-        pill(vctx, xC, cy, `+${fmt2.format(diff)}`, 'pos');
+        pill(vctx, xC, baseY-hSell-hBuy/2, `+${fmt2.format(diff)}`, 'pos');
       }else{
-        const cy = baseY - hSell/2;
-        pill(vctx, xC, cy, `${fmt2.format(diff)}`, 'neg');
+        pill(vctx, xC, baseY-hSell/2, `${fmt2.format(diff)}`, 'neg');
       }
     }
 
-    // x labels every other minute
+    // time label (every other minute)
     if((i%2)===1){
       vctx.fillStyle='rgba(255,255,255,.8)';
       vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
@@ -396,15 +356,17 @@ function calc10m(){
   const btc=win10.reduce((a,t)=>a+t.size,0);
   const usd=win10.reduce((a,t)=>a+t.size*t.price,0);
   const vwap=btc?usd/btc:NaN;
-  let hi=-Infinity, lo=Infinity, buyU=0, sellU=0, buyMax=0, sellMax=0; const each=[];
+  let hi=-Infinity, lo=Infinity, buyU=0, sellU=0; const each=[];
   for(const t of win10){
     const u=t.size*t.price; each.push(u);
     if(t.price>hi)hi=t.price; if(t.price<lo)lo=t.price;
-    if(t.side==='buy'){buyU+=u; if(u>buyMax)buyMax=u}else{sellU+=u; if(u>sellMax)sellMax=u}
+    if(t.side==='buy')buyU+=u; else sellU+=u;
   }
-  return {n, tpm:n/10, vwap, hi, lo,
+  return {n,tpm:n/10,vwap,hi,lo,
           range:(isFinite(hi)&&isFinite(lo))?{usd:hi-lo,pct:lo?(hi/lo-1)*100:NaN}:null,
-          br: usd? buyU/usd*100 : 0, avg:n?usd/n:NaN, med:median(each)};
+          br: (buyU+sellU)? buyU/(buyU+sellU)*100:0,
+          avg:n? (buyU+sellU)/n : NaN,
+          med:median(each)};
 }
 function drawStats(){
   const s=calc10m();
@@ -417,10 +379,8 @@ function drawStats(){
 }
 
 /* ===== boot ===== */
-fetch24h();
 load1h();
 startWS();
-setInterval(fetch24h,60000);
 </script>
 </body>
 </html>
