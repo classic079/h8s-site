@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>h8s.us — 10m</title>
+<title>h8s.us — 10m R→L</title>
 <style>
   :root{
     --bg:#0b0b0b; --panel:#111; --ink:#eafaf3; --muted:#c5d3cc;
@@ -114,7 +114,7 @@ function ingest(t,p,sz,side){
   drawPrice(); drawVol();
 }
 
-/* ============ Price chart (10m) ============ */
+/* ============ Price chart (10m, right→left) ============ */
 function drawPrice(){
   fit(pCan,pctx);
   const w=pCan.clientWidth, h=pCan.clientHeight;
@@ -145,26 +145,26 @@ function drawPrice(){
   pctx.save(); pctx.setLineDash([6,6]); pctx.strokeStyle='rgba(200,214,207,.6)';
   pctx.beginPath(); pctx.moveTo(padL,yAvg); pctx.lineTo(w-padR,yAvg); pctx.stroke(); pctx.restore();
 
-  // X axis minute ticks, left→right
+  // X axis minute ticks (right→left)
   pctx.fillStyle='rgba(255,255,255,.78)'; pctx.textAlign='center'; pctx.textBaseline='top';
   const step=120000, x0=padL, x1=w-padR;
   const firstTick = start + (step - (start%step));
   for(let t=firstTick; t<=now; t+=step){
-    const x=x0 + ((t-start)/span)*(x1-x0);
+    const x=x1 - ((t-start)/span)*(x1-x0);
     pctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-padB+8);
   }
 
-  // live line
+  // live line (right→left)
   pctx.lineWidth=2; pctx.strokeStyle=COLOR_UP; pctx.beginPath();
   for(let i=0;i<pts.length;i++){
-    const x=x0 + ((pts[i].t-start)/span)*(x1-x0);
+    const x=x1 - ((pts[i].t-start)/span)*(x1-x0);
     const yy=y(pts[i].p);
     if(i===0) pctx.moveTo(x,yy); else pctx.lineTo(x,yy);
   }
   pctx.stroke();
 }
 
-/* ============ Volume chart (10m) ============ */
+/* ============ Volume chart (10m, right→left) ============ */
 function bins10(){
   const end=Date.now(), start=end-MS10;
   const bins=Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
@@ -192,18 +192,20 @@ function drawVol(){
   vctx.strokeStyle='rgba(255,255,255,.06)'; vctx.lineWidth=1;
   for(let i=1;i<=3;i++){const y=padT+chartH*(i/4*(4/3)); vctx.beginPath(); vctx.moveTo(padL-6,y); vctx.lineTo(w-padR+6,y); vctx.stroke();}
 
-  // bars + labels
-  const end=Date.now(), start=end-MS10; const span=MS10;
+  const x0=padL, x1=w-padR;
+  const end=Date.now(), start=end-MS10, span=MS10;
   vctx.textAlign='center'; vctx.textBaseline='top'; vctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
   for(let i=0;i<bins.length;i++){
-    const b=bins[i], total=b.buy+b.sell, x=padL+i*step+step/2;
+    const b=bins[i], total=b.buy+b.sell;
+    const rel=(b.ts-start)/span;
+    const x=x1 - rel*(x1-x0) - step/2;
     const yBase=padT+chartH, hT=Math.max(2,(total/max)*chartH), hBuy=total?(b.buy/total)*hT:0;
 
     // sells (bottom), buys (top)
     vctx.fillStyle=COLOR_DOWN; vctx.fillRect(x-barW/2, yBase-(hT-hBuy), barW, hT-hBuy);
     vctx.fillStyle=COLOR_UP;   vctx.fillRect(x-barW/2, yBase-hT,       barW, hBuy);
 
-    // minute tick label every 2 minutes
+    // label every 2 minutes
     if(i%2===0){
       vctx.fillStyle='rgba(255,255,255,.78)';
       vctx.fillText(':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'}), x, yBase+6);
