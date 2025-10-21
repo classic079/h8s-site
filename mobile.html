@@ -54,7 +54,7 @@
       </div>
     </div>
 
-    <!-- Dynamic price: 1h window shrinks & slides to 10m -->
+    <!-- Dynamic price: 1h window shrinks & slides to 10m, y-scale lerps to live-only -->
     <div class="card">
       <div class="sectionTitle">
         <span>Dynamic price (1h → live)</span>
@@ -113,8 +113,9 @@ let firstLiveMS=null;
 let win10=[];       // recent trades for volume {time,size,side,price}
 
 const MS10=600000, MS60=3600000;
-const TRANSITION_MS=30000; // 30s “melt to side”
-const DIFF_MIN_BTC=0.15;
+/* Melt duration: tweak as you like (e.g., 20000 for faster) */
+const TRANSITION_MS=30000; // 30s side-melt
+const DIFF_MIN_BTC=0.15;   // threshold for ± badge
 
 /* ---------- Networking ---------- */
 function setConn(txt,color){connEl.textContent=txt; if(color) connEl.style.color=color;}
@@ -167,8 +168,10 @@ function resetStroke(ctx){ ctx.setLineDash([]); ctx.globalAlpha=1; ctx.lineWidth
 function windowSeries(start,end,arr){ return arr.filter(s=>s.t>=start && s.t<=end); }
 function extents(arr){ let lo=Infinity,hi=-Infinity,sum=0,n=0; for(const s of arr){if(Number.isFinite(s.p)){if(s.p<lo)lo=s.p;if(s.p>hi)hi=s.p;sum+=s.p;n++;}} return n?{lo,hi,avg:sum/n}:null; }
 function yFor(p,lo,hi,h,pt,pb){const R=(hi-lo)||1; return pt+(h-pt-pb)*(1-(p-lo)/R);}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
 
-/* ---------- Dynamic price (side-melt) ---------- */
+/* ---------- Dynamic price (side-melt + y-scale lerp to live-only) ---------- */
 function drawLine(ctx,pts,lo,hi,w,h,pl,pr,pt,pb,color,alpha){
   if(!pts || pts.length<2) return;
   resetStroke(ctx);
@@ -192,21 +195,32 @@ function drawDyn(){
   // layout
   const padL=58, padR=16, padT=20, padB=44;
 
-  // Compute shrinking time window (60m → 10m) sliding to now
+  // progress 0→1
   const now=Date.now();
-  let f=0; if(firstLiveMS!=null) f=Math.max(0,Math.min(1,(now-firstLiveMS)/TRANSITION_MS));
-  const spanMs = MS60 - (MS60-MS10)*f;          // from 60m to 10m
-  const start  = now - spanMs;                  // window end stays at now
+  let f=0; if(firstLiveMS!=null) f=clamp((now-firstLiveMS)/TRANSITION_MS,0,1);
+
+  // shrinking/scrolling window (60m → 10m)
+  const spanMs = MS60 - (MS60-MS10)*f;
+  const start  = now - spanMs;
   const end    = now;
 
   winHintEl.textContent = `window ${Math.round(spanMs/60000)}m`;
 
-  // Data inside the window (use both sources)
-  const base = windowSeries(start,end, series1h).concat(windowSeries(start,end, seriesLive));
-  if(base.length<2) return;
+  // get data inside the window
+  const win1h = windowSeries(start,end, series1h);
+  const live  = windowSeries(start,end, seriesLive);
+  const both  = win1h.concat(live);
+  if((live.length<2) && (both.length<2)) return;
 
-  // extents based on the current window (so labels are “right”)
-  const ex = extents(base); if(!ex) return;
+  // y-scale: lerp from all-data extents → live-only extents
+  const exAll  = extents(both);
+  const exLive = extents(live) || exAll;  // handle first seconds
+  const ex = exAll ? {
+    lo:  lerp(exAll.lo,  exLive.lo,  f),
+    hi:  lerp(exAll.hi,  exLive.hi,  f),
+    avg: lerp(exAll.avg, exLive.avg, f)
+  } : exLive;
+  if(!ex) return;
 
   // grid
   resetStroke(dctx);
@@ -216,7 +230,7 @@ function drawDyn(){
     dctx.beginPath(); dctx.moveTo(padL-6,gy); dctx.lineTo(w-padR+6,gy); dctx.stroke();
   }
 
-  // price labels (hi/avg/lo)
+  // price labels (from the blended extents)
   dctx.fillStyle='rgba(255,255,255,.85)'; dctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; dctx.textBaseline='middle';
   const yHi=yFor(ex.hi,ex.lo,ex.hi,h,padT,padB), yLo=yFor(ex.lo,ex.lo,ex.hi,h,padT,padB), yAvg=yFor(ex.avg,ex.lo,ex.hi,h,padT,padB);
   dctx.fillText(fmtUSD0.format(ex.hi), 6, Math.max(padT+8,yHi));
@@ -225,25 +239,26 @@ function drawDyn(){
   dctx.save(); dctx.setLineDash([6,6]); dctx.strokeStyle='rgba(200,214,207,.6)';
   dctx.beginPath(); dctx.moveTo(padL,yAvg); dctx.lineTo(w-padR,yAvg); dctx.stroke(); dctx.restore();
 
-  // Draw 1h portion remaining in window (if any) in light grey
-  const win1h = windowSeries(start,end, series1h);
-  if(win1h.length>=2) drawLine(dctx, win1h, ex.lo,ex.hi, w,h, padL,padR,padT,padB, 'rgba(255,255,255,.45)', 1);
+  // draw 1h remainder (fades out by (1-f)); skip completely when done
+  if(f<0.999 && win1h.length>=2){
+    drawLine(dctx, win1h, ex.lo,ex.hi, w,h, padL,padR,padT,padB, 'rgba(255,255,255,.45)', 1-f);
+  }
+  // draw live (full)
+  if(live.length>=2){
+    drawLine(dctx, live, ex.lo,ex.hi, w,h, padL,padR,padT,padB, COLOR_UP, 1);
+  }
 
-  // Draw live portion (full strength)
-  const live = windowSeries(start,end, seriesLive);
-  if(live.length>=2) drawLine(dctx, live, ex.lo,ex.hi, w,h, padL,padR,padT,padB, COLOR_UP, 1);
-
-  // X labels — minutes across current window, step every 2 mins
+  // X labels — minutes across current (shrinking) window
   dctx.fillStyle='rgba(255,255,255,.78)'; dctx.textAlign='center'; dctx.textBaseline='top';
   const step=120000, x0=padL, x1=w-padR, span= end-start;
-  const tFirst = start + (step - (start%step)); // align ticks
+  const tFirst = start + (step - (start%step));
   for(let t=tFirst; t<=end; t+=step){
     const x=x0 + ((t-start)/span)*(x1-x0);
     dctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-padB+8);
   }
 }
 
-/* ---------- Volume (unchanged logic, fixed headroom) ---------- */
+/* ---------- Volume (fixed bins, headroom, non-stacking badges) ---------- */
 function fixedBins10(){
   const end=Date.now(), start=end-MS10;
   const bins=Array.from({length:10},(_,i)=>({ts:start+i*60000, buy:0, sell:0}));
@@ -262,8 +277,9 @@ function drawVol(){
 
   const bins=fixedBins10();
   const totals=bins.map(b=>b.buy+b.sell);
-  let max=Math.max(0.01,...totals)*1.18; // headroom so labels never clip
-  volMaxEl.textContent='max ₿'+fmtBTC2.format(Math.max(...totals));
+  const maxRaw=Math.max(0.01,...totals);
+  let max=maxRaw*1.25; // extra headroom so badges never clip
+  volMaxEl.textContent='max ₿'+fmtBTC2.format(maxRaw);
 
   const padL=36, padR=16, padT=6, padB=28, chartH=h-padT-padB, step=(w-padL-padR)/bins.length, barW=step*0.72;
 
@@ -292,18 +308,26 @@ function drawVol(){
       vctx.fillText(':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'}), xC, yBase+6);
     }
 
-    // badges
     if(total>0){
-      if(hT>18){
+      // TOTAL badge sits ABOVE bar (no stacking with diff)
+      const topY = yBase - hT - 10; // above, inside headroom
+      if(topY > 0){
         const sp=document.createElement('span'); sp.className='badge total';
         sp.textContent='₿'+fmtBTC2.format(total);
-        sp.style.left=`${xC}px`; sp.style.top=`${yBase-hT/2}px`; volBadges.appendChild(sp);
+        sp.style.left=`${xC}px`; sp.style.top=`${topY}px`; volBadges.appendChild(sp);
       }
+
+      // DIFF badge sits in the middle of the appropriate segment, only if big enough
       const diff=b.buy-b.sell;
-      if(Math.abs(diff)>=DIFF_MIN_BTC){
+      if(Math.abs(diff)>=DIFF_MIN_BTC && hT>=22){
         const sp=document.createElement('span'); sp.className='badge '+(diff>=0?'diffUP':'diffDN');
         sp.textContent=(diff>=0?'+':'')+fmtBTC2.format(diff);
-        const by=yBase - (diff>=0 ? hT - hBuy/2 : (hT - (hT-hBuy)/2));
+
+        // choose vertical position with small separation from total badge
+        let by = yBase - (diff>=0 ? (hT - hBuy/2) : ((hT-hBuy)/2));
+        // If too close to the total badge, nudge inside
+        if (Math.abs(by - topY) < 18) by += (diff>=0 ? 12 : -12);
+
         sp.style.left=`${xC}px`; sp.style.top=`${by}px`; volBadges.appendChild(sp);
       }
     }
