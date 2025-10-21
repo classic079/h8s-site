@@ -1,431 +1,437 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Coinbase Stalker — Mobile</title>
-<meta name="theme-color" content="#0a0a0a" />
 <style>
   :root{
     --bg:#0a0a0a; --panel:#101010; --text:#e9fef7; --muted:#c8d6cf;
-    --up:#2dd4bf; --down:#f59e0b; --glow: rgba(45,212,191,.22);
+    --up:#2dd4bf; --down:#f59e0b; --ink:#0b0b0b; --ring:rgba(255,255,255,.08);
   }
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-  .wrap{min-height:100vh;display:flex;flex-direction:column;gap:10px;padding:10px}
-  .card{background:var(--panel);border-radius:12px;
-        box-shadow:0 0 0 1px rgba(255,255,255,.06),0 8px 24px rgba(0,0,0,.35)}
+  .wrap{max-width:760px;margin:0 auto;padding:10px 10px 60px;display:flex;flex-direction:column;gap:10px}
 
-  /* connection pill */
-  #connPill{position:fixed;left:10px;bottom:10px;z-index:50;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 8px;font-size:11px}
-  .conn-ok{color:var(--up)} .conn-warn{color:#fbbf24} .conn-err{color:#fb7185}
+  /* Cards */
+  .card{background:var(--panel);border-radius:16px;box-shadow:0 0 0 1px var(--ring)}
+  .pad{padding:14px}
 
-  /* header */
-  .headerCard{padding:12px}
-  .topRow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-  .livePrice{font-size:clamp(26px,8vw,40px);font-weight:800;line-height:1}
-  .livePrice.up{color:var(--up)} .livePrice.down{color:var(--down)}
-  .actions{display:flex;gap:8px;align-items:center}
-  .pill{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 9px;font-size:12px;white-space:nowrap}
-  .pill.up{color:var(--up)} .pill.down{color:var(--down)} .pill.flat{color:var(--muted)}
-  .btn{appearance:none;border:1px solid rgba(255,255,255,.14);background:transparent;color:var(--text);
-       border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer}
+  /* Header */
+  .live{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
+  .price{font-weight:900;line-height:1;font-size:clamp(28px,7vw,42px)}
+  .price.up{color:var(--up)} .price.down{color:var(--down)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+  .chip{border:1px solid var(--ring);border-radius:999px;padding:6px 10px;font-size:12px}
+  .chip.up{color:var(--up)} .chip.down{color:var(--down)} .chip.muted{color:var(--muted)}
 
-  /* chart */
-  .chartCard{padding:10px}
-  .chartTitle{font-weight:700;margin:0 0 8px 2px}
-  #chartCanvas{display:block;width:100%;height:200px;border-radius:10px}
+  /* Sparkline */
+  #spark{width:100%;height:90px;display:block;border-radius:12px}
 
-  /* per-minute volume */
-  .volCard{padding:10px}
-  .volTop{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-  .volTitle{font-weight:700}
-  .legend{opacity:.9;font-size:12px}
-  .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+  /* Volume */
+  .volHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .legend{display:flex;gap:12px;align-items:center}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:6px}
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
-  #volCanvas{display:block;width:100%;height:160px;border-radius:10px}
+  #vol{width:100%;height:260px;display:block;border-radius:12px}
 
-  /* stats */
-  .statsCard{padding:12px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
-  .stat{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px}
-  .stat h4{margin:0 0 6px;font-size:12px;opacity:.8}
-  .stat .v{font-variant-numeric:tabular-nums;font-weight:800}
+  /* Stats */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{border-radius:14px;background:var(--ink);box-shadow:0 0 0 1px var(--ring);padding:14px}
+  .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+  .v{font-size:20px;font-weight:800;letter-spacing:.2px}
+  .v.small{font-size:18px}
+  .hl{display:flex;flex-direction:column;line-height:1.15}
+  .good{color:var(--up)} .bad{color:var(--down)}
 
-  /* ticker (toggle) */
-  .tickerWrap{display:none}
-  .tickerHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(16,16,16,1),rgba(16,16,16,.6));padding:10px;border-bottom:1px solid rgba(255,255,255,.08);border-radius:12px 12px 0 0}
-  .gridHead{display:grid;grid-template-columns:1fr 110px;gap:8px;font-size:11px;opacity:.75;text-transform:uppercase;letter-spacing:.4px}
-  .tickerBody{padding:6px 10px 10px}
-  .row{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
-  .row:last-child{border-bottom:none}
-  .row.buy{color:var(--up)} .row.sell{color:var(--down)}
+  /* Live pill */
+  .conn{position:fixed;left:12px;bottom:12px;font-size:12px;padding:6px 10px;border-radius:999px;
+        border:1px solid var(--ring);background:var(--panel);z-index:50}
+  .conn.ok{color:var(--up)} .conn.warn{color:#fbbf24} .conn.err{color:#fb7185}
 </style>
 </head>
 <body>
-<span id="connPill" class="conn-warn">Connecting…</span>
-
 <div class="wrap">
 
-  <!-- top: price + controls -->
-  <section class="card headerCard">
-    <div class="topRow">
-      <div id="livePrice" class="livePrice">$—</div>
-      <div class="actions">
-        <span id="pill10m" class="pill flat">10m Δ —</span>
-        <button id="toggleTicker" class="btn" aria-pressed="false">Show Ticker</button>
+  <!-- Top: live price + quick chips -->
+  <section class="card pad">
+    <div class="live">
+      <div id="price" class="price">$—</div>
+      <div class="chips">
+        <span id="chip10" class="chip muted">10m Δ —</span>
+        <span id="chipHL" class="chip">H/L —</span>
+        <span id="chipVol" class="chip">24h Vol —</span>
+      </div>
+      <canvas id="spark"></canvas>
+    </div>
+  </section>
+
+  <!-- Per-minute volume (10m, ₿) -->
+  <section class="card pad">
+    <div class="volHead">
+      <div style="font-weight:800;font-size:22px">Per-minute volume (10m, <b>₿</b>)</div>
+      <div class="legend">
+        <span><i class="dot up"></i>Buys</span>
+        <span><i class="dot down"></i>Sells</span>
       </div>
     </div>
+    <canvas id="vol"></canvas>
   </section>
 
-  <!-- dynamic chart -->
-  <section class="card chartCard">
-    <h3 class="chartTitle">1h → 10m dynamic chart</h3>
-    <canvas id="chartCanvas"></canvas>
-  </section>
-
-  <!-- per-minute volume (10m, ₿) -->
-  <section class="card volCard">
-    <div class="volTop">
-      <div class="volTitle">Per-minute volume (10m, ₿)</div>
-      <div class="legend"><span class="dot up"></span>Buys &nbsp; <span class="dot down"></span>Sells</div>
+  <!-- Stats tiles (dynamic window to 10m) -->
+  <section class="grid">
+    <div class="tile">
+      <div class="k">Trades / min</div>
+      <div id="tpm" class="v">—</div>
     </div>
-    <canvas id="volCanvas"></canvas>
-  </section>
-
-  <!-- 10-minute stats -->
-  <section class="card statsCard">
-    <div class="grid">
-      <div class="stat"><h4>Trades / min</h4><div id="sTpm" class="v">—</div></div>
-      <div class="stat"><h4>Buy ratio (USD)</h4><div id="sBuyR" class="v">—</div></div>
-      <div class="stat"><h4>VWAP</h4><div id="sVWAP" class="v">—</div></div>
-      <div class="stat"><h4>High / Low</h4><div id="sHiLo" class="v">—</div></div>
-      <div class="stat"><h4>Range</h4><div id="sRange" class="v">—</div></div>
-      <div class="stat"><h4>Avg / Median (USD)</h4><div id="sAvgMed" class="v">—</div></div>
+    <div class="tile">
+      <div class="k">Buy ratio (USD)</div>
+      <div id="buyRatio" class="v">—</div>
     </div>
-  </section>
 
-  <!-- ticker (off by default) -->
-  <section id="ticker" class="card tickerWrap">
-    <div class="tickerHead">
-      <div class="gridHead">
-        <div>Price</div>
-        <div id="amountHeader" style="text-align:right;cursor:pointer;">Amount (USD)</div>
-      </div>
+    <div class="tile">
+      <div class="k">VWAP</div>
+      <div id="vwap" class="v">$—</div>
     </div>
-    <div id="tickerBody" class="tickerBody"></div>
+    <div class="tile">
+      <div class="k">High / Low</div>
+      <div id="hl" class="v hl"><span>—</span><span>—</span></div>
+    </div>
+
+    <div class="tile">
+      <div class="k">Range</div>
+      <div id="range" class="v small">—</div>
+    </div>
+    <div class="tile">
+      <div class="k">Avg / Median (USD)</div>
+      <div id="avgMed" class="v small">—</div>
+    </div>
   </section>
 
 </div>
 
+<span id="conn" class="conn warn">Connecting…</span>
+
 <script>
-/* ===== helpers ===== */
-const $=s=>document.querySelector(s);
-const priceEl=$('#livePrice'), pill10m=$('#pill10m'), connPill=$('#connPill');
+/* ---------- Shortcuts/formatters ---------- */
+const $ = s => document.querySelector(s);
+const fmtUSD  = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+const fmtUSD0 = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+const pct1    = new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
+const pct2    = new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
+const btc2    = v => `₿${(+v).toFixed(2)}`;
+const btc3    = v => `₿${(+v).toFixed(3)}`;
 
-const chart=$('#chartCanvas'), ctx=chart.getContext('2d',{desynchronized:true});
-const vol=$('#volCanvas'), vctx=vol.getContext('2d',{desynchronized:true});
+const priceEl = $('#price'), chip10=$('#chip10'), chipHL=$('#chipHL'), chipVol=$('#chipVol');
+const tpmEl=$('#tpm'), buyEl=$('#buyRatio'), vwapEl=$('#vwap'), hlEl=$('#hl'), rangeEl=$('#range'), avgMedEl=$('#avgMed');
+const connEl=$('#conn');
 
-const sTpm=$('#sTpm'), sBuyR=$('#sBuyR'), sVWAP=$('#sVWAP'), sHiLo=$('#sHiLo'), sRange=$('#sRange'), sAvgMed=$('#sAvgMed');
+const spark = $('#spark'), sctx = spark.getContext('2d',{desynchronized:true});
+const volCanvas = $('#vol'), vctx = volCanvas.getContext('2d',{desynchronized:true});
 
-const tickerWrap=$('#ticker'), toggleTicker=$('#toggleTicker'), tickerBody=$('#tickerBody'), amountHeader=$('#amountHeader');
-let tickerOn=false, showUSD=true;
+/* ---------- State ---------- */
+let ws, lastWS = 0, lastREST = 0, recon;
+let lastPrice = null;
+let startAnchor = null;              // when we first saw a trade (for dynamic window)
+let trades10 = [];                   // {time(ms), price, size, side}
+let series10 = [];                   // price series (last 10m)
+const MS10 = 600000;
 
-const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
-const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
-const fmtUSDchg=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2,signDisplay:'always'});
-const fmtBTC2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
-const pct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
-const pct2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
-
-/* ===== state ===== */
-let trades=[], win10=[], series=[], lastPrice=null;
-const MS10=600000;
-
-/* dynamic 1h -> 10m window */
-let windowMs = 60*60*1000;
-const TARGET_WINDOW_MS = MS10;
-let windowStartTs = Date.now();
-let seeded1h = [];
-
-/* ===== UI toggles ===== */
-toggleTicker.addEventListener('click',()=>{
-  tickerOn=!tickerOn;
-  toggleTicker.textContent = tickerOn ? 'Hide Ticker' : 'Show Ticker';
-  toggleTicker.setAttribute('aria-pressed', tickerOn?'true':'false');
-  tickerWrap.style.display = tickerOn ? 'block' : 'none';
-  if(tickerOn){ recalcRows(); capTrades(); renderTicker(); }
-});
-amountHeader?.addEventListener('click',()=>{ showUSD=!showUSD; amountHeader.textContent=showUSD?'Amount (USD)':'Amount (BTC)'; renderTicker(); });
-
-/* ===== resize ===== */
-function sizeCanvas(c, ctx){
-  const dpr=Math.max(1,Math.min(devicePixelRatio||1,3));
-  c.width=Math.max(1,c.clientWidth*dpr);
-  c.height=Math.max(1,c.clientHeight*dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+function conn(state, msg){
+  connEl.classList.remove('ok','warn','err');
+  connEl.classList.add(state==='ok'?'ok':state==='err'?'err':'warn');
+  connEl.textContent = msg;
 }
-function resizeAll(){
-  sizeCanvas(chart,ctx); drawChart();
-  sizeCanvas(vol,vctx); drawVol();
-  if(tickerOn){ recalcRows(); capTrades(); renderTicker(); }
-}
-new ResizeObserver(resizeAll).observe(document.body);
 
-/* ===== networking (ws + fallback) ===== */
-let ws,recon,lastWs=0,lastRest=0;
-function setConn(state,msg){connPill.classList.remove('conn-ok','conn-warn','conn-err');connPill.classList.add(state==='ok'?'conn-ok':state==='warn'?'conn-warn':'conn-err');connPill.textContent=msg;}
-function startWS(){clearTimeout(recon);try{ws&&ws.close()}catch{}ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-  setConn('conn-warn','Connecting…');
-  ws.onopen=()=>ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-  ws.onmessage=e=>{lastWs=Date.now();setConn('conn-ok','Live');try{const m=JSON.parse(e.data);if(m.type==='match'&&m.product_id==='BTC-USD'){ingest({price:+m.price,size:+m.size,side:String(m.side||'').toLowerCase(),time:new Date(m.time)});}}catch{}};
-  ws.onclose=()=>{setConn('conn-warn','Reconnecting…');recon=setTimeout(startWS,1000)};
-  ws.onerror=()=>{setConn('conn-err','Fallback');try{ws.close()}catch{}};
-}
-async function restFallback(){const QUIET=3500,now=Date.now();try{
-  if(now-lastWs>=QUIET){const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{Accept:'application/json'}});if(r.ok){const arr=await r.json();for(let i=arr.length-1;i>=0;i--){const t=arr[i];ingest({price:+t.price,size:+t.size,side:String(t.side||'').toLowerCase(),time:new Date(t.time||now)})}lastRest=now;setConn('conn-err','Fallback');return;}}
-  if(now-Math.max(lastWs,lastRest)>=QUIET){const r2=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});if(r2.ok){const t=await r2.json();ingest({price:+t.price,size:+(t.size||0.001),side:'buy',time:new Date(t.time||now)});lastRest=now;setConn('conn-err','Fallback');}}
-}catch{setConn('conn-err','Fallback');}}
-setInterval(restFallback,1200);
+/* ---------- WS + fallback ---------- */
+function startWS(){
+  try{ ws && ws.close(); }catch{}
+  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  conn('warn','Connecting…');
 
-/* ===== ingest & prune ===== */
-function ingest(t){
-  const p=t.price,s=t.size,side=t.side==='sell'?'sell':'buy',time=t.time;
-  if(lastPrice!==null){priceEl.classList.remove('up','down'); if(p>lastPrice)priceEl.classList.add('up'); else if(p<lastPrice)priceEl.classList.add('down')}
-  lastPrice=p; priceEl.textContent=fmtUSD.format(p);
-
-  trades.push({price:p,size:s,side,time});
-  series.push({t:Date.now(),p});
-  win10.push({price:p,size:s,side,time:time.getTime()});
-  prune();
-
-  renderStats();
-  drawChart(); drawVol();
-  if(tickerOn){ capTrades(); renderTicker(); }
-}
-function prune(){const now=Date.now(); win10=win10.filter(t=>t.time>=now-MS10); while(series.length && series[0].t<now-MS10) series.shift();}
-
-/* ===== stats (dynamic warm-up) ===== */
-function median(a){const x=[...a].sort((m,n)=>m-n),n=x.length;return n?(n&1?x[(n-1)/2]:(x[n/2-1]+x[n/2])/2):NaN;}
-function effectiveMinutes(){
-  if(!win10.length) return 0.5;                 // show something instantly
-  const now=Date.now(), earliest=Math.min(...win10.map(t=>t.time));
-  const mins=(now-earliest)/60000;
-  return Math.max(0.5, Math.min(10, mins));     // grows to 10m
-}
-function winStats(arr,minNorm){
-  const n=arr.length, btc=arr.reduce((a,t)=>a+t.size,0), usd=arr.reduce((a,t)=>a+t.price*t.size,0);
-  let buy=0,hi=-Infinity,lo=Infinity; const usdEach=[];
-  for(const t of arr){const u=t.price*t.size; usdEach.push(u); if(t.price>hi)hi=t.price; if(t.price<lo)lo=t.price; if(t.side==='buy')buy+=u;}
-  const vwap=btc?usd/btc:NaN, rangeUSD=(isFinite(hi)&&isFinite(lo))?(hi-lo):NaN, rangePct=(isFinite(hi)&&isFinite(lo)&&lo>0)?((hi/lo-1)*100):NaN;
-  return {
-    tpm: (n/minNorm)||0,
-    buyRatio: usd?buy/usd*100:0,
-    vwap, hi, lo, rangeUSD, rangePct,
-    avg: n?usd/n:NaN, med: median(usdEach)
+  ws.onopen = () => {
+    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
   };
-}
-function renderStats(){
-  const mins = effectiveMinutes();
-  const S=win10.length?winStats(win10, mins):{tpm:0,buyRatio:0,vwap:NaN,hi:NaN,lo:NaN,rangeUSD:NaN,rangePct:NaN,avg:NaN,med:NaN};
-  sTpm.textContent = S.tpm.toFixed(1);
-  sBuyR.textContent = `${pct1.format(S.buyRatio)}%`;
-  sVWAP.textContent = isFinite(S.vwap)?fmtUSD.format(S.vwap):'—';
-  sHiLo.textContent = (isFinite(S.hi)&&isFinite(S.lo))?`${fmtUSD0.format(S.hi)} / ${fmtUSD0.format(S.lo)}`:'—';
-  sRange.textContent = (isFinite(S.rangeUSD)&&isFinite(S.rangePct))?`${fmtUSD0.format(S.rangeUSD)} (${pct1.format(S.rangePct)}%)`:'—';
-  sAvgMed.textContent = (isFinite(S.avg)&&isFinite(S.med))?`${fmtUSD0.format(S.avg)} / ${fmtUSD0.format(S.med)}`:'—';
 
-  const first=series[0]?.p, last=series.at(-1)?.p;
-  if(first && last){
-    const diff=last-first, pct=first?diff/first*100:0;
-    pill10m.textContent=`10m Δ ${fmtUSDchg.format(diff)} (${pct2.format(pct)}%)`;
-    pill10m.classList.remove('up','down','flat'); pill10m.classList.add(diff>0?'up':diff<0?'down':'flat');
-  } else { pill10m.textContent='10m Δ —'; pill10m.classList.add('flat'); }
+  ws.onmessage = (e) => {
+    lastWS = Date.now();
+    conn('ok','Live');
+    try{
+      const m = JSON.parse(e.data);
+      if(m.type === 'match' && m.product_id === 'BTC-USD'){
+        ingest(+m.price, +m.size, (m.side||'buy').toLowerCase(), new Date(m.time).getTime());
+      }
+    }catch{}
+  };
+
+  ws.onclose = () => { conn('warn','Reconnecting…'); clearTimeout(recon); recon = setTimeout(startWS, 800); };
+  ws.onerror = () => { conn('err','Fallback'); try{ws.close()}catch{} };
 }
 
-/* ===== dynamic chart (1h -> 10m) ===== */
-function glideWindow(){
-  const DURATION=90_000;
-  const elapsed=Math.max(0,Date.now()-windowStartTs);
-  if(elapsed>=DURATION){windowMs=TARGET_WINDOW_MS;return;}
-  const k=elapsed/DURATION; const ease=k*k;
-  windowMs=TARGET_WINDOW_MS+(60*60*1000-TARGET_WINDOW_MS)*(1-ease);
-}
-function drawChart(){
-  const w=chart.clientWidth,h=chart.clientHeight,pad=12,xPad=32;
-  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
-  const now=Date.now(), startTs=now-windowMs;
-
-  const view=[]; if(seeded1h.length){for(const s of seeded1h){if(s.t>=startTs&&s.t<=now)view.push(s);}}
-  for(const s of series){if(s.t>=startTs&&s.t<=now)view.push(s);}
-
-  ctx.clearRect(0,0,w,h); ctx.fillStyle='#101010'; ctx.fillRect(0,0,w,h);
-  if(view.length<2) return;
-
-  let min=Infinity,max=-Infinity,sum=0;
-  for(const s of view){const p=s.p;if(!isFinite(p))continue; if(p<min)min=p; if(p>max)max=p; sum+=p;}
-  if(!isFinite(min)||!isFinite(max)) return;
-  const range=(max-min)||1,avg=sum/view.length;
-
-  ctx.strokeStyle='rgba(255,255,255,.06)'; ctx.lineWidth=1;
-  for(let i=1;i<6;i++){const gy=pad+(h-2*pad)/6*i; ctx.beginPath(); ctx.moveTo(pad+xPad,gy); ctx.lineTo(w-pad,gy); ctx.stroke();}
-
-  ctx.fillStyle='rgba(255,255,255,.78)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  const lab=v=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
-  const yAvg=pad+(h-2*pad)-((avg-min)/range)*(h-2*pad);
-  ctx.fillText(lab(max),pad+6,pad+10);
-  ctx.fillText(lab(avg),pad+6,Math.max(pad+14,Math.min(h-pad-14,yAvg)));
-  ctx.fillText(lab(min),pad+6,h-pad-10);
-  ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(200,214,207,.6)';
-  ctx.beginPath(); ctx.moveTo(pad+xPad,yAvg); ctx.lineTo(w-pad,yAvg); ctx.stroke(); ctx.restore();
-
-  const xScale = (t)=> pad+xPad + ((t - startTs)/windowMs) * (w-2*pad - xPad);
-  const MAX_JUMP=avg*0.08; ctx.lineWidth=2;
-  for(let i=1;i<view.length;i++){
-    const p0=view[i-1].p,p1=view[i].p;
-    if(!isFinite(p0)||!isFinite(p1)) continue;
-    if(Math.abs(p1-p0)>MAX_JUMP) continue;
-    const x0=xScale(view[i-1].t), x1=xScale(view[i].t);
-    if(x1<=x0) continue;
-    const y0=pad+(h-2*pad)-((p0-min)/range)*(h-2*pad),
-          y1=pad+(h-2*pad)-((p1-min)/range)*(h-2*pad);
-    ctx.strokeStyle=(p1>=avg)?up:dn;
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
-  }
-
-  const tickEveryMin = windowMs >= 30*60*1000 ? 5 : 2;
-  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  ctx.textAlign='center'; ctx.textBaseline='top'; ctx.strokeStyle='rgba(255,255,255,.05)';
-  const firstTick = startTs - (startTs % (tickEveryMin*60000)) + tickEveryMin*60000;
-  for(let t=firstTick; t<=now; t+=tickEveryMin*60000){
-    const x=xScale(t);
-    ctx.beginPath(); ctx.moveTo(x,h-pad-18); ctx.lineTo(x,h-pad-4); ctx.stroke();
-    ctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}),x,h-pad-16);
-  }
-}
-async function seedChartWith1h(){
+async function fallback(){
+  const QUIET = 3500, now = Date.now();
   try{
-    const end = Date.now(), start = end - 60*60*1000;
-    const url = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${new Date(start).toISOString()}&end=${new Date(end).toISOString()}`;
-    const r = await fetch(url, { headers:{ Accept:'application/json' }});
-    if(!r.ok) throw 0;
-    const arr = (await r.json()).sort((a,b)=>a[0]-b[0]); // [time,low,high,open,close,vol]
-    const pts = [];
-    for(const c of arr){
-      const ts = c[0]*1000, open = +c[3], close = +c[4];
-      pts.push({t: ts, p: open});
-      pts.push({t: ts + 59*1000, p: close});
+    if(now - lastWS >= QUIET){
+      const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=20',{headers:{Accept:'application/json'}});
+      if(r.ok){
+        const arr = await r.json();
+        for(let i=arr.length-1;i>=0;i--){
+          const t = arr[i];
+          ingest(+t.price, +t.size, (t.side||'buy').toLowerCase(), new Date(t.time||now).getTime());
+        }
+        lastREST = now; conn('err','Fallback'); return;
+      }
     }
-    seeded1h = pts;
-    series = [...pts];
-    windowStartTs = Date.now();
   }catch{}
 }
+setInterval(fallback, 1200);
 
-/* ===== per-minute volume with signed diff labels ===== */
-function alignedStart(){const now=Date.now();const ms=now-(now%60000);return ms-(9*60000)}
+/* ---------- Ingest ---------- */
+function ingest(price, size, side, ts){
+  if(!startAnchor) startAnchor = ts;
+
+  // live price
+  if(lastPrice!==null){priceEl.classList.remove('up','down'); if(price>lastPrice) priceEl.classList.add('up'); else if(price<lastPrice) priceEl.classList.add('down');}
+  lastPrice = price;
+  priceEl.textContent = fmtUSD.format(price);
+
+  // store
+  const rec = {time:ts, price, size, side};
+  trades10.push(rec);
+  series10.push({t:ts, p:price});
+  prune();
+
+  // draw
+  drawSpark();
+  drawVol();
+}
+
+/* ---------- Prune to 10m ---------- */
+function prune(){
+  const now = Date.now();
+  trades10 = trades10.filter(t => t.time >= now - MS10);
+  series10 = series10.filter(s => s.t >= now - MS10);
+}
+
+/* ---------- Sparkline ---------- */
+function sizeCanvas(c,ctx){const dpr=Math.max(1,Math.min(devicePixelRatio||1,3));c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);}
+function drawSpark(){
+  sizeCanvas(spark,sctx);
+  const w=spark.clientWidth, h=spark.clientHeight;
+  sctx.clearRect(0,0,w,h);
+  sctx.fillStyle = '#0f0f0f'; sctx.fillRect(0,0,w,h);
+  if(series10.length<2) return;
+  const min = Math.min(...series10.map(s=>s.p)), max = Math.max(...series10.map(s=>s.p)), range=(max-min)||1;
+  const avg  = series10.reduce((a,s)=>a+s.p,0)/series10.length;
+  const up = getCSS('--up'), dn = getCSS('--down');
+
+  // grid
+  sctx.strokeStyle='rgba(255,255,255,.06)';
+  for(let i=1;i<=3;i++){const y=(h/4)*i; sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(w,y); sctx.stroke();}
+
+  // avg dashed
+  const yAvg = h-((avg-min)/range)*h;
+  sctx.save(); sctx.setLineDash([6,6]); sctx.strokeStyle='rgba(200,214,207,.6)';
+  sctx.beginPath(); sctx.moveTo(0,yAvg); sctx.lineTo(w,yAvg); sctx.stroke(); sctx.restore();
+
+  // line
+  sctx.lineWidth=2;
+  for(let i=1;i<series10.length;i++){
+    const p0=series10[i-1].p, p1=series10[i].p;
+    const x0=((i-1)/(series10.length-1))*w, x1=(i/(series10.length-1))*w;
+    const y0=h-((p0-min)/range)*h, y1=h-((p1-min)/range)*h;
+    sctx.strokeStyle = (p1>=avg)?up:dn;
+    sctx.beginPath(); sctx.moveTo(x0,y0); sctx.lineTo(x1,y1); sctx.stroke();
+  }
+}
+
+/* ---------- Volume 10m (stacked), with total + conditional delta ---------- */
+function getCSS(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+function minuteAlignedStart(){const now=Date.now(); const ms = now - (now % 60000); return ms - 9*60000;}
 function bins10(){
-  const start=alignedStart();
-  const bins=Array.from({length:10},(_,i)=>({buy:0,sell:0,ts:start+i*60000}));
-  for(const t of win10){
-    if(t.time<start-1||t.time>=start+10*60000) continue;
-    const idx=Math.min(9,Math.max(0,Math.floor((t.time-start)/60000)));
-    if(t.side==='buy') bins[idx].buy+=t.size; else bins[idx].sell+=t.size;
+  const start = minuteAlignedStart();
+  const bins = Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
+  for(const t of trades10){
+    if(t.time < start || t.time >= start+10*60000) continue;
+    const idx = Math.min(9, Math.max(0, Math.floor((t.time-start)/60000)));
+    if(t.side==='buy') bins[idx].buy += t.size; else bins[idx].sell += t.size;
   }
   return bins;
 }
-function fmtDiff(v){
-  const a=Math.abs(v);
-  if(a>=10) return (v>0?'+':'-')+a.toFixed(1);
-  if(a>=1)  return (v>0?'+':'-')+a.toFixed(2);
-  return (v>0?'+':'-')+a.toFixed(3);
+
+function pill(ctx,x,y,w,h,rad=6,fill='rgba(0,0,0,.66)'){
+  ctx.save(); ctx.beginPath();
+  const r = Math.min(rad, h/2);
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill(); ctx.restore();
 }
+
 function drawVol(){
-  const w=vol.clientWidth,h=vol.clientHeight; vctx.clearRect(0,0,w,h);
-  const bins=bins10(); const sums=bins.map(b=>b.buy+b.sell);
-  const max=Math.max(1,...sums);
-  const padX=24,padTop=8,padBot=24,chartH=h-padTop-padBot, step=(w-padX*2)/bins.length, barW=step*0.72;
-  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
+  sizeCanvas(volCanvas,vctx);
+  const w=volCanvas.clientWidth, h=volCanvas.clientHeight;
+  vctx.clearRect(0,0,w,h);
+  const up = getCSS('--up'), dn = getCSS('--down');
+  const bins = bins10();
+  const totals = bins.map(b=>b.buy+b.sell);
+  const max = Math.max(1, ...totals);
+
+  const padX=34, padTop=14, padBot=26;
+  const chartH=h-padTop-padBot, step=(w-padX*2)/bins.length, barW=Math.min(34, step*0.74);
 
   // grid
-  vctx.strokeStyle='rgba(255,255,255,.06)'; vctx.lineWidth=1;
-  for(let i=1;i<=3;i++){const y=padTop+chartH*(i/4*(4/3)); vctx.beginPath(); vctx.moveTo(padX-6,y); vctx.lineTo(w-padX+6,y); vctx.stroke();}
+  vctx.strokeStyle='rgba(255,255,255,.06)';
+  for(let i=1;i<=3;i++){const y=padTop + (chartH/4)*i; vctx.beginPath(); vctx.moveTo(padX-6,y); vctx.lineTo(w-padX+6,y); vctx.stroke();}
 
+  vctx.textAlign='center'; vctx.textBaseline='middle';
+  vctx.font='12px system-ui,-apple-system, Segoe UI, Roboto, Arial';
+
+  const MIN_BTC_FOR_DELTA = 0.25;   // show Δ only if >= this total BTC
+  const MIN_BAR_PX        = 24;     // and bar is at least this tall in px
+
+  // right-to-left draw (newest at right)
   for(let i=bins.length-1;i>=0;i--){
-    const b=bins[i], xC=w-padX-((bins.length-1-i)*step)-step/2, tot=b.buy+b.sell;
-    const hT=Math.max(chartH*0.06,(tot/max)*chartH);
-    const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy, yB=padTop+chartH;
+    const b = bins[i];
+    const xC = w - padX - ((bins.length-1-i)*step) - step/2;
+    const tot = b.buy + b.sell;
 
-    // stacked rectangles
-    vctx.fillStyle=dn; vctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
-    vctx.fillStyle=up; vctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
+    // bar heights
+    const hT = Math.max(chartH*0.06, (tot/max)*chartH);
+    const yB = padTop + chartH;
+    const hBuy = tot ? (b.buy/tot)*hT : 0;
+    const hSell = hT - hBuy;
 
-    // minute ticks
+    // sell bottom
+    vctx.fillStyle = dn;
+    vctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
+
+    // buy top
+    vctx.fillStyle = up;
+    vctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+
+    // ---- total pill (always) ----
+    const totalText = btc2(tot);
+    const tpY = (yB - hT) - 12;
+    const tpW = vctx.measureText(totalText).width + 12;
+    pill(vctx, xC - tpW/2, tpY - 10, tpW, 20);
+    vctx.fillStyle='rgba(255,255,255,.95)';
+    vctx.fillText(totalText, xC, tpY);
+
+    // ---- conditional Δ label ----
+    const diff = b.buy - b.sell;
+    const canShowDelta = tot >= MIN_BTC_FOR_DELTA && hT >= MIN_BAR_PX;
+    if (canShowDelta) {
+      const prec = Math.abs(diff) < 1 ? 3 : 2;
+      const deltaText = `${diff>=0?'+':''}${diff.toFixed(prec)}`;
+      const deltaColor = diff>=0 ? up : dn;
+
+      // on junction between stacks
+      const midY = yB - hSell;
+      const onBarY = Math.max(padTop + 16, Math.min(yB - 16, midY));
+      const dlW = vctx.measureText(deltaText).width + 10;
+      pill(vctx, xC - dlW/2, onBarY - 9, dlW, 18, 5, 'rgba(0,0,0,.55)');
+      vctx.fillStyle = deltaColor;
+      vctx.fillText(deltaText, xC, onBarY);
+    }
+
+    // minute labels every 2 bars
     if((i%2)===1){
-      vctx.fillStyle='rgba(255,255,255,.75)';
-      vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-      vctx.textAlign='center'; vctx.textBaseline='top';
-      vctx.fillText(':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'}),xC,yB+4);
+      const m = new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'});
+      vctx.fillStyle='rgba(255,255,255,.78)';
+      vctx.fillText(':'+m, xC, yB + 12);
     }
+  }
 
-    // signed diff label in bar
-    const diff=b.buy-b.sell;
-    if(barW>=20 && hT>=14 && Math.abs(diff)>0){
-      const label = fmtDiff(diff);
-      const col = diff>=0 ? up : dn;
-      vctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-      vctx.textAlign='center'; vctx.textBaseline='middle';
-      vctx.lineWidth=3; vctx.strokeStyle='rgba(0,0,0,.60)';
-      const yLabel = yB - hT/2;
-      vctx.strokeText(label, xC, yLabel);
-      vctx.fillStyle=col;
-      vctx.fillText(label, xC, yLabel);
-    }
+  // max badge
+  vctx.textAlign='right'; vctx.textBaseline='middle';
+  vctx.fillStyle='rgba(255,255,255,.86)';
+  vctx.font='12px system-ui,-apple-system, Segoe UI, Roboto, Arial';
+  vctx.fillText(`max ${btc2(Math.max(...totals))}`, w-6, padTop+8);
+
+  // stats (window grows 0.5m -> 10m)
+  renderStats();
+}
+
+/* ---------- Stats (dynamic window to 10m) ---------- */
+function dynamicMinutes(){
+  if(!startAnchor) return 0.5;
+  const elapsedMs = Date.now() - startAnchor;
+  // Start with 30s (0.5m), then grow to 10m
+  return Math.min(10, Math.max(0.5, elapsedMs/60000));
+}
+
+function renderStats(){
+  const mins = dynamicMinutes();
+  if(!trades10.length){ tpmEl.textContent='—'; buyEl.textContent='—'; vwapEl.textContent='—'; hlEl.innerHTML='<span>—</span><span>—</span>'; rangeEl.textContent='—'; avgMedEl.textContent='—'; return; }
+
+  let usdBuy=0, usdTot=0, btcTot=0, hi=-Infinity, lo=Infinity;
+  const usdEach=[];
+  for(const t of trades10){
+    const u = t.price * t.size;
+    usdTot += u; btcTot += t.size;
+    if(t.side==='buy') usdBuy += u;
+    if(t.price>hi) hi=t.price;
+    if(t.price<lo) lo=t.price;
+    usdEach.push(u);
+  }
+  const tpm = trades10.length / mins;
+  const buyPct = usdTot ? (usdBuy / usdTot * 100) : 0;
+  const vwap = btcTot ? (usdTot / btcTot) : NaN;
+  const rangeUSD = (isFinite(hi)&&isFinite(lo)) ? (hi - lo) : NaN;
+  const med = median(usdEach);
+  const avg = usdTot / (usdEach.length||1);
+
+  tpmEl.textContent = tpm.toFixed(1);
+  buyEl.textContent = pct1.format(buyPct) + '%';
+  buyEl.classList.toggle('good', buyPct>=50);
+  buyEl.classList.toggle('bad',  buyPct<50);
+
+  vwapEl.textContent = isFinite(vwap)? fmtUSD.format(vwap) : '—';
+  hlEl.innerHTML = `<span>${fmtUSD0.format(hi)}</span><span>${fmtUSD0.format(lo)}</span>`;
+  rangeEl.textContent = isFinite(rangeUSD) ? `${fmtUSD0.format(rangeUSD)} (${pct1.format((hi/lo-1)*100)}%)` : '—';
+  avgMedEl.textContent = `${fmtUSD0.format(avg)} / ${fmtUSD0.format(med)}`;
+
+  // 10m Δ chip + 24h stats for HL/Vol chips
+  priceChange10m();
+}
+
+function median(a){ if(!a.length) return NaN; const s=[...a].sort((x,y)=>x-y); const n=s.length; return (n&1)?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2; }
+
+function priceChange10m(){
+  if(series10.length<2){ chip10.textContent='10m Δ —'; chip10.className='chip muted'; return; }
+  const first = series10[0].p, last = series10.at(-1).p, diff = last-first, pct = first? diff/first*100 : 0;
+  chip10.textContent = `10m Δ ${fmtUSD.format(diff)} (${pct2.format(pct)}%)`;
+  chip10.className = 'chip ' + (diff>0?'up':diff<0?'down':'muted');
+}
+
+/* ---------- 24h HL/Vol (for little chips) ---------- */
+async function fetch24h(){
+  try{
+    const r = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/stats',{headers:{Accept:'application/json'}});
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    const hi = +j.high, lo = +j.low, vol = +j.volume;
+    chipHL.textContent = isFinite(hi)&&isFinite(lo) ? `H/L ${fmtUSD0.format(hi)} / ${fmtUSD0.format(lo)}` : 'H/L —';
+    chipVol.textContent = Number.isFinite(vol) ? `24h Vol ${vol.toLocaleString()}` : '24h Vol —';
+  }catch{
+    chipHL.textContent = 'H/L —';
+    chipVol.textContent = '24h Vol —';
   }
 }
 
-/* ===== ticker (capped to viewport) ===== */
-let MAX_ROWS=28, ROW_H=22;
-function measureRow(){const tmp=document.createElement('div');tmp.className='row';tmp.style.visibility='hidden';tmp.innerHTML=`<div>$0</div><div>$0</div>`;document.body.appendChild(tmp);ROW_H=Math.max(18,tmp.getBoundingClientRect().height||ROW_H);tmp.remove();}
-function recalcRows(){const H=tickerBody.parentElement.clientHeight; MAX_ROWS=Math.max(10,Math.floor((H-16)/ROW_H));}
-function capTrades(){const HARD=MAX_ROWS+4; while(trades.length>HARD) trades.shift();}
-function renderTicker(){
-  if(!tickerOn) return;
-  const frag=document.createDocumentFragment();
-  const start=Math.max(0,trades.length-MAX_ROWS);
-  for(let i=trades.length-1;i>=start;i--){
-    const t=trades[i],row=document.createElement('div'); row.className=`row ${t.side}`;
-    const amt=showUSD?fmtUSD.format(t.price*t.size):`${fmtBTC2.format(t.size)} BTC`;
-    const prev=trades[i-1]?.price, arrow=prev==null?'•':(t.price>prev?'▲':t.price<prev?'▼':'•');
-    row.innerHTML=`<div>${fmtUSD.format(t.price)} <span style="opacity:.65">${arrow}</span></div>
-                   <div style="text-align:right;white-space:nowrap">${amt}</div>`;
-    frag.appendChild(row);
-  }
-  tickerBody.innerHTML=''; tickerBody.appendChild(frag);
-}
+/* ---------- Kickoff ---------- */
+function onResize(){ drawSpark(); drawVol(); }
+new ResizeObserver(onResize).observe(document.body);
 
-/* ===== main loop ===== */
-function frame(){  // glide window and keep charts fresh
-  const D=90_000, elapsed=Math.max(0,Date.now()-windowStartTs);
-  if(elapsed<D){
-    const k=elapsed/D, ease=k*k;
-    windowMs = TARGET_WINDOW_MS + (60*60*1000 - TARGET_WINDOW_MS)*(1-ease);
-  } else { windowMs=TARGET_WINDOW_MS; }
-  drawChart(); drawVol();
-  requestAnimationFrame(frame);
-}
-async function init(){
-  measureRow(); resizeAll();
-  await seedChartWith1h();
-  startWS();
-  setInterval(restFallback,1200);
-  requestAnimationFrame(frame);
-}
-init();
+startWS();
+fetch24h();
+setInterval(fetch24h, 60000);
+
+// draw loop (keeps pills/labels crisp)
+(function loop(){ drawSpark(); drawVol(); requestAnimationFrame(loop); })();
 </script>
 </body>
 </html>
