@@ -106,7 +106,10 @@ const pct1=new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 const fmt2=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 
 const MS10=600000, MS1H=3600000;
+const FAST_BLEND_MS = 30000; // <<< 30s fast melt
+
 let series10=[];         // {t,p}
+let firstLiveT=null;
 let preload1h=[];        // {t,p}
 let trades=[], win10=[]; // trades, 10m window
 let lastPrice=null;
@@ -180,6 +183,9 @@ function onTrade(t){
   livePrice.style.color = (lastPrice==null)?'#e9fef7' : (p>lastPrice?'var(--up)':p<lastPrice?'var(--down)':'#e9fef7');
   lastPrice=p;
 
+  // first live time (for fast blend timing)
+  if(firstLiveT==null) firstLiveT = tm;
+
   // 10m line series
   series10.push({t:tm, p});
   while(series10.length && series10[0].t < Date.now()-MS10) series10.shift();
@@ -200,8 +206,11 @@ function drawDyn(){
   dctx.clearRect(0,0,w,h);
   dctx.fillStyle='#101010'; dctx.fillRect(0,0,w,h);
 
-  // how much of the 10m window is filled (0..1)
-  const fill=Math.min(1, Math.max(0, (Date.now() - (series10[0]?.t ?? Date.now()))/MS10));
+  // FAST melt: blend goes to 100% over FAST_BLEND_MS from first live tick
+  let fill = 0;
+  if(firstLiveT!=null){
+    fill = Math.min(1, (Date.now() - firstLiveT) / FAST_BLEND_MS);
+  }
   liveBlend.textContent=`live ${Math.round(fill*100)}%`;
 
   // merge 1h preload + live 10m
@@ -232,14 +241,18 @@ function drawDyn(){
   const X=t=>pad+xPad+((t-t0)/MS1H)*(w-2*pad-xPad);
   const Y=p=>pad+(h-2*pad)-((p-min)/range)*(h-2*pad);
 
-  // line (fade 1h -> live)
+  // line: non-live quickly fades out, live gains opacity quickly
   dctx.lineWidth=2;
   for(let i=1;i<merged.length;i++){
     const a=merged[i-1], b=merged[i];
     const x0=X(a.t), x1=X(b.t); if(x1<=x0) continue;
     const y0=Y(a.p), y1=Y(b.p);
-    const alphaB = b.live ? Math.max(.35, .35 + .65*fill) : .35;
-    const col = b.live ? `rgba(45,212,191,${alphaB})` : `rgba(255,255,255,${alphaB})`;
+
+    const nonLiveAlpha = Math.max(0, 0.35*(1 - fill)**2);           // melts quickly
+    const liveAlpha    = Math.max(.35, .35 + .65*fill);              // ramps fast
+    const col = b.live ? `rgba(45,212,191,${liveAlpha})`
+                       : `rgba(255,255,255,${nonLiveAlpha})`;
+
     dctx.strokeStyle=col; dctx.beginPath(); dctx.moveTo(x0,y0); dctx.lineTo(x1,y1); dctx.stroke();
   }
 
