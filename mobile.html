@@ -7,7 +7,7 @@
 <style>
   :root{
     --bg:#0b0b0b; --panel:#111; --ink:#eafaf3; --muted:#c5d3cc;
-    --up:#2dd4bf; --down:#f59e0b; --line:#b7c4be; --glass:rgba(255,255,255,.06);
+    --up:#2dd4bf; --down:#f59e0b; --glass:rgba(255,255,255,.06);
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
@@ -48,17 +48,17 @@
   <div class="page">
 
     <!-- Live price only -->
-    <div class="card" id="header">
+    <div class="card">
       <div class="priceWrap">
         <div id="livePrice" class="livePrice">$—</div>
       </div>
     </div>
 
-    <!-- Dynamic price: preload 1h → fade to real 10m -->
+    <!-- Dynamic price: 1h window shrinks & slides to 10m -->
     <div class="card">
       <div class="sectionTitle">
         <span>Dynamic price (1h → live)</span>
-        <span id="fadePct" class="rightHint">live 0%</span>
+        <span id="winHint" class="rightHint">window 60m</span>
       </div>
       <div class="chartBox">
         <canvas id="dynCanvas" width="800" height="360"></canvas>
@@ -86,42 +86,37 @@
   <span id="conn" class="livePill">Connecting…</span>
 
 <script>
-/* ========== Helpers ========== */
+/* ---------- Helpers ---------- */
 const $=s=>document.querySelector(s);
-const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
-const fmtUSD0= new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
-const fmtBTC2= new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
+const fmtUSD  = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+const fmtUSD0 = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+const fmtBTC2 = new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 
-const livePriceEl=$('#livePrice'), connEl=$('#conn'), fadePctEl=$('#fadePct');
+const COLOR_UP   = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+const COLOR_DOWN = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
+
+const livePriceEl=$('#livePrice'), connEl=$('#conn'), winHintEl=$('#winHint');
 
 const dynC=$('#dynCanvas'), dctx=dynC.getContext('2d',{desynchronized:true});
 const volC=$('#volCanvas'), vctx=volC.getContext('2d',{desynchronized:true});
 const volBadges=$('#volBadges'), volMaxEl=$('#volMax');
 
-const COLOR_UP=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-const COLOR_DOWN=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
-
-/* ========== State ========== */
-let lastPrice=null, ws, lastWs=0;
-let seriesLive=[];     // {t,p}
-let series1h=[];       // {t,p}
-let firstLiveMS=null;
-let win10=[];         // {time,size,side,price}
-
-const MS10=600000;
-const FADE_MS=30000;     // 30s fade
-const DIFF_MIN_BTC=0.15; // diff badge threshold
-
-/* ========== Canvas sizing ========== */
-function fitCanvas(c,ctx){
-  const dpr=Math.max(1,Math.min(devicePixelRatio||1,2.5));
-  c.width=Math.max(1,c.clientWidth*dpr);
-  c.height=Math.max(1,c.clientHeight*dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-}
+function fitCanvas(c,ctx){const dpr=Math.max(1,Math.min(devicePixelRatio||1,2.5)); c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);}
 new ResizeObserver(()=>{fitCanvas(dynC,dctx);fitCanvas(volC,vctx);drawDyn();drawVol();}).observe(document.body);
 
-/* ========== Networking ========== */
+/* ---------- State ---------- */
+let ws, lastPrice=null, lastWs=0;
+let series1h=[];     // preload 1h candles {t,p}
+let seriesLive=[];   // live trades downsampled to line {t,p}
+let firstLiveMS=null;
+
+let win10=[];       // recent trades for volume {time,size,side,price}
+
+const MS10=600000, MS60=3600000;
+const TRANSITION_MS=30000; // 30s “melt to side”
+const DIFF_MIN_BTC=0.15;
+
+/* ---------- Networking ---------- */
 function setConn(txt,color){connEl.textContent=txt; if(color) connEl.style.color=color;}
 function startWS(){
   try{ws&&ws.close()}catch{}
@@ -133,16 +128,16 @@ function startWS(){
     try{
       const m=JSON.parse(e.data);
       if(m.type==='match'&&m.product_id==='BTC-USD'){
-        onTrade({t:+new Date(m.time),p:+m.price,sz:+m.size,side:String(m.side||'buy')});
+        ingestTrade(+new Date(m.time), +m.price, +m.size, String(m.side||'buy'));
       }
     }catch{}
   };
-  ws.onclose=()=>setTimeout(startWS,800);
+  ws.onclose=()=>setTimeout(startWS,900);
   ws.onerror =()=>setConn('Fallback','#fb7185');
 }
 async function preload1h(){
   try{
-    const end=Date.now(), start=end-3600*1000;
+    const end=Date.now(), start=end-MS60;
     const u=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${new Date(start).toISOString()}&end=${new Date(end).toISOString()}`;
     const r=await fetch(u,{headers:{Accept:'application/json'}});
     const js=await r.json();
@@ -151,105 +146,104 @@ async function preload1h(){
   }catch{}
 }
 
-/* ========== Ingest ========== */
-function onTrade({t,p,sz,side}){
+/* ---------- Ingest ---------- */
+function ingestTrade(t,p,sz,side){
   if(lastPrice!==null){livePriceEl.classList.remove('up','down'); if(p>lastPrice)livePriceEl.classList.add('up'); else if(p<lastPrice)livePriceEl.classList.add('down');}
   lastPrice=p; livePriceEl.textContent=fmtUSD.format(p); setConn('Live',COLOR_UP);
 
-  seriesLive.push({t,p}); const cut=Date.now()-MS10; while(seriesLive.length&&seriesLive[0].t<cut) seriesLive.shift();
+  // push to live series (light downsample to keep smooth)
+  seriesLive.push({t,p});
+  const cut=Date.now()-MS10; while(seriesLive.length && seriesLive[0].t<cut) seriesLive.shift();
   if(firstLiveMS==null) firstLiveMS=t;
 
-  win10.push({time:t,size:sz,side,price:p}); while(win10.length&&win10[0].time<cut) win10.shift();
+  // volume window
+  win10.push({time:t,size:sz,side,price:p}); while(win10.length && win10[0].time<cut) win10.shift();
 
   drawDyn(); drawVol();
 }
 
-/* ========== Price Chart ========== */
-function extents(arr){
-  let lo=Infinity, hi=-Infinity, n=0, sum=0;
-  for(const s of arr){ if(Number.isFinite(s.p)){ if(s.p<lo)lo=s.p; if(s.p>hi)hi=s.p; sum+=s.p; n++; } }
-  if(!n) return null; return {lo,hi,avg:sum/n};
-}
-function yFor(p,lo,hi,h,pt,pb){ const R=(hi-lo)||1; return pt+(h-pt-pb)*(1-(p-lo)/R); }
+/* ---------- Utilities ---------- */
 function resetStroke(ctx){ ctx.setLineDash([]); ctx.globalAlpha=1; ctx.lineWidth=2; }
+function windowSeries(start,end,arr){ return arr.filter(s=>s.t>=start && s.t<=end); }
+function extents(arr){ let lo=Infinity,hi=-Infinity,sum=0,n=0; for(const s of arr){if(Number.isFinite(s.p)){if(s.p<lo)lo=s.p;if(s.p>hi)hi=s.p;sum+=s.p;n++;}} return n?{lo,hi,avg:sum/n}:null; }
+function yFor(p,lo,hi,h,pt,pb){const R=(hi-lo)||1; return pt+(h-pt-pb)*(1-(p-lo)/R);}
 
-function drawSeries(ctx, pts, lo, hi, w,h, pl,pr,pt,pb, color, alpha){
+/* ---------- Dynamic price (side-melt) ---------- */
+function drawLine(ctx,pts,lo,hi,w,h,pl,pr,pt,pb,color,alpha){
   if(!pts || pts.length<2) return;
   resetStroke(ctx);
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle=color;
-  ctx.beginPath();
-  const x0=pl, x1=w-pr, t0=pts[0].t, t1=pts.at(-1).t, span=(t1-t0)||1;
+  ctx.globalAlpha=alpha; ctx.strokeStyle=color; ctx.beginPath();
+  const t0=pts[0].t, t1=pts.at(-1).t, span=(t1-t0)||1, x0=pl, x1=w-pr;
   for(let i=0;i<pts.length;i++){
     const s=pts[i];
-    const x=x0 + ((s.t-t0)/span)*(x1-x0);
+    const x=x0+((s.t-t0)/span)*(x1-x0);
     const y=yFor(s.p,lo,hi,h,pt,pb);
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
-  ctx.stroke();
-  resetStroke(ctx);
+  ctx.stroke(); resetStroke(ctx);
 }
+
 function drawDyn(){
   fitCanvas(dynC,dctx);
   const w=dynC.clientWidth, h=dynC.clientHeight;
   dctx.clearRect(0,0,w,h);
   dctx.fillStyle='#101010'; dctx.fillRect(0,0,w,h);
 
-  const padL=58, padR=16, padT=20, padB=44; // bigger bottom pad to avoid overlap
+  // layout
+  const padL=58, padR=16, padT=20, padB=44;
 
-  // Use union extents while fading so scale is stable
-  const union = (series1h.length?series1h:[]).concat(seriesLive);
-  const ex = extents(union.length?union:(series1h.length?series1h:seriesLive));
-  if(!ex) return;
+  // Compute shrinking time window (60m → 10m) sliding to now
+  const now=Date.now();
+  let f=0; if(firstLiveMS!=null) f=Math.max(0,Math.min(1,(now-firstLiveMS)/TRANSITION_MS));
+  const spanMs = MS60 - (MS60-MS10)*f;          // from 60m to 10m
+  const start  = now - spanMs;                  // window end stays at now
+  const end    = now;
 
-  // grid + labels
+  winHintEl.textContent = `window ${Math.round(spanMs/60000)}m`;
+
+  // Data inside the window (use both sources)
+  const base = windowSeries(start,end, series1h).concat(windowSeries(start,end, seriesLive));
+  if(base.length<2) return;
+
+  // extents based on the current window (so labels are “right”)
+  const ex = extents(base); if(!ex) return;
+
+  // grid
   resetStroke(dctx);
   dctx.strokeStyle='rgba(255,255,255,.06)'; dctx.lineWidth=1;
   for(let i=1;i<=3;i++){
     const gy=padT + (h-padT-padB)*(i/4*(4/3));
     dctx.beginPath(); dctx.moveTo(padL-6,gy); dctx.lineTo(w-padR+6,gy); dctx.stroke();
   }
+
+  // price labels (hi/avg/lo)
   dctx.fillStyle='rgba(255,255,255,.85)'; dctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; dctx.textBaseline='middle';
-  const yHi=yFor(ex.hi,ex.lo,ex.hi,h,padT,padB);
-  const yLo=yFor(ex.lo,ex.lo,ex.hi,h,padT,padB);
-  const yAvg=yFor(ex.avg,ex.lo,ex.hi,h,padT,padB);
+  const yHi=yFor(ex.hi,ex.lo,ex.hi,h,padT,padB), yLo=yFor(ex.lo,ex.lo,ex.hi,h,padT,padB), yAvg=yFor(ex.avg,ex.lo,ex.hi,h,padT,padB);
   dctx.fillText(fmtUSD0.format(ex.hi), 6, Math.max(padT+8,yHi));
   dctx.fillText(fmtUSD0.format(ex.avg), 6, Math.max(padT+14,Math.min(h-padB-14,yAvg)));
   dctx.fillText(fmtUSD0.format(ex.lo), 6, Math.min(h-padB-8,yLo));
-
-  // dashed avg
   dctx.save(); dctx.setLineDash([6,6]); dctx.strokeStyle='rgba(200,214,207,.6)';
   dctx.beginPath(); dctx.moveTo(padL,yAvg); dctx.lineTo(w-padR,yAvg); dctx.stroke(); dctx.restore();
 
-  // fade %
-  let fadeF=0; if(firstLiveMS!=null){ fadeF=Math.max(0,Math.min(1,(Date.now()-firstLiveMS)/FADE_MS)); }
-  fadePctEl.textContent=`live ${Math.round(fadeF*100)}%`;
+  // Draw 1h portion remaining in window (if any) in light grey
+  const win1h = windowSeries(start,end, series1h);
+  if(win1h.length>=2) drawLine(dctx, win1h, ex.lo,ex.hi, w,h, padL,padR,padT,padB, 'rgba(255,255,255,.45)', 1);
 
-  // draw 1h (fade out) + live (fade in)
-  if(series1h.length>=2) drawSeries(dctx, series1h, ex.lo,ex.hi, w,h, padL,padR,padT,padB, 'rgba(255,255,255,.55)', 1-fadeF);
-  if(seriesLive.length>=2) drawSeries(dctx, seriesLive, ex.lo,ex.hi, w,h, padL,padR,padT,padB, COLOR_UP, Math.max(.18, fadeF));
+  // Draw live portion (full strength)
+  const live = windowSeries(start,end, seriesLive);
+  if(live.length>=2) drawLine(dctx, live, ex.lo,ex.hi, w,h, padL,padR,padT,padB, COLOR_UP, 1);
 
-  // x labels (no vertical ticks, text only)
+  // X labels — minutes across current window, step every 2 mins
   dctx.fillStyle='rgba(255,255,255,.78)'; dctx.textAlign='center'; dctx.textBaseline='top';
-  const baseY=h-padB+8, x0=padL, x1=w-padR;
-
-  if(fadeF<0.5 && series1h.length>=2){
-    const t0=series1h[0].t, t1=series1h.at(-1).t, span=t1-t0, step=5*60000;
-    for(let t=t0+step; t<=t1; t+=step){
-      const x = x0 + ((t-t0)/span)*(x1-x0);
-      dctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, baseY);
-    }
-  }else if(seriesLive.length>=2){
-    const now=Date.now(), start=now-MS10;
-    for(let i=0;i<=10;i+=2){
-      const t=start+i*60000;
-      const x=x0 + ((t-start)/MS10)*(x1-x0);
-      dctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, baseY);
-    }
+  const step=120000, x0=padL, x1=w-padR, span= end-start;
+  const tFirst = start + (step - (start%step)); // align ticks
+  for(let t=tFirst; t<=end; t+=step){
+    const x=x0 + ((t-start)/span)*(x1-x0);
+    dctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-padB+8);
   }
 }
 
-/* ========== Volume Chart ========== */
+/* ---------- Volume (unchanged logic, fixed headroom) ---------- */
 function fixedBins10(){
   const end=Date.now(), start=end-MS10;
   const bins=Array.from({length:10},(_,i)=>({ts:start+i*60000, buy:0, sell:0}));
@@ -268,7 +262,7 @@ function drawVol(){
 
   const bins=fixedBins10();
   const totals=bins.map(b=>b.buy+b.sell);
-  let max=Math.max(0.01,...totals)*1.18; // headroom
+  let max=Math.max(0.01,...totals)*1.18; // headroom so labels never clip
   volMaxEl.textContent='max ₿'+fmtBTC2.format(Math.max(...totals));
 
   const padL=36, padR=16, padT=6, padB=28, chartH=h-padT-padB, step=(w-padL-padR)/bins.length, barW=step*0.72;
@@ -287,12 +281,11 @@ function drawVol(){
     const b=bins[i], total=b.buy+b.sell, xC=padL+i*step+step/2;
     const hT=Math.max(3,(total/max)*chartH), hBuy=total?(b.buy/total)*hT:0, yBase=padT+chartH;
 
-    // sells
+    // stacked bars
     vctx.fillStyle=COLOR_DOWN; vctx.fillRect(xC-barW/2, yBase-(hT-hBuy), barW, (hT-hBuy));
-    // buys
     vctx.fillStyle=COLOR_UP;   vctx.fillRect(xC-barW/2, yBase-hT,       barW, hBuy);
 
-    // time labels every 2 mins
+    // x labels every 2 minutes
     if(i%2===0){
       vctx.fillStyle='rgba(255,255,255,.78)'; vctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
       vctx.textAlign='center'; vctx.textBaseline='top';
@@ -317,14 +310,11 @@ function drawVol(){
   }
 }
 
-/* ========== Loop ========== */
+/* ---------- Loop / Boot ---------- */
 function tick(){ drawDyn(); drawVol(); requestAnimationFrame(tick); }
 
-/* ========== Boot ========== */
 fitCanvas(dynC,dctx); fitCanvas(volC,vctx);
-preload1h().then(drawDyn);
-startWS();
-tick();
+(async()=>{ await preload1h(); startWS(); tick(); })();
 </script>
 </body>
 </html>
