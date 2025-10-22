@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>h8s — mobile classic (restored line)</title>
+<title>h8s — mobile (classic)</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -18,49 +18,85 @@
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
   .wrap{padding:14px 14px 90px; max-width:900px; margin:0 auto;}
-  .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow)}
+  .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow); position:relative;}
   .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
         border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
         font-size:12px; white-space:nowrap; color:#fff;}
-  .bigRow{display:flex; align-items:center; justify-content:center; gap:10px; padding:10px 10px 0; position:relative;}
-  .gear{position:absolute; left:10px; top:6px; width:34px; height:34px; display:grid; place-items:center; border-radius:10px;
-        border:1px solid var(--pill-bd); background:var(--pill-bg)}
-  .gear svg{width:18px; height:18px; opacity:.95}
-  .bigPrice{flex:1; text-align:center; font-weight:900; font-size: clamp(26px,8vw,44px);
-            letter-spacing:.5px; margin:0; line-height:1}
+  .headerRow{display:grid; grid-template-columns:auto 1fr; align-items:center; gap:10px;
+             padding:12px 12px 6px;}
+  .gearBtn{width:34px;height:34px;border-radius:10px;border:1px solid var(--pill-bd);
+           display:flex;align-items:center;justify-content:center;background:var(--pill-bg);cursor:pointer}
+  .gearSvg{width:18px;height:18px;opacity:.95}
+  .bigPrice{justify-self:center; font-weight:900; font-size: clamp(24px,7.6vw,44px);
+            letter-spacing:.5px; margin:0}
   .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
-  .chartBox{padding:10px 10px 6px}
+  .chartBox{padding:0 10px 6px}
   canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
-  .volBox canvas{height:210px}
-  .legend{display:flex; align-items:center; gap:16px; padding:10px 10px 4px}
+  .volBox{height:210px}
+  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px}
   .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
   .conn{position:fixed; left:14px; bottom:14px; z-index:30}
+
+  /* settings sheet */
+  .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
+         box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
+         border-top:1px solid rgba(255,255,255,.12); z-index:60}
+  .sheet.open{transform:translateY(0)}
+  .sheetInner{padding:14px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+  .row label{font-size:14px;opacity:.9}
+  .row input[type="number"]{width:110px;background:#181818;border:1px solid rgba(255,255,255,.15);
+    border-radius:8px;padding:6px 8px;color:#fff;}
+  .row select{background:#181818;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px;}
+  .sheetClose{display:block;margin:10px auto 0}
 </style>
 </head>
 <body>
   <main class="wrap">
-    <section class="card chartBox">
-      <div class="bigRow">
-        <button id="gearBtn" class="gear" aria-label="settings">
-          <svg viewBox="0 0 24 24" fill="none"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.3 3.5a6.7 6.7 0 0 0-.1-.9l2.2-1.7-2-3.4-2.6 1a7.2 7.2 0 0 0-1.6-.9l-.4-2.7H8.2l-.4 2.7a7.2 7.2 0 0 0-1.6.9l-2.6-1-2 3.4 2.2 1.7a6.7 6.7 0 0 0 0 1.8L1.6 14l2 3.4 2.6-1c.5.4 1 .7 1.6.9l.4 2.7h5.6l.4-2.7c.6-.2 1.1-.5 1.6-.9l2.6 1 2-3.4-2.2-1.7c.1-.3.1-.6.1-.9Z" fill="#e9fef7"/></svg>
+    <section class="card">
+      <div class="headerRow">
+        <button id="gearBtn" class="gearBtn" title="Settings">
+          <svg class="gearSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z"/>
+          </svg>
         </button>
         <h1 id="bigPrice" class="bigPrice">$—</h1>
       </div>
 
-      <canvas id="priceCanvas"></canvas>
-
-      <div class="legend">
-        <span class="dot up"></span><span class="muted">Buys</span>
-        <span class="dot down"></span><span class="muted">Sells</span>
-        <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
+      <div class="chartBox">
+        <canvas id="priceCanvas"></canvas>
+        <div class="legend" style="margin-top:4px">
+          <span class="dot up"></span><span class="muted">Buys</span>
+          <span class="dot down"></span><span class="muted">Sells</span>
+          <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
+        </div>
+        <canvas id="volCanvas" class="volBox"></canvas>
       </div>
-
-      <div class="volBox"><canvas id="volCanvas"></canvas></div>
     </section>
 
     <div class="pill conn" id="connPill">Live</div>
   </main>
+
+  <!-- Settings sheet -->
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheetInner">
+      <div class="row">
+        <label for="themeSel">Theme</label>
+        <select id="themeSel">
+          <option value="teal">Teal/Amber (default)</option>
+          <option value="emerald">Emerald/Orange</option>
+          <option value="violet">Violet/Gold</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="scaleInp">Value scale (BTC)</label>
+        <input id="scaleInp" type="number" step="0.0001" min="0" value="1.0" />
+      </div>
+      <button id="closeSheet" class="pill sheetClose">Done</button>
+    </div>
+  </div>
 
 <script>
 /* ===== elements ===== */
@@ -69,12 +105,25 @@ const priceCanvas = document.getElementById('priceCanvas');
 const volCanvas = document.getElementById('volCanvas');
 const maxVolPill = document.getElementById('maxVolPill');
 const connPill = document.getElementById('connPill');
+const sheet = document.getElementById('sheet');
+const gearBtn = document.getElementById('gearBtn');
+const themeSel = document.getElementById('themeSel');
+const scaleInp = document.getElementById('scaleInp');
+const closeSheet = document.getElementById('closeSheet');
 
 /* ===== state ===== */
 let lastPrice = null;
+let rawLastPrice = null;   // unscaled price for chart pill
 let series = [];           // {t, p}
-let volBins = [];          // {ts,buy,sell}
+let volBins = [];          // {ts,buy,sell} x10 fixed
 const MS10 = 600000;
+let VALUE_SCALE = +(localStorage.getItem('h8s_scale')||'1') || 1;
+
+/* theme handling */
+const SAVED_THEME = localStorage.getItem('h8s_theme') || 'teal';
+applyTheme(SAVED_THEME);
+themeSel.value = SAVED_THEME;
+scaleInp.value = VALUE_SCALE.toString();
 
 /* ===== helpers ===== */
 function sizeCanvas(c){
@@ -98,12 +147,45 @@ function initBins(){
 }
 initBins();
 
+/* ===== settings ===== */
+gearBtn.addEventListener('click', ()=>sheet.classList.add('open'));
+closeSheet.addEventListener('click', ()=>sheet.classList.remove('open'));
+themeSel.addEventListener('change', e=>{
+  applyTheme(e.target.value);
+  localStorage.setItem('h8s_theme', e.target.value);
+});
+scaleInp.addEventListener('change', e=>{
+  const v = Math.max(0, +e.target.value || 0);
+  VALUE_SCALE = v;
+  localStorage.setItem('h8s_scale', String(v));
+  if(rawLastPrice!=null){
+    priceEl.textContent = fmtUSD(rawLastPrice * VALUE_SCALE, 2);
+  }
+});
+function applyTheme(t){
+  const r = document.documentElement.style;
+  if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
+  else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
+  else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
+}
+
 /* ===== trade intake ===== */
 function onTrade({price,size,side,time}){
   const ts = new Date(time).getTime();
-  series.push({t:ts,p:price});
+  rawLastPrice = price;
+  const scaled = price * VALUE_SCALE;
 
-  // fix 10 aligned bins
+  // Ensure time-ordered insertion (just in case of delayed frames)
+  const n = series.length;
+  if(n && ts < series[n-1].t){
+    // insert in order (rare)
+    let k = n-1; while(k>=0 && ts < series[k].t) k--;
+    series.splice(k+1,0,{t:ts,p:price});
+  } else {
+    series.push({t:ts,p:price});
+  }
+
+  // fixed 10 bins aligned to minutes (scroll left->right)
   const startAligned = ts - (ts % 60000) - 9*60000;
   while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
   while(volBins.length<10){
@@ -113,20 +195,22 @@ function onTrade({price,size,side,time}){
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
   if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
 
+  // color only on number
   if(lastPrice!=null){
     priceEl.classList.remove('up','down');
-    if(price>lastPrice) priceEl.classList.add('up');
-    else if(price<lastPrice) priceEl.classList.add('down');
+    if(scaled>lastPrice) priceEl.classList.add('up');
+    else if(scaled<lastPrice) priceEl.classList.add('down');
   }
-  lastPrice = price;
-  priceEl.textContent = fmtUSD(price,2);
+  lastPrice = scaled;
+  priceEl.textContent = fmtUSD(scaled,2);
 }
 function prune(){
   const now = Date.now();
+  // keep last 10m worth of samples; during boot we expand the span up to 10m
   series = series.filter(d=> d.t >= now-MS10);
 }
 
-/* ===== price chart (Catmull–Rom Bézier smooth, fills left→right) ===== */
+/* ===== price chart (stretch from left until 10m, then roll) ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -135,10 +219,21 @@ function drawPrice(){
   ctx.fillRect(0,0,w,h);
   if(series.length<2) return;
 
-  const min = Math.min(...series.map(d=>d.p));
-  const max = Math.max(...series.map(d=>d.p));
-  const range = (max-min)||1;
-  const padX=12, padY=18;
+  const now = Date.now();
+  const firstTs = Math.min(series[0].t, ...series.map(d=>d.t));
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));  // grows to 10m
+  const startT = now - windowSpan;
+
+  // visible points only
+  const vis = series.filter(d=> d.t >= startT && d.t <= now);
+  if(vis.length<2) return;
+
+  // stats
+  let min=Infinity, max=-Infinity, sum=0;
+  for(const d of vis){ if(d.p<min)min=d.p; if(d.p>max)max=d.p; sum+=d.p; }
+  const range=(max-min)||1; const avg=sum/vis.length;
+
+  const padX=14, padY=20;
 
   // grid
   ctx.strokeStyle='var(--grid)';
@@ -148,142 +243,158 @@ function drawPrice(){
   }
 
   // average line
-  const avg = series.reduce((a,d)=>a+d.p,0)/series.length;
   const yAvg = padY + (h-2*padY)*(1-(avg-min)/range);
-  ctx.setLineDash([6,6]);
-  ctx.strokeStyle='rgba(255,255,255,.35)';
+  ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // points for last 10min left→right
-  const span=MS10, now=Date.now();
-  const pts = series.map(d=>{
-    const x=padX + ((d.t-(now-span))/span)*(w-2*padX);
-    const y=padY + (h-2*padY)*(1-(d.p-min)/range);
-    return {x,y};
-  }).filter(p=>p.x>=padX-4);
-
+  // map to pixels (strictly increasing X)
+  const usableW = (w-2*padX);
+  const pts=[]; let lastX=-1e9;
+  const EPS=0.5; // FIX: sub-pixel spacing to avoid jitter
+  for(const d of vis){
+    const x = padX + ((d.t - startT)/windowSpan) * usableW;
+    const y = padY + (h-2*padY)*(1-(d.p-min)/range);
+    if(x <= lastX + EPS) continue;     // FIX: ensure monotonic advance
+    lastX = x; pts.push({x,y,p:d.p});
+  }
   if(pts.length<2) return;
 
-  // smooth with Catmull–Rom→Bézier
-  const cr2bz=(p0,p1,p2,p3,t=0.5)=>{
+  // FIX: ignore wild jumps (rare out-of-order spikes)
+  const MAX_JUMP = (max - min) * 0.5; // 50% of visible range
+  const clean=[pts[0]];
+  for(let i=1;i<pts.length;i++){
+    if(Math.abs(pts[i].p - pts[i-1].p) > MAX_JUMP) continue;
+    clean.push(pts[i]);
+  }
+  if(clean.length<2) return;
+
+  // Catmull–Rom → Bézier smoothing
+  const cr2bz = (p0,p1,p2,p3,t=0.5)=>{
     const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
-    return[{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
   };
-  ctx.strokeStyle=getComputedStyle(document.body).getPropertyValue('--up').trim();
-  ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(padX,pts[0].y);
-  for(let i=0;i<pts.length-1;i++){
-    const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2;
-    const[c1,c2]=cr2bz(p0,p1,p2,p3,0.5);
+  const upCol=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.strokeStyle=upCol; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(clean[0].x, clean[0].y);
+  for(let i=0;i<clean.length-1;i++){
+    const p0=clean[i-1]||clean[i], p1=clean[i], p2=clean[i+1], p3=clean[i+2]||p2;
+    const [c1,c2]=cr2bz(p0,p1,p2,p3,0.5);
     ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
   }
   ctx.stroke();
 
-  // labels
+  // labels (max/avg/min)
   ctx.fillStyle='rgba(255,255,255,.9)';
-  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  ctx.textBaseline='middle';
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
   ctx.fillText(fmtUSD(max,0), padX, padY+4);
   ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
   ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
 
-  // last price pill
-  const last=pts[pts.length-1];
-  const label=fmtUSD(lastPrice,0);
-  const tw=ctx.measureText(label).width+18, th=22;
-  const bx=Math.min(w-tw-8,Math.max(8,last.x - tw/2)), by=Math.max(8,last.y - th - 8);
+  // last price pill (raw)
+  const last = clean[clean.length-1];
+  const label = fmtUSD(rawLastPrice||0,0);
+  const tw = ctx.measureText(label).width+18, th=22;
+  const bx = Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by = Math.max(8, last.y - th - 8);
   ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
   roundRect(ctx,bx,by,tw,th,10,true,true);
-  ctx.fillStyle='#fff'; ctx.fillText(label,bx+9,by+th/2);
+  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked, capped) ===== */
+/* ===== volume (stacked) with +/- diff and capped height so pill stays visible ===== */
 const MAX_BAR_RATIO = 0.78;
 
 function drawVol(){
-  const ctx=sizeCanvas(volCanvas);
-  const w=volCanvas.clientWidth,h=volCanvas.clientHeight;
+  const ctx = sizeCanvas(volCanvas);
+  const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
   ctx.clearRect(0,0,w,h);
-  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
   ctx.fillRect(0,0,w,h);
 
-  const max=Math.max(0.01,...volBins.map(b=>b.buy+b.sell));
-  maxVolPill.textContent=`max ₿${max.toFixed(2)}`;
-  const padX=16,padTop=14,padBottom=22;
-  const chartH=h-padTop-padBottom;
-  const step=(w-padX*2)/volBins.length,barW=step*0.62;
-  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const max = Math.max(0.01, ...volBins.map(b=>b.buy+b.sell));
+  maxVolPill.textContent = `max ₿${max.toFixed(2)}`;
 
+  const padX=16, padTop=14, padBottom=26;
+  const chartH = h - padTop - padBottom;
+  const step = (w - padX*2) / volBins.length;
+  const barW = step*0.62;
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // faint grid
   ctx.strokeStyle='var(--grid-2)';
   for(let i=1;i<=2;i++){
-    const y=padTop+chartH*(i/3*(3/2));
-    ctx.beginPath();ctx.moveTo(padX-6,y);ctx.lineTo(w-padX+6,y);ctx.stroke();
+    const y = padTop + chartH*(i/3*(3/2));
+    ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
   }
 
+  // bottom time labels (every other minute)
   ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
   for(let i=0;i<volBins.length;i+=2){
-    const xC=padX+i*step+step/2;
-    const t=new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'});
-    ctx.fillText(':'+t,xC-8,h-18);
+    const xC = padX + i*step + step/2;
+    const t = new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'});
+    ctx.fillText(':'+t, xC-8, h-18);
   }
 
   for(let i=0;i<volBins.length;i++){
-    const b=volBins[i];
-    const xC=padX+i*step+step/2;
-    const tot=b.buy+b.sell;
-    const unclamped=(tot/max)*chartH;
-    const hT=Math.max(4,Math.min(chartH*MAX_BAR_RATIO,unclamped));
-    const yB=padTop+chartH;
-    const buyFrac=tot?(b.buy/tot):0;
-    const hBuy=hT*buyFrac;
-    const hSell=hT-hBuy;
+    const b = volBins[i];
+    const xC = padX + i*step + step/2;
+    const tot = b.buy + b.sell;
 
-    ctx.fillStyle=dn;ctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
-    ctx.fillStyle=up;ctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
+    const unclamped = (tot/max)*chartH;
+    const hT = Math.max(4, Math.min(chartH*MAX_BAR_RATIO, unclamped)); // cap
+    const yB = padTop + chartH;
+    const buyFrac = tot ? (b.buy/tot) : 0;
+    const hBuy = hT * buyFrac;
+    const hSell = hT - hBuy;
 
+    // stacked bars
+    ctx.fillStyle = dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
+    ctx.fillStyle = up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+
+    // +/- diff pill if tall enough
     if(hT>26){
-      const diff=b.buy-b.sell;
-      const txt=`${diff>=0?'+':''}${diff.toFixed(2)}`;
-      const tw=ctx.measureText(txt).width+16,th=20;
-      const bx=xC-tw/2,by=yB-hT-th-6;
-      ctx.fillStyle='rgba(0,0,0,.88)';ctx.strokeStyle='rgba(255,255,255,.25)';
+      const diff = b.buy - b.sell;
+      const txt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
+      const tw = ctx.measureText(txt).width+16, th=20;
+      const bx = xC - tw/2, by = yB - hT - th - 6;
+      ctx.fillStyle='rgba(0,0,0,.88)'; ctx.strokeStyle='rgba(255,255,255,.25)';
       roundRect(ctx,bx,by,tw,th,10,true,true);
-      ctx.fillStyle=diff>=0?up:dn;
-      ctx.textBaseline='middle';ctx.fillText(txt,bx+8,by+th/2);
+      ctx.fillStyle = diff>=0 ? up : dn;
+      ctx.textBaseline='middle'; ctx.fillText(txt, bx+8, by+th/2);
     }
   }
 }
 
 /* ===== loop ===== */
-function drawAll(){prune();drawPrice();drawVol();requestAnimationFrame(drawAll);}
+function drawAll(){ prune(); drawPrice(); drawVol(); requestAnimationFrame(drawAll); }
 
 /* ===== feed ===== */
-let ws,recon;
+let ws, recon;
 function startWS(){
-  try{ws&&ws.close();}catch{}
-  ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-  ws.onopen=()=>{
+  try{ ws && ws.close(); }catch{}
+  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  ws.onopen = ()=>{
     ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
     connPill.textContent='Live';
   };
-  ws.onmessage=(e)=>{
+  ws.onmessage = (e)=>{
     try{
-      const m=JSON.parse(e.data);
-      if(m.type==='match'&&m.product_id==='BTC-USD'){
+      const m = JSON.parse(e.data);
+      if(m.type==='match' && m.product_id==='BTC-USD'){
         onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
       }
     }catch{}
   };
-  ws.onclose=()=>{connPill.textContent='Reconnecting…';recon=setTimeout(startWS,1000);};
-  ws.onerror=()=>{try{ws.close()}catch{}};
+  ws.onclose = ()=>{ connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000); };
+  ws.onerror = ()=>{ try{ws.close()}catch{} };
 }
 startWS();
 
 /* ===== layout ===== */
-new ResizeObserver(()=>{drawAll();}).observe(document.body);
+new ResizeObserver(()=>{ drawAll(); }).observe(document.body);
 requestAnimationFrame(drawAll);
 </script>
 </body>
