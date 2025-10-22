@@ -26,7 +26,7 @@
         font-size:12px; white-space:nowrap; color:#fff;}
   .bigPrice{font-weight:900; font-size: clamp(24px,7.8vw,44px); letter-spacing:.5px; text-align:center; margin:18px 0 6px}
   .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
-  .chartBox{padding:10px 10px 6px}
+  .chartBox{padding:10px 10px 6px; position:relative;}
   canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
   .volBox canvas{height:210px}
   .legend{display:flex; align-items:center; gap:16px; padding:10px 10px 4px}
@@ -34,23 +34,21 @@
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
   .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* ===== Gear (fixed, visible, safe-area aware) ===== */
+  /* Gear now INSIDE the card, slightly down-right */
   #gearBtn{
-    position:fixed;
-    top:calc(env(safe-area-inset-top) + 10px);
-    left:10px;
-    width:40px; height:40px; z-index:1000;
+    position:absolute;
+    top:12px; left:14px;
+    width:36px; height:36px; z-index:5;
     display:grid; place-items:center;
-    border-radius:12px;
+    border-radius:10px;
     background:rgba(0,0,0,.55);
-    border:1px solid rgba(255,255,255,.5);
-    box-shadow:0 0 12px rgba(255,255,255,.45);
+    border:1px solid rgba(255,255,255,.45);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
-  #gearBtn svg{width:22px; height:22px; fill:#fff; filter:drop-shadow(0 0 6px #fff)}
+  #gearBtn svg{width:20px; height:20px; fill:#fff}
   #gearBtn:active{transform:scale(.97)}
 
-  /* ===== Settings sheet ===== */
+  /* Settings sheet */
   #sheet{position:fixed; inset:0; z-index:1100; display:none; background:rgba(0,0,0,.35)}
   #sheet.open{display:block}
   .panel{
@@ -70,18 +68,18 @@
 </style>
 </head>
 <body>
-
-  <!-- Always-visible gear -->
-  <button id="gearBtn" aria-label="Settings">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9.44-3.5c0-.45-.04-.9-.1-1.33l2.13-1.66a1 1 0 0 0 .23-1.32l-2-3.46a1 1 0 0 0-1.22-.44l-2.5 1a9.77 9.77 0 0 0-2.3-1.33l-.38-2.64A1 1 0 0 0 12.64 0h-4a1 1 0 0 0-.99.84L7.27 3.5a9.84 9.84 0 0 0-2.3 1.33l-2.5-1a1 1 0 0 0-1.22.44l-2 3.46a1 1 0 0 0 .23 1.32L1.6 10.67c-.07.43-.11.88-.11 1.33s.04.9.1 1.33l-2.13 1.66a1 1 0 0 0-.23 1.32l2 3.46a1 1 0 0 0 1.22.44l2.5-1c.7.54 1.48.99 2.3 1.33l.38 2.64a1 1 0 0 0 .99.84h4a1 1 0 0 0 .99-.84l.38-2.64a9.77 9.77 0 0 0 2.3-1.33l2.5 1a1 1 0 0 0 1.22-.44l2-3.46a1 1 0 0 0-.23-1.32l-2.13-1.66c.07-.43.11-.88.11-1.33Z"/>
-    </svg>
-  </button>
-
   <main class="wrap">
     <section class="card chartBox">
+      <!-- gear lives in the price card now -->
+      <button id="gearBtn" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9.44-3.5c0-.45-.04-.9-.1-1.33l2.13-1.66a1 1 0 0 0 .23-1.32l-2-3.46a1 1 0 0 0-1.22-.44l-2.5 1a9.77 9.77 0 0 0-2.3-1.33l-.38-2.64A1 1 0 0 0 12.64 0h-4a1 1 0 0 0-.99.84L7.27 3.5a9.84 9.84 0 0 0-2.3 1.33l-2.5-1a1 1 0 0 0-1.22.44l-2 3.46a1 1 0 0 0 .23 1.32L1.6 10.67c-.07.43-.11.88-.11 1.33s.04.9.1 1.33l-2.13 1.66a1 1 0 0 0-.23 1.32l2 3.46a1 1 0 0 0 1.22.44l2.5-1c.7.54 1.48.99 2.3 1.33l.38 2.64a1 1 0 0 0 .99.84h4a1 1 0 0 0 .99-.84l.38-2.64a9.77 9.77 0 0 0 2.3-1.33l2.5 1a1 1 0 0 0 1.22-.44l2-3.46a1 1 0 0 0-.23-1.32l-2.13-1.66c.07-.43.11-.88.11-1.33Z"/>
+        </svg>
+      </button>
+
       <div id="bigPrice" class="bigPrice">$—</div>
       <canvas id="priceCanvas"></canvas>
+
       <div class="legend">
         <span class="dot up"></span><span class="muted">Buys</span>
         <span class="dot down"></span><span class="muted">Sells</span>
@@ -164,7 +162,7 @@ function onTrade({price,size,side,time}){
   const ts = new Date(time).getTime();
   series.push({t:ts,p:price});
 
-  // fix 10 bins aligned to minutes (scroll left-to-right)
+  // fixed 10 bins aligned to minutes (left→right)
   const startAligned = ts - (ts % 60000) - 9*60000;
   while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
   while(volBins.length<10){
@@ -174,7 +172,7 @@ function onTrade({price,size,side,time}){
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
   if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
 
-  // price color only on number
+  // number color only
   if(lastPrice!=null){
     priceEl.classList.remove('up','down');
     if(price>lastPrice) priceEl.classList.add('up');
@@ -193,7 +191,7 @@ function paintBigPrice(){
   priceEl.textContent = fmtUSD(scaled,2);
 }
 
-/* ====== price chart (smooth Catmull→Bezier) ====== */
+/* ====== price chart (Catmull–Rom → Bézier; rounded caps/joins) ====== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -221,7 +219,7 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map points left -> right over last 10m span
+  // map points over last 10m
   const span = MS10; const now = Date.now();
   const pts = series.map(d=>{
     const x = padX + ((d.t-(now-span))/span)*(w-2*padX);
@@ -247,7 +245,7 @@ function drawPrice(){
   }
   ctx.stroke();
 
-  // axis labels (3 prices)
+  // labels
   ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
   ctx.fillText(fmtUSD(max,0), padX, padY+4);
   ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
@@ -265,7 +263,7 @@ function drawPrice(){
   }
 }
 
-/* ====== volume (stacked) with +/- pill ====== */
+/* ====== volume (stacked) with +/- pill) ====== */
 function drawVol(){
   const ctx = sizeCanvas(volCanvas);
   const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
@@ -291,7 +289,7 @@ function drawVol(){
     ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
   }
 
-  // bottom time labels (every other minute)
+  // bottom time labels
   ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
   for(let i=0;i<volBins.length;i+=2){
     const xC = padX + i*step + step/2;
@@ -307,11 +305,11 @@ function drawVol(){
     const hBuy = tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
     const yB = padTop + chartH;
 
-    // stacked bars
+    // bars
     ctx.fillStyle = dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
     ctx.fillStyle = up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
 
-    // +/- diff pill if tall enough
+    // +/- diff pill
     if(hT>26){
       const diff = b.buy - b.sell;
       const txt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
