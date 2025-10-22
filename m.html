@@ -175,7 +175,15 @@ function onTrade({price,size,side,time}){
   rawLastPrice = price;
   const scaled = price * VALUE_SCALE;
 
-  series.push({t:ts,p:price}); // chart uses raw price
+  // Ensure time-ordered insertion (just in case of delayed frames)
+  const n = series.length;
+  if(n && ts < series[n-1].t){
+    // insert in order (rare)
+    let k = n-1; while(k>=0 && ts < series[k].t) k--;
+    series.splice(k+1,0,{t:ts,p:price});
+  } else {
+    series.push({t:ts,p:price});
+  }
 
   // fixed 10 bins aligned to minutes (scroll left->right)
   const startAligned = ts - (ts % 60000) - 9*60000;
@@ -212,12 +220,11 @@ function drawPrice(){
   if(series.length<2) return;
 
   const now = Date.now();
-  const firstTs = Math.min(...series.map(d=>d.t));
-  // Stretch span grows until it hits 10 minutes, then stays at 10m
-  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
+  const firstTs = Math.min(series[0].t, ...series.map(d=>d.t));
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));  // grows to 10m
   const startT = now - windowSpan;
 
-  // gather visible points
+  // visible points only
   const vis = series.filter(d=> d.t >= startT && d.t <= now);
   if(vis.length<2) return;
 
@@ -241,17 +248,26 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels (strictly increasing X from left edge)
+  // map to pixels (strictly increasing X)
   const usableW = (w-2*padX);
-  const pts=[]; let lastX=-1;
+  const pts=[]; let lastX=-1e9;
+  const EPS=0.5; // FIX: sub-pixel spacing to avoid jitter
   for(const d of vis){
     const x = padX + ((d.t - startT)/windowSpan) * usableW;
     const y = padY + (h-2*padY)*(1-(d.p-min)/range);
-    const xi = Math.round(x);
-    if(xi<=lastX) continue;
-    lastX = xi; pts.push({x:xi,y});
+    if(x <= lastX + EPS) continue;     // FIX: ensure monotonic advance
+    lastX = x; pts.push({x,y,p:d.p});
   }
   if(pts.length<2) return;
+
+  // FIX: ignore wild jumps (rare out-of-order spikes)
+  const MAX_JUMP = (max - min) * 0.5; // 50% of visible range
+  const clean=[pts[0]];
+  for(let i=1;i<pts.length;i++){
+    if(Math.abs(pts[i].p - pts[i-1].p) > MAX_JUMP) continue;
+    clean.push(pts[i]);
+  }
+  if(clean.length<2) return;
 
   // Catmull–Rom → Bézier smoothing
   const cr2bz = (p0,p1,p2,p3,t=0.5)=>{
@@ -261,9 +277,9 @@ function drawPrice(){
   };
   const upCol=getComputedStyle(document.body).getPropertyValue('--up').trim();
   ctx.strokeStyle=upCol; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-  for(let i=0;i<pts.length-1;i++){
-    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+  ctx.beginPath(); ctx.moveTo(clean[0].x, clean[0].y);
+  for(let i=0;i<clean.length-1;i++){
+    const p0=clean[i-1]||clean[i], p1=clean[i], p2=clean[i+1], p3=clean[i+2]||p2;
     const [c1,c2]=cr2bz(p0,p1,p2,p3,0.5);
     ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
   }
@@ -277,7 +293,7 @@ function drawPrice(){
   ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
 
   // last price pill (raw)
-  const last = pts[pts.length-1];
+  const last = clean[clean.length-1];
   const label = fmtUSD(rawLastPrice||0,0);
   const tw = ctx.measureText(label).width+18, th=22;
   const bx = Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by = Math.max(8, last.y - th - 8);
