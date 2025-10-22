@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>h8s — mobile (classic + scale)</title>
+<title>h8s — mobile (classic)</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -14,17 +14,19 @@
     --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--text);
+  html,body{
+    height:100%; margin:0; background:var(--bg); color:var(--text);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
-  .wrap{padding:14px 14px 90px; max-width:900px; margin:0 auto;}
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .wrap{padding:14px 14px calc(90px + env(safe-area-inset-bottom)); max-width:900px; margin:0 auto;}
   .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow)}
   .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
         border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
         font-size:12px; white-space:nowrap; color:#fff;}
   .bigPrice{font-weight:900; font-size: clamp(24px,7.8vw,44px); letter-spacing:.5px; text-align:center; margin:18px 0 6px}
   .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
-  .chartBox{padding:10px 10px 6px; position:relative}
+  .chartBox{padding:10px 10px 6px}
   canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
   .volBox canvas{height:210px}
   .legend{display:flex; align-items:center; gap:16px; padding:10px 10px 4px}
@@ -32,26 +34,31 @@
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
   .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* ------ minimal settings (top-left gear) ------ */
-  .gear{
-    position:absolute; top:8px; left:8px; z-index:5;
-    width:34px; height:34px; border-radius:10px;
-    background:var(--panel-2); border:1px solid var(--pill-bd);
-    display:grid; place-items:center; cursor:pointer;
+  /* ===== Gear (fixed, visible, safe-area aware) ===== */
+  #gearBtn{
+    position:fixed;
+    top:calc(env(safe-area-inset-top) + 10px);
+    left:10px;
+    width:40px; height:40px; z-index:1000;
+    display:grid; place-items:center;
+    border-radius:12px;
+    background:rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.5);
+    box-shadow:0 0 12px rgba(255,255,255,.45);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
-  .gear svg{width:18px; height:18px; fill:var(--text); opacity:.9}
+  #gearBtn svg{width:22px; height:22px; fill:#fff; filter:drop-shadow(0 0 6px #fff)}
+  #gearBtn:active{transform:scale(.97)}
 
-  .sheet{
-    position:fixed; inset:0; display:none; z-index:40;
-    background:rgba(0,0,0,.35);
-  }
-  .sheet.open{display:block}
+  /* ===== Settings sheet ===== */
+  #sheet{position:fixed; inset:0; z-index:1100; display:none; background:rgba(0,0,0,.35)}
+  #sheet.open{display:block}
   .panel{
-    position:absolute; left:12px; right:12px; top:12px;
+    position:absolute; left:12px; right:12px; top:calc(env(safe-area-inset-top) + 12px);
     background:var(--panel); border:1px solid var(--pill-bd); border-radius:14px; box-shadow:var(--glow);
     padding:14px;
   }
-  .panel h3{margin:0 0 10px; font-size:14px}
+  .panel h3{margin:0 0 8px; font-size:14px}
   .row{display:flex; align-items:center; gap:10px}
   .field{display:flex; align-items:center; gap:10px; margin:8px 0}
   .field input[type="number"]{
@@ -63,13 +70,16 @@
 </style>
 </head>
 <body>
+
+  <!-- Always-visible gear -->
+  <button id="gearBtn" aria-label="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9.44-3.5c0-.45-.04-.9-.1-1.33l2.13-1.66a1 1 0 0 0 .23-1.32l-2-3.46a1 1 0 0 0-1.22-.44l-2.5 1a9.77 9.77 0 0 0-2.3-1.33l-.38-2.64A1 1 0 0 0 12.64 0h-4a1 1 0 0 0-.99.84L7.27 3.5a9.84 9.84 0 0 0-2.3 1.33l-2.5-1a1 1 0 0 0-1.22.44l-2 3.46a1 1 0 0 0 .23 1.32L1.6 10.67c-.07.43-.11.88-.11 1.33s.04.9.1 1.33l-2.13 1.66a1 1 0 0 0-.23 1.32l2 3.46a1 1 0 0 0 1.22.44l2.5-1c.7.54 1.48.99 2.3 1.33l.38 2.64a1 1 0 0 0 .99.84h4a1 1 0 0 0 .99-.84l.38-2.64a9.77 9.77 0 0 0 2.3-1.33l2.5 1a1 1 0 0 0 1.22-.44l2-3.46a1 1 0 0 0-.23-1.32l-2.13-1.66c.07-.43.11-.88.11-1.33Z"/>
+    </svg>
+  </button>
+
   <main class="wrap">
     <section class="card chartBox">
-      <!-- settings gear -->
-      <button class="gear" id="gearBtn" aria-label="settings">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9.44-3.5c0-.45-.04-.9-.1-1.33l2.13-1.66a1 1 0 0 0 .23-1.32l-2-3.46a1 1 0 0 0-1.22-.44l-2.5 1a9.77 9.77 0 0 0-2.3-1.33l-.38-2.64A1 1 0 0 0 12.64 0h-4a1 1 0 0 0-.99.84L7.27 3.5a9.84 9.84 0 0 0-2.3 1.33l-2.5-1a1 1 0 0 0-1.22.44l-2 3.46a1 1 0 0 0 .23 1.32L1.6 10.67c-.07.43-.11.88-.11 1.33s.04.9.1 1.33l-2.13 1.66a1 1 0 0 0-.23 1.32l2 3.46a1 1 0 0 0 1.22.44l2.5-1c.7.54 1.48.99 2.3 1.33l.38 2.64a1 1 0 0 0 .99.84h4a1 1 0 0 0 .99-.84l.38-2.64a9.77 9.77 0 0 0 2.3-1.33l2.5 1a1 1 0 0 0 1.22-.44l2-3.46a1 1 0 0 0-.23-1.32l-2.13-1.66c.07-.43.11-.88.11-1.33Z"/></svg>
-      </button>
-
       <div id="bigPrice" class="bigPrice">$—</div>
       <canvas id="priceCanvas"></canvas>
       <div class="legend">
@@ -82,8 +92,8 @@
     <div class="pill conn" id="connPill">Live</div>
   </main>
 
-  <!-- minimal settings sheet -->
-  <div class="sheet" id="sheet">
+  <!-- Settings sheet -->
+  <div id="sheet">
     <div class="panel">
       <div class="row" style="justify-content:space-between;margin-bottom:6px">
         <h3>Settings</h3>
@@ -102,39 +112,29 @@
 
 <script>
 /* ====== elements ====== */
-const priceEl     = document.getElementById('bigPrice');
+const priceEl = document.getElementById('bigPrice');
 const priceCanvas = document.getElementById('priceCanvas');
-const volCanvas   = document.getElementById('volCanvas');
-const maxVolPill  = document.getElementById('maxVolPill');
-const connPill    = document.getElementById('connPill');
+const volCanvas = document.getElementById('volCanvas');
+const maxVolPill = document.getElementById('maxVolPill');
+const connPill = document.getElementById('connPill');
 
-/* settings elems */
-const gearBtn  = document.getElementById('gearBtn');
-const sheet    = document.getElementById('sheet');
+const gearBtn = document.getElementById('gearBtn');
+const sheet = document.getElementById('sheet');
 const closeBtn = document.getElementById('closeBtn');
-const saveBtn  = document.getElementById('saveBtn');
+const saveBtn = document.getElementById('saveBtn');
 const resetBtn = document.getElementById('resetBtn');
-const btcAmt   = document.getElementById('btcAmt');
+const btcAmt = document.getElementById('btcAmt');
 
 /* ====== state ====== */
 let lastPrice = null;
-let series    = [];           // {t, p}
-let volBins   = [];           // {ts,buy,sell} x10 fixed
-const MS10    = 600000;
-
-/* price scale (persisted) */
-const loadScale = ()=> {
-  try { return parseFloat(localStorage.getItem('m.scale')||'1') || 1; }
-  catch { return 1; }
-};
-const saveScale = (v)=> localStorage.setItem('m.scale', String(v));
-let priceScale = loadScale();
-btcAmt.value = priceScale;
+let series = [];           // {t, p}
+let volBins = [];          // {ts,buy,sell} x10 fixed
+const MS10 = 600000;
 
 /* ====== helpers ====== */
 function sizeCanvas(c){
   const dpr = Math.min(3, window.devicePixelRatio||1);
-  c.width  = Math.max(1, c.clientWidth*dpr);
+  c.width = Math.max(1, c.clientWidth*dpr);
   c.height = Math.max(1, c.clientHeight*dpr);
   c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
   return c.getContext('2d');
@@ -153,12 +153,18 @@ function initBins(){
 }
 initBins();
 
+/* ====== price scaling ====== */
+const loadScale = () => { try { return parseFloat(localStorage.getItem('m.scale')||'1')||1 } catch { return 1 } };
+const saveScale = (v) => localStorage.setItem('m.scale', String(v));
+let priceScale = loadScale();
+btcAmt.value = priceScale;
+
 /* ====== trade intake ====== */
 function onTrade({price,size,side,time}){
   const ts = new Date(time).getTime();
   series.push({t:ts,p:price});
 
-  // bins aligned to minutes (fixed 10)
+  // fix 10 bins aligned to minutes (scroll left-to-right)
   const startAligned = ts - (ts % 60000) - 9*60000;
   while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
   while(volBins.length<10){
@@ -177,17 +183,17 @@ function onTrade({price,size,side,time}){
   lastPrice = price;
   paintBigPrice();
 }
-function paintBigPrice(){
-  if(lastPrice==null){ priceEl.textContent='$—'; return; }
-  const scaled = lastPrice * (priceScale||1);
-  priceEl.textContent = fmtUSD(scaled,2);
-}
 function prune(){
   const now = Date.now();
   series = series.filter(d=> d.t >= now-MS10);
 }
+function paintBigPrice(){
+  if(lastPrice==null){ priceEl.textContent = '$—'; return; }
+  const scaled = lastPrice * (priceScale || 1);
+  priceEl.textContent = fmtUSD(scaled,2);
+}
 
-/* ====== price chart (smooth) ====== */
+/* ====== price chart (smooth Catmull→Bezier) ====== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -201,7 +207,7 @@ function drawPrice(){
   const range = (max-min)||1;
 
   const padX=12, padY=18;
-  // grid
+  // grid lines
   ctx.strokeStyle='var(--grid)';
   for(let i=1;i<=3;i++){
     const y = padY+(h-2*padY)*(i/4*(4/3));
@@ -215,16 +221,17 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map points for last 10m (left->right)
+  // map points left -> right over last 10m span
   const span = MS10; const now = Date.now();
   const pts = series.map(d=>{
     const x = padX + ((d.t-(now-span))/span)*(w-2*padX);
     const y = padY + (h-2*padY)*(1-(d.p-min)/range);
     return {x,y};
   }).filter(p=>p.x>=padX-4);
+
   if(pts.length<2) return;
 
-  // Catmull–Rom → Bezier smoothing
+  // Catmull–Rom → Bezier
   const cr2bz = (p0,p1,p2,p3,t=0.5)=>{
     const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
@@ -240,20 +247,22 @@ function drawPrice(){
   }
   ctx.stroke();
 
-  // y labels (max/avg/min)
+  // axis labels (3 prices)
   ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
   ctx.fillText(fmtUSD(max,0), padX, padY+4);
   ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
   ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
 
-  // last price pill (NOTE: keeps unscaled price for consistency on chart)
-  const last = pts[pts.length-1];
-  const label = fmtUSD(lastPrice,0);
-  const tw = ctx.measureText(label).width+18, th=22;
-  const bx = Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by = Math.max(8, last.y - th - 8);
-  ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
-  roundRect(ctx,bx,by,tw,th,10,true,true);
-  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
+  // last price pill
+  if(lastPrice!=null){
+    const last = pts[pts.length-1];
+    const label = fmtUSD(lastPrice,0);
+    const tw = ctx.measureText(label).width+18, th=22;
+    const bx = Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by = Math.max(8, last.y - th - 8);
+    ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+    roundRect(ctx,bx,by,tw,th,10,true,true);
+    ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
+  }
 }
 
 /* ====== volume (stacked) with +/- pill ====== */
@@ -275,7 +284,7 @@ function drawVol(){
   const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
 
-  // two faint grid lines
+  // faint lines
   ctx.strokeStyle='var(--grid-2)';
   for(let i=1;i<=2;i++){
     const y = padTop + chartH*(i/3*(3/2));
@@ -341,29 +350,19 @@ function startWS(){
 }
 startWS();
 
-/* ====== layout ====== */
+/* ====== layout/loop ====== */
 new ResizeObserver(()=>{ drawAll(); }).observe(document.body);
 requestAnimationFrame(drawAll);
 
-/* ====== settings wiring ====== */
-gearBtn.addEventListener('click', ()=> sheet.classList.add('open'));
-closeBtn.addEventListener('click', ()=> sheet.classList.remove('open'));
-sheet.addEventListener('click', (e)=>{ if(e.target===sheet) sheet.classList.remove('open'); });
-
-saveBtn.addEventListener('click', ()=>{
-  const v = parseFloat(btcAmt.value);
-  priceScale = (Number.isFinite(v) && v>0) ? v : 1.0;
-  saveScale(priceScale);
-  paintBigPrice();
+/* ====== settings handlers ====== */
+gearBtn.onclick = ()=> sheet.classList.add('open');
+closeBtn.onclick = ()=> sheet.classList.remove('open');
+resetBtn.onclick = ()=>{ btcAmt.value = 1; };
+saveBtn.onclick = ()=>{
+  const v = Math.max(0.00000001, parseFloat(btcAmt.value||'1'));
+  priceScale = v; saveScale(v); paintBigPrice();
   sheet.classList.remove('open');
-});
-resetBtn.addEventListener('click', ()=>{
-  priceScale = 1.0;
-  btcAmt.value = '1.0';
-  saveScale(priceScale);
-  paintBigPrice();
-  sheet.classList.remove('open');
-});
+};
 </script>
 </body>
 </html>
