@@ -8,6 +8,7 @@
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
     --text:#e9fef7; --muted:#c8d6cf;
+    /* buy/sell colors are set by JS via --up / --down */
     --up:#2dd4bf; --down:#f59e0b;
     --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
     --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
@@ -85,9 +86,18 @@
       <div class="row">
         <label for="themeSel">Theme</label>
         <select id="themeSel">
-          <option value="teal">Teal/Amber (default)</option>
-          <option value="emerald">Emerald/Orange</option>
-          <option value="violet">Violet/Gold</option>
+          <option value="showgirl">Life of a Showgirl (default)</option>
+          <option value="reputation">reputation</option>
+          <option value="midnights">Midnights</option>
+          <option value="lover">Lover</option>
+          <option value="folklore">folklore</option>
+          <option value="evermore">evermore</option>
+          <option value="red">Red</option>
+          <option value="speaknow">Speak Now</option>
+          <option value="fearless">Fearless</option>
+          <option value="debut">Taylor Swift</option>
+          <option value="1989">1989</option>
+          <option value="ttpd">The Tortured Poets Dept.</option>
         </select>
       </div>
       <div class="row">
@@ -119,11 +129,35 @@ let volBins = [];          // {ts,buy,sell} x10 fixed
 const MS10 = 600000;
 let VALUE_SCALE = +(localStorage.getItem('h8s_scale')||'1') || 1;
 
+/* ===== album palettes (buy = --up, sell = --down) ===== */
+const PALETTES = {
+  // NEW default
+  showgirl:    { up:'#14b8a6', down:'#fb923c' },          // teal 500 / orange 400
+  debut:       { up:'#4CAF50', down:'#8BC34A' },          // fresh green / light green
+  fearless:    { up:'#E6C200', down:'#B38F00' },          // golds
+  speaknow:    { up:'#A78BFA', down:'#8B5CF6' },          // violets
+  red:         { up:'#EF4444', down:'#F59E0B' },          // red / amber
+  '1989':      { up:'#60A5FA', down:'#A7F3D0' },          // sky blue / mint
+  reputation:  { up:'#A3A3A3', down:'#3F3F46' },          // silver / graphite
+  lover:       { up:'#F472B6', down:'#60A5FA' },          // pink / baby blue
+  folklore:    { up:'#C4B5A5', down:'#6B7280' },          // warm taupe / gray
+  evermore:    { up:'#D97706', down:'#6B8E23' },          // amber / olive
+  midnights:   { up:'#8B9CF6', down:'#1F2937' },          // indigo / slate
+  ttpd:        { up:'#E5E7EB', down:'#1F2937' }           // parchment / charcoal
+};
+
 /* theme handling */
-const SAVED_THEME = localStorage.getItem('h8s_theme') || 'teal';
+const SAVED_THEME = localStorage.getItem('h8s_theme') || 'showgirl'; // default to Showgirl
 applyTheme(SAVED_THEME);
 themeSel.value = SAVED_THEME;
 scaleInp.value = VALUE_SCALE.toString();
+
+function applyTheme(key){
+  const pal = PALETTES[key] || PALETTES.showgirl;
+  const r = document.documentElement.style;
+  r.setProperty('--up', pal.up);
+  r.setProperty('--down', pal.down);
+}
 
 /* ===== helpers ===== */
 function sizeCanvas(c){
@@ -151,8 +185,9 @@ initBins();
 gearBtn.addEventListener('click', ()=>sheet.classList.add('open'));
 closeSheet.addEventListener('click', ()=>sheet.classList.remove('open'));
 themeSel.addEventListener('change', e=>{
-  applyTheme(e.target.value);
-  localStorage.setItem('h8s_theme', e.target.value);
+  const key = e.target.value;
+  applyTheme(key);
+  localStorage.setItem('h8s_theme', key);
 });
 scaleInp.addEventListener('change', e=>{
   const v = Math.max(0, +e.target.value || 0);
@@ -162,12 +197,6 @@ scaleInp.addEventListener('change', e=>{
     priceEl.textContent = fmtUSD(rawLastPrice * VALUE_SCALE, 2);
   }
 });
-function applyTheme(t){
-  const r = document.documentElement.style;
-  if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
-  else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
-  else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
-}
 
 /* ===== trade intake ===== */
 function onTrade({price,size,side,time}){
@@ -175,17 +204,16 @@ function onTrade({price,size,side,time}){
   rawLastPrice = price;
   const scaled = price * VALUE_SCALE;
 
-  // Ensure time-ordered insertion (just in case of delayed frames)
+  // Ensure time order
   const n = series.length;
   if(n && ts < series[n-1].t){
-    // insert in order (rare)
     let k = n-1; while(k>=0 && ts < series[k].t) k--;
     series.splice(k+1,0,{t:ts,p:price});
   } else {
     series.push({t:ts,p:price});
   }
 
-  // fixed 10 bins aligned to minutes (scroll left->right)
+  // minute-aligned 10-bin volume
   const startAligned = ts - (ts % 60000) - 9*60000;
   while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
   while(volBins.length<10){
@@ -195,7 +223,7 @@ function onTrade({price,size,side,time}){
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
   if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
 
-  // color only on number
+  // price color only on number
   if(lastPrice!=null){
     priceEl.classList.remove('up','down');
     if(scaled>lastPrice) priceEl.classList.add('up');
@@ -206,11 +234,10 @@ function onTrade({price,size,side,time}){
 }
 function prune(){
   const now = Date.now();
-  // keep last 10m worth of samples; during boot we expand the span up to 10m
   series = series.filter(d=> d.t >= now-MS10);
 }
 
-/* ===== price chart (stretch from left until 10m, then roll) ===== */
+/* ===== price chart (smooth, stretch from left until 10m, then roll) ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -221,14 +248,12 @@ function drawPrice(){
 
   const now = Date.now();
   const firstTs = Math.min(series[0].t, ...series.map(d=>d.t));
-  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));  // grows to 10m
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
   const startT = now - windowSpan;
 
-  // visible points only
   const vis = series.filter(d=> d.t >= startT && d.t <= now);
   if(vis.length<2) return;
 
-  // stats
   let min=Infinity, max=-Infinity, sum=0;
   for(const d of vis){ if(d.p<min)min=d.p; if(d.p>max)max=d.p; sum+=d.p; }
   const range=(max-min)||1; const avg=sum/vis.length;
@@ -248,20 +273,19 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels (strictly increasing X)
+  // map to pixels (monotonic X with sub-pixel stability)
   const usableW = (w-2*padX);
-  const pts=[]; let lastX=-1e9;
-  const EPS=0.5; // FIX: sub-pixel spacing to avoid jitter
+  const pts=[]; let lastX=-1e9; const EPS=0.5;
   for(const d of vis){
     const x = padX + ((d.t - startT)/windowSpan) * usableW;
     const y = padY + (h-2*padY)*(1-(d.p-min)/range);
-    if(x <= lastX + EPS) continue;     // FIX: ensure monotonic advance
+    if(x <= lastX + EPS) continue;
     lastX = x; pts.push({x,y,p:d.p});
   }
   if(pts.length<2) return;
 
-  // FIX: ignore wild jumps (rare out-of-order spikes)
-  const MAX_JUMP = (max - min) * 0.5; // 50% of visible range
+  // ignore rare huge jumps
+  const MAX_JUMP = (max - min) * 0.5;
   const clean=[pts[0]];
   for(let i=1;i<pts.length;i++){
     if(Math.abs(pts[i].p - pts[i-1].p) > MAX_JUMP) continue;
@@ -275,7 +299,7 @@ function drawPrice(){
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
     return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
   };
-  const upCol=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const upCol=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   ctx.strokeStyle=upCol; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(clean[0].x, clean[0].y);
   for(let i=0;i<clean.length-1;i++){
@@ -302,7 +326,7 @@ function drawPrice(){
   ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked) with +/- diff and capped height so pill stays visible ===== */
+/* ===== volume (stacked) with +/- diff, capped so pill stays visible) ===== */
 const MAX_BAR_RATIO = 0.78;
 
 function drawVol(){
@@ -320,8 +344,8 @@ function drawVol(){
   const step = (w - padX*2) / volBins.length;
   const barW = step*0.62;
 
-  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
   // faint grid
   ctx.strokeStyle='var(--grid-2)';
