@@ -86,6 +86,7 @@
       <div class="row">
         <label for="themeSel">Theme</label>
         <select id="themeSel">
+          <option value="showgirl">Life of a Showgirl (default)</option>
           <option value="reputation">reputation</option>
           <option value="midnights">Midnights</option>
           <option value="lover">Lover</option>
@@ -130,6 +131,8 @@ let VALUE_SCALE = +(localStorage.getItem('h8s_scale')||'1') || 1;
 
 /* ===== album palettes (buy = --up, sell = --down) ===== */
 const PALETTES = {
+  // NEW default
+  showgirl:    { up:'#14b8a6', down:'#fb923c' },          // teal 500 / orange 400
   debut:       { up:'#4CAF50', down:'#8BC34A' },          // fresh green / light green
   fearless:    { up:'#E6C200', down:'#B38F00' },          // golds
   speaknow:    { up:'#A78BFA', down:'#8B5CF6' },          // violets
@@ -144,13 +147,13 @@ const PALETTES = {
 };
 
 /* theme handling */
-const SAVED_THEME = localStorage.getItem('h8s_theme') || 'reputation';
+const SAVED_THEME = localStorage.getItem('h8s_theme') || 'showgirl'; // default to Showgirl
 applyTheme(SAVED_THEME);
 themeSel.value = SAVED_THEME;
 scaleInp.value = VALUE_SCALE.toString();
 
 function applyTheme(key){
-  const pal = PALETTES[key] || PALETTES.reputation;
+  const pal = PALETTES[key] || PALETTES.showgirl;
   const r = document.documentElement.style;
   r.setProperty('--up', pal.up);
   r.setProperty('--down', pal.down);
@@ -234,7 +237,7 @@ function prune(){
   series = series.filter(d=> d.t >= now-MS10);
 }
 
-/* ===== price chart (stretch from left until 10m, then roll) ===== */
+/* ===== price chart (smooth, stretch from left until 10m, then roll) ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -296,7 +299,7 @@ function drawPrice(){
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
     return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
   };
-  const upCol=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const upCol=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   ctx.strokeStyle=upCol; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(clean[0].x, clean[0].y);
   for(let i=0;i<clean.length-1;i++){
@@ -341,8 +344,8 @@ function drawVol(){
   const step = (w - padX*2) / volBins.length;
   const barW = step*0.62;
 
-  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
   // faint grid
   ctx.strokeStyle='var(--grid-2)';
