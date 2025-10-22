@@ -16,14 +16,14 @@
   .wrap{padding:12px;max-width:760px;margin:0 auto}
   .card{background:var(--panel);border-radius:16px;padding:10px 10px 12px;
         box-shadow:0 0 0 1px rgba(255,255,255,.06), 0 10px 26px rgba(0,0,0,.35)}
-  /* price text only */
+  /* price text (top center) — only the number changes color */
   #price{font-size:clamp(28px,8vw,44px);font-weight:900;text-align:center;margin:0 0 8px}
   #price.price-up{color:var(--up)} #price.price-down{color:var(--down)}
   /* canvases */
   .can{display:block;width:100%;height:240px;border-radius:12px}
   #vol{height:170px;margin-top:12px}
   .row{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 4px}
-  .pill{font-size:11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:3px 8px;opacity:.9}
+  .pill{font-size:11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:3px 8px;opacity:.9;white-space:nowrap}
   .lgd{display:flex;gap:10px;align-items:center}
   .dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:6px}
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
@@ -107,7 +107,7 @@ startWS();
 function ingest(t){
   if(!startTime) startTime=t.t;
 
-  // price text only (no background changes)
+  // price text only (no panel flash)
   if(lastPrice!==null){
     priceEl.classList.remove('price-up','price-down');
     if(t.p>lastPrice) priceEl.classList.add('price-up');
@@ -143,6 +143,36 @@ function smoothPath(points){
 }
 
 /* ---------- price chart ---------- */
+function roundRect(context,x,y,w,h,r){
+  context.beginPath();
+  context.moveTo(x+r,y);
+  context.arcTo(x+w,y,x+w,y+h,r);
+  context.arcTo(x+w,y+h,x,y+h,r);
+  context.arcTo(x,y+h,x,y,r);
+  context.arcTo(x,y,x+w,y,r);
+  context.closePath();
+}
+
+function drawGrid(context, w, h, padL, padR, padT, padB){
+  context.strokeStyle='var(--grid)'; context.lineWidth=1;
+  // horizontals
+  for(let i=1;i<=3;i++){
+    const y = padT + (h-padT-padB)*(i/4*(4/3));
+    context.beginPath(); context.moveTo(padL-6,y); context.lineTo(w-padR+6,y); context.stroke();
+  }
+  // x labels (minutes)
+  const innerW=w-padL-padR, baseY=h-padB+4;
+  context.fillStyle='rgba(255,255,255,.75)';
+  context.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  context.textAlign='center'; context.textBaseline='top';
+  const now = Date.now();
+  for(let i=0;i<=10;i+=2){
+    const t = now - (10-i)*MS1M;
+    const x = padL + innerW*((t - (now-MS10))/MS10);
+    context.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, baseY);
+  }
+}
+
 function drawPrice(){
   const w=chart.clientWidth, h=chart.clientHeight;
   ctx.clearRect(0,0,w,h);
@@ -155,7 +185,7 @@ function drawPrice(){
     return;
   }
 
-  // fill from left while less than 10m of data
+  // fill from left while <10m of data
   const now = Date.now();
   const elapsed = now - startTime;
   const windowLen = Math.min(MS10, elapsed);
@@ -201,68 +231,36 @@ function drawPrice(){
 
   // smooth path
   const segs=smoothPath(pts);
-  ctx.lineWidth=2;
-  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.lineWidth=2; ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
   for(const s of segs){ ctx.bezierCurveTo(s.cp1.x,s.cp1.y,s.cp2.x,s.cp2.y,s.p2.x,s.p2.y); }
   ctx.stroke();
 
-  // latest price marker
+  // latest price pill (always inside canvas)
   const last=pts.at(-1);
-  ctx.fillStyle='rgba(0,0,0,.85)';
-  ctx.strokeStyle='rgba(255,255,255,.25)';
-  const tag=fmtUSD0.format(lastPrice||avg);
+  const tag=fmtUSD0.format(lastPrice??avg);
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
   const tw = ctx.measureText(tag).width + 12;
   const th = 18;
   const bx = Math.min(w-padR-tw, Math.max(padL, last.x - tw/2));
   const by = Math.max(padT+2, Math.min(h-padB-th-2, last.y - th - 8));
+  ctx.fillStyle='rgba(0,0,0,.85)';
+  ctx.strokeStyle='rgba(255,255,255,.25)';
   roundRect(ctx, bx, by, tw, th, 9); ctx.fill(); ctx.stroke();
-  ctx.fillStyle='white';
-  ctx.textBaseline='middle';
+  ctx.fillStyle='white'; ctx.textBaseline='middle'; ctx.textAlign='left';
   ctx.fillText(tag, bx+6, by+th/2);
 }
 
-function drawGrid(context, w, h, padL, padR, padT, padB){
-  context.strokeStyle='var(--grid)'; context.lineWidth=1;
-  // horizontals
-  for(let i=1;i<=3;i++){
-    const y = padT + (h-padT-padB)*(i/4*(4/3));
-    context.beginPath(); context.moveTo(padL-6,y); context.lineTo(w-padR+6,y); context.stroke();
-  }
-  // x labels (minutes)
-  const innerW=w-padL-padR, baseY=h-padB+4;
-  context.fillStyle='rgba(255,255,255,.75)';
-  context.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  context.textAlign='center'; context.textBaseline='top';
-  const now = Date.now();
-  const start = Math.max(now - MS10, (startTime||now) - ((startTime||now)%MS1M));
-  for(let i=0;i<=10;i+=2){
-    const t = now - (10-i)*MS1M;
-    const x = padL + innerW*((t - (now-MS10))/MS10);
-    context.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, baseY);
-  }
-}
-
-function roundRect(context,x,y,w,h,r){
-  context.beginPath();
-  context.moveTo(x+r,y);
-  context.arcTo(x+w,y,x+w,y+h,r);
-  context.arcTo(x+w,y+h,x,y+h,r);
-  context.arcTo(x,y+h,x,y,r);
-  context.arcTo(x,y,x+w,y,r);
-  context.closePath();
-}
-
 /* ---------- volume ---------- */
+const MS = 60000;
 function bins10(){
   const now=Date.now();
   // anchor bins to minute boundaries so they slide right->left
-  const start = (now - 9*MS1M) - ((now - 9*MS1M) % MS1M);
-  const bins = Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
+  const start = (now - 9*MS) - ((now - 9*MS) % MS);
+  const bins = Array.from({length:10},(_,i)=>({ts:start+i*MS,buy:0,sell:0}));
   for(const t of trades){
-    const idx = Math.floor((t.t - start)/MS1M);
+    const idx = Math.floor((t.t - start)/MS);
     if(idx>=0 && idx<10){ if(t.side==='sell') bins[idx].sell += t.s; else bins[idx].buy += t.s; }
   }
   return bins;
@@ -278,7 +276,7 @@ function drawVol(){
   maxVolEl.textContent='max ₿'+fmtBTC.format(Math.max(...totals)||0);
 
   const padX=26,padY=12,innerW=w-2*padX,innerH=h-2*padY;
-  const step=innerW/10,barW=step*0.6;
+  const step=innerW/10,barW=step*0.62;
 
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
@@ -293,7 +291,7 @@ function drawVol(){
     vctx.fillText(':'+new Date(b.ts).toLocaleTimeString([],{minute:'2-digit'}), x, h-18);
   }
 
-  // bars
+  // bars + labels
   for(let i=0;i<bins.length;i++){
     const b=bins[i];
     const x=padX+step*i+(step-barW)/2;
@@ -307,20 +305,46 @@ function drawVol(){
     vctx.fillStyle=dn; vctx.fillRect(x,yBase-hSell,barW,hSell);
     vctx.fillStyle=up; vctx.fillRect(x,yBase-hSell-hBuy,barW,hBuy);
 
-    // tiny labels only if bar is tall enough
-    if(hTot>26){
-      const txt='₿'+fmtBTC.format(tot);
-      const tw=vctx.measureText(txt).width+10, th=16;
-      const bx=x+(barW-tw)/2, by=yBase-hTot-18;
-      vctx.save();
+    // total pill (above bar) — clamp inside chart so it doesn't get cut off
+    if(hTot>22 && tot>0){
+      const totalTxt='₿'+fmtBTC.format(tot);
+      const tw=vctx.measureText(totalTxt).width+10, th=16;
+      const bx = Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const topY = yBase-hTot-22;
+      const by = Math.max(padY+2, topY);
       // halo
       vctx.fillStyle='rgba(0,0,0,.85)';
-      roundRect(vctx,bx,by,tw,th,8); vctx.fill();
-      vctx.fillStyle='white'; vctx.textBaseline='middle';
-      vctx.fillText(txt, bx+tw/2, by+th/2);
-      vctx.restore();
+      rounded(vctx,bx,by,tw,th,8); vctx.fill();
+      vctx.fillStyle='white'; vctx.textBaseline='middle'; vctx.textAlign='center';
+      vctx.fillText(totalTxt, bx+tw/2, by+th/2);
+    }
+
+    // ± diff pill (center of bar) — green if buy>sell, amber if sell>buy
+    const diff = b.buy - b.sell;
+    if(Math.abs(diff) >= 0.01 && hTot>34){
+      const diffTxt = (diff>0?'+':'') + fmtBTC.format(diff);
+      const tw=vctx.measureText(diffTxt).width+12, th=16;
+      const bx = Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const by = yBase - hSell - hBuy/2 - th/2; // center of the whole bar
+      vctx.fillStyle='rgba(0,0,0,.85)';
+      rounded(vctx,bx,by,tw,th,9); vctx.fill();
+      vctx.strokeStyle= diff>=0 ? up : dn;
+      vctx.lineWidth=1; vctx.stroke();
+      vctx.fillStyle= diff>=0 ? up : dn;
+      vctx.textBaseline='middle'; vctx.textAlign='center';
+      vctx.fillText(diffTxt, bx+tw/2, by+th/2);
     }
   }
+}
+
+function rounded(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
 
 resizeAll();
