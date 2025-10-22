@@ -37,6 +37,7 @@
   .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
   .conn{position:fixed; left:14px; bottom:14px; z-index:30}
+
   /* settings sheet */
   .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
          box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
@@ -112,7 +113,7 @@ const closeSheet = document.getElementById('closeSheet');
 
 /* ===== state ===== */
 let lastPrice = null;
-let rawLastPrice = null;   // unscaled price for charts
+let rawLastPrice = null;   // unscaled price for chart pill
 let series = [];           // {t, p}
 let volBins = [];          // {ts,buy,sell} x10 fixed
 const MS10 = 600000;
@@ -132,8 +133,7 @@ function sizeCanvas(c){
   c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
   return c.getContext('2d');
 }
-const fmtUSD = (v,fd=0)=> new Intl.NumberFormat(
-  undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
+const fmtUSD = (v,fd=0)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
 function roundRect(ctx,x,y,w,h,r,fill,stroke){
   ctx.beginPath(); ctx.moveTo(x+r,y);
   ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
@@ -158,10 +158,8 @@ scaleInp.addEventListener('change', e=>{
   const v = Math.max(0, +e.target.value || 0);
   VALUE_SCALE = v;
   localStorage.setItem('h8s_scale', String(v));
-  // repaint header immediately if we already have a price
   if(rawLastPrice!=null){
-    const scaled = rawLastPrice * VALUE_SCALE;
-    priceEl.textContent = fmtUSD(scaled,2);
+    priceEl.textContent = fmtUSD(rawLastPrice * VALUE_SCALE, 2);
   }
 });
 function applyTheme(t){
@@ -174,7 +172,7 @@ function applyTheme(t){
 /* ===== trade intake ===== */
 function onTrade({price,size,side,time}){
   const ts = new Date(time).getTime();
-  rawLastPrice = price; // keep unscaled for charts
+  rawLastPrice = price;
   const scaled = price * VALUE_SCALE;
 
   series.push({t:ts,p:price}); // chart uses raw price
@@ -189,7 +187,7 @@ function onTrade({price,size,side,time}){
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
   if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
 
-  // price color only on number
+  // color only on number
   if(lastPrice!=null){
     priceEl.classList.remove('up','down');
     if(scaled>lastPrice) priceEl.classList.add('up');
@@ -200,11 +198,11 @@ function onTrade({price,size,side,time}){
 }
 function prune(){
   const now = Date.now();
-  // keep only last 10m worth of samples (we still stretch x until 10m is reached)
+  // keep last 10m worth of samples; during boot we expand the span up to 10m
   series = series.filter(d=> d.t >= now-MS10);
 }
 
-/* ===== price chart (stretch left→right until 10m, then roll) ===== */
+/* ===== price chart (stretch from left until 10m, then roll) ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -219,24 +217,14 @@ function drawPrice(){
   const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
   const startT = now - windowSpan;
 
-  // resample at 1s across [startT, now]
-  const step = 1000;
-  const buckets = [];
-  for(let t = startT; t <= now; t += step){
-    let last = null;
-    for(let i=series.length-1; i>=0; i--){
-      const s = series[i];
-      if(s.t < t) break;
-      if(s.t >= t && s.t < t + step){ last = s; break; }
-    }
-    if(last) buckets.push(last);
-  }
-  if(buckets.length<2) return;
+  // gather visible points
+  const vis = series.filter(d=> d.t >= startT && d.t <= now);
+  if(vis.length<2) return;
 
   // stats
   let min=Infinity, max=-Infinity, sum=0;
-  for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
-  const range=(max-min)||1; const avg=sum/buckets.length;
+  for(const d of vis){ if(d.p<min)min=d.p; if(d.p>max)max=d.p; sum+=d.p; }
+  const range=(max-min)||1; const avg=sum/vis.length;
 
   const padX=14, padY=20;
 
@@ -253,10 +241,10 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels (strictly increasing X)
+  // map to pixels (strictly increasing X from left edge)
   const usableW = (w-2*padX);
   const pts=[]; let lastX=-1;
-  for(const d of buckets){
+  for(const d of vis){
     const x = padX + ((d.t - startT)/windowSpan) * usableW;
     const y = padY + (h-2*padY)*(1-(d.p-min)/range);
     const xi = Math.round(x);
@@ -265,14 +253,14 @@ function drawPrice(){
   }
   if(pts.length<2) return;
 
-  // smooth stroke (Catmull–Rom → Bézier)
+  // Catmull–Rom → Bézier smoothing
   const cr2bz = (p0,p1,p2,p3,t=0.5)=>{
     const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
     return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
   };
-  ctx.strokeStyle=getComputedStyle(document.body).getPropertyValue('--up').trim();
-  ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
+  const upCol=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.strokeStyle=upCol; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
   for(let i=0;i<pts.length-1;i++){
     const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
@@ -298,7 +286,9 @@ function drawPrice(){
   ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked) with +/- pill) ===== */
+/* ===== volume (stacked) with +/- diff and capped height so pill stays visible ===== */
+const MAX_BAR_RATIO = 0.78;
+
 function drawVol(){
   const ctx = sizeCanvas(volCanvas);
   const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
@@ -317,7 +307,7 @@ function drawVol(){
   const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
 
-  // faint grid lines
+  // faint grid
   ctx.strokeStyle='var(--grid-2)';
   for(let i=1;i<=2;i++){
     const y = padTop + chartH*(i/3*(3/2));
@@ -336,9 +326,13 @@ function drawVol(){
     const b = volBins[i];
     const xC = padX + i*step + step/2;
     const tot = b.buy + b.sell;
-    const hT = Math.max(4, (tot/max)*chartH);
-    const hBuy = tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
+
+    const unclamped = (tot/max)*chartH;
+    const hT = Math.max(4, Math.min(chartH*MAX_BAR_RATIO, unclamped)); // cap
     const yB = padTop + chartH;
+    const buyFrac = tot ? (b.buy/tot) : 0;
+    const hBuy = hT * buyFrac;
+    const hSell = hT - hBuy;
 
     // stacked bars
     ctx.fillStyle = dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
@@ -349,7 +343,7 @@ function drawVol(){
       const diff = b.buy - b.sell;
       const txt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
       const tw = ctx.measureText(txt).width+16, th=20;
-      const bx = xC - tw/2, by = yB - hT - th - 4;
+      const bx = xC - tw/2, by = yB - hT - th - 6;
       ctx.fillStyle='rgba(0,0,0,.88)'; ctx.strokeStyle='rgba(255,255,255,.25)';
       roundRect(ctx,bx,by,tw,th,10,true,true);
       ctx.fillStyle = diff>=0 ? up : dn;
