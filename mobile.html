@@ -65,16 +65,13 @@ function sizeCanvas(c, ctx){
 }
 function resizeAll(){ sizeCanvas(chart,ctx); sizeCanvas(vol,vctx); draw(); }
 new ResizeObserver(resizeAll).observe(document.body);
-addEventListener('orientationchange',()=>setTimeout(resizeAll,150));
 
-/* ---------- state (10m live only) ---------- */
-let trades=[];          // newest last; {t(ms), p, s(size), side}
-let series=[];          // {t, p} for price line
-let lastPrice=null;
+/* ---------- state ---------- */
+let trades=[], series=[];
+let lastPrice=null, startTime=null;
+const MS10 = 600000;
 
-const MS10 = 10*60*1000;
-
-/* ---------- data plumbing ---------- */
+/* ---------- WS ---------- */
 let ws, recon;
 function setConn(txt){connEl.textContent=txt;}
 
@@ -90,9 +87,8 @@ function startWS(){
     try{
       const m=JSON.parse(e.data);
       if(m.type==='match' && m.product_id==='BTC-USD'){
-        const t={ t: new Date(m.time).getTime(),
-                  p: +m.price, s: +m.size,
-                  side: (m.side||'buy').toLowerCase() };
+        const t={ t: new Date(m.time).getTime(), p:+m.price, s:+m.size,
+                  side:(m.side||'buy').toLowerCase() };
         ingest(t);
       }
     }catch{}
@@ -104,152 +100,111 @@ startWS();
 
 /* ---------- ingestion ---------- */
 function ingest(t){
-  // price header
-  if(lastPrice!==null){ priceEl.classList.remove('up','down');
-    if(t.p>lastPrice) priceEl.classList.add('up'); else if(t.p<lastPrice) priceEl.classList.add('down');
+  if(!startTime) startTime=t.t;
+
+  // color only price number, not background
+  if(lastPrice!==null){
+    priceEl.classList.remove('up','down');
+    if(t.p>lastPrice) priceEl.classList.add('up');
+    else if(t.p<lastPrice) priceEl.classList.add('down');
   }
-  lastPrice=t.p; priceEl.textContent=fmtUSD.format(t.p);
+  lastPrice=t.p;
+  priceEl.textContent=fmtUSD.format(t.p);
 
   trades.push(t);
   series.push({t:t.t, p:t.p});
 
-  // prune to 10 minutes only
   const cutoff = Date.now() - MS10;
-  while(trades.length && trades[0].t<cutoff) trades.shift();
-  while(series.length && series[0].t<cutoff) series.shift();
+  trades = trades.filter(tr=>tr.t>=cutoff);
+  series = series.filter(s=>s.t>=cutoff);
 
   draw();
 }
 
-/* ---------- drawing ---------- */
-function draw(){
-  drawPrice();
-  drawVolume();
-}
+/* ---------- draw loop ---------- */
+function draw(){ drawPrice(); drawVol(); }
 
+/* ----- PRICE CHART ----- */
 function drawPrice(){
   const w=chart.clientWidth, h=chart.clientHeight;
   ctx.clearRect(0,0,w,h);
-  if(series.length<2){ grids(ctx,w,h); return; }
 
   const padX=10, padY=10, innerW=w-2*padX, innerH=h-2*padY;
+  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
 
-  // x window = last 10m, right -> left fill
-  const now=Date.now(), start=now-MS10;
+  if(series.length<2){ grid(ctx,w,h); return; }
 
-  // y scale from live 10m only
-  let min=Infinity,max=-Infinity,sum=0,n=0;
-  for(const s of series){ if(s.t>=start){min=Math.min(min,s.p);max=Math.max(max,s.p);sum+=s.p;n++;} }
-  if(!isFinite(min)||!isFinite(max)){ grids(ctx,w,h); return; }
-  const avg=sum/n, range=(max-min)||1;
+  // when under 10m old, fill from left proportionally
+  const now = Date.now();
+  const elapsed = now - startTime;
+  const windowLength = Math.min(MS10, elapsed);
+  const start = now - windowLength;
+  const fillRatio = windowLength / MS10;
 
-  // grid
-  ctx.strokeStyle='var(--grid)'; ctx.lineWidth=1;
-  ctx.beginPath();
-  for(let i=1;i<=2;i++){ const y=padY + innerH*(i/3); ctx.moveTo(padX, y); ctx.lineTo(padX+innerW, y); }
-  ctx.stroke();
+  let min=Infinity,max=-Infinity;
+  for(const s of series){ if(s.t>=start){min=Math.min(min,s.p);max=Math.max(max,s.p);} }
+  if(!isFinite(min)||!isFinite(max)){ grid(ctx,w,h); return; }
+  const range=(max-min)||1;
 
-  // dashed avg
-  const yAvg = padY + innerH*(1 - (avg-min)/range);
-  ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(200,214,207,.5)';
-  ctx.beginPath(); ctx.moveTo(padX, yAvg); ctx.lineTo(padX+innerW, yAvg); ctx.stroke(); ctx.restore();
+  grid(ctx,w,h);
 
-  // polyline
   ctx.lineWidth=2;
   ctx.beginPath();
   for(let i=0;i<series.length;i++){
     const s=series[i]; if(s.t<start) continue;
-    const x = padX + innerW * ( (s.t-start)/MS10 );      // left→right
+    const x = padX + innerW * ((s.t - start) / windowLength); // left → right growth
     const y = padY + innerH * (1 - (s.p-min)/range);
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
-  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  ctx.stroke();
-
-  // sparse time ticks bottom (every 2 minutes)
-  ctx.strokeStyle='var(--grid)';
-  ctx.fillStyle='rgba(255,255,255,.65)';
-  ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  ctx.textAlign='center'; ctx.textBaseline='top';
-  for(let i=0;i<=10;i+=2){
-    const t = start + i*60000;
-    const x = padX + innerW * (i/10);
-    ctx.beginPath(); ctx.moveTo(x,h-padY-10); ctx.lineTo(x,h-padY); ctx.stroke();
-    ctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-padY+2);
-  }
+  ctx.strokeStyle=up; ctx.stroke();
 }
 
-function grids(context,w,h){
+/* grid lines */
+function grid(context,w,h){
   context.strokeStyle='var(--grid)'; context.lineWidth=1;
   context.beginPath();
   for(let i=1;i<=2;i++){ const y=(h/3)*i; context.moveTo(10,y); context.lineTo(w-10,y); }
   context.stroke();
 }
 
-/* per-minute stacked BTC volume */
+/* ----- VOLUME CHART ----- */
 function bins10(){
   const now=Date.now();
-  const start = now - (now % 60000) - 9*60000;  // align 10 bins to minutes
-  const bins = Array.from({length:10},(_,i)=>({ts:start+i*60000, buy:0, sell:0}));
+  const start = startTime ? startTime : now - (now % 60000);
+  const bins = Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
   for(const t of trades){
-    const i = Math.floor((t.t - start)/60000);
-    if(i>=0 && i<10){ if(t.side==='sell') bins[i].sell += t.s; else bins[i].buy += t.s; }
+    const idx = Math.floor((t.t - start)/60000);
+    if(idx>=0 && idx<10){ if(t.side==='sell') bins[idx].sell += t.s; else bins[idx].buy += t.s; }
   }
   return bins;
 }
 
-function drawVolume(){
-  const w=vol.clientWidth, h=vol.clientHeight;
+function drawVol(){
+  const w=vol.clientWidth,h=vol.clientHeight;
   vctx.clearRect(0,0,w,h);
   const bins=bins10();
   const totals=bins.map(b=>b.buy+b.sell);
-  const max = Math.max(1, ...totals);
-  maxVolEl.textContent = 'max ₿' + fmtBTC.format(Math.max(...totals)||0);
+  const max=Math.max(1,...totals);
+  maxVolEl.textContent='max ₿'+fmtBTC.format(Math.max(...totals)||0);
 
-  const padX=22, padY=10, innerW=w-2*padX, innerH=h-2*padY;
-  const step = innerW/10, barW = Math.max(6, step*0.55);
-
-  // grid
-  vctx.strokeStyle='var(--grid)'; vctx.lineWidth=1;
-  vctx.beginPath();
-  for(let i=1;i<=2;i++){ const y=padY + innerH*(i/3); vctx.moveTo(padX,y); vctx.lineTo(padX+innerW,y); }
-  vctx.stroke();
-
+  const padX=22,padY=10,innerW=w-2*padX,innerH=h-2*padY;
+  const step=innerW/10,barW=step*0.6;
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
-  // draw newest at right
   for(let i=0;i<bins.length;i++){
     const b=bins[i];
-    const x = padX + step*i + (step-barW)/2;
-    const tot = b.buy+b.sell;
-    const hTot = Math.max(2, innerH * (tot/max));
+    const x=padX+step*i+(step-barW)/2;
+    const tot=b.buy+b.sell;
+    const hTot=Math.max(2,innerH*(tot/max));
+    const hSell=(b.sell/tot||0)*hTot;
+    const hBuy=hTot-hSell;
+    const yBase=padY+innerH;
 
-    const hSell = (tot? b.sell/tot : 0) * hTot;
-    const hBuy  = hTot - hSell;
-    const yBase = padY + innerH;
-
-    // sells (bottom)
-    vctx.fillStyle=dn; vctx.fillRect(x, yBase-hSell, barW, hSell);
-    // buys (top)
-    vctx.fillStyle=up; vctx.fillRect(x, yBase-hSell-hBuy, barW, hBuy);
-  }
-
-  // minute ticks at bottom (every 2 min to keep sparse)
-  vctx.strokeStyle='var(--grid)';
-  vctx.fillStyle='rgba(255,255,255,.65)';
-  vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  vctx.textAlign='center'; vctx.textBaseline='top';
-  const startTS = bins[0]?.ts ?? (Date.now()-9*60000);
-  for(let i=0;i<10;i+=2){
-    const x = padX + step*i + step/2;
-    const ts = startTS + i*60000;
-    vctx.beginPath(); vctx.moveTo(x, h-padY-10); vctx.lineTo(x, h-padY); vctx.stroke();
-    vctx.fillText(':'+new Date(ts).toLocaleTimeString([],{minute:'2-digit'}), x, h-padY+2);
+    vctx.fillStyle=dn; vctx.fillRect(x,yBase-hSell,barW,hSell);
+    vctx.fillStyle=up; vctx.fillRect(x,yBase-hSell-hBuy,barW,hBuy);
   }
 }
-
-/* initial sizing */
 resizeAll();
 </script>
 </body>
