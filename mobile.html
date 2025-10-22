@@ -3,274 +3,323 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>h8s — mobile (classic)</title>
+<title>h8s — 10m</title>
 <style>
   :root{
-    --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
-    --text:#e9fef7; --muted:#c8d6cf;
-    --up:#2dd4bf; --down:#f59e0b;
-    --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
-    --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
-    --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
+    --bg:#0a0a0a; --panel:#101010; --ink:#e9fef7; --muted:#c8d6cf;
+    --up:#2dd4bf; --down:#f59e0b; --grid:rgba(255,255,255,.06);
   }
   *{box-sizing:border-box}
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--text);
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
-  .wrap{padding:14px 14px 90px; max-width:900px; margin:0 auto;}
-  .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow)}
-  .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
-        border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
-        font-size:12px; white-space:nowrap; color:#fff;}
-  .bigPrice{font-weight:900; font-size: clamp(24px,7.8vw,44px); letter-spacing:.5px; text-align:center; margin:18px 0 6px}
-  .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
-  .chartBox{padding:10px 10px 6px}
-  canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
-  .volBox canvas{height:210px}
-  .legend{display:flex; align-items:center; gap:16px; padding:10px 10px 4px}
-  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  .wrap{padding:12px;max-width:760px;margin:0 auto}
+  .card{background:var(--panel);border-radius:16px;padding:10px 10px 12px;
+        box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 26px rgba(0,0,0,.35)}
+  #price{font-size:clamp(28px,8vw,44px);font-weight:900;text-align:center;margin:0 0 6px}
+  #price.price-up{color:var(--up)} #price.price-down{color:var(--down)}
+  .can{display:block;width:100%;height:240px;border-radius:12px}
+  #vol{height:170px;margin-top:12px}
+  .row{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 4px}
+  .pill{font-size:11px;border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:3px 8px;opacity:.9;white-space:nowrap}
+  .lgd{display:flex;gap:10px;align-items:center}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:6px}
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
-  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
+  #conn{position:fixed;left:12px;bottom:12px;z-index:10}
 </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="card chartBox">
-      <div id="bigPrice" class="bigPrice">$—</div>
-      <canvas id="priceCanvas"></canvas>
-      <div class="legend">
-        <span class="dot up"></span><span class="muted">Buys</span>
-        <span class="dot down"></span><span class="muted">Sells</span>
-        <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
+<div class="wrap">
+  <div class="card">
+    <div id="price">$—</div>
+
+    <canvas id="chart" class="can"></canvas>
+
+    <div class="row">
+      <div class="lgd">
+        <span class="dot up"></span><small>Buys</small>
+        <span class="dot down"></span><small>Sells</small>
       </div>
-      <canvas id="volCanvas"></canvas>
-    </section>
-    <div class="pill conn" id="connPill">Live</div>
-  </main>
+      <span id="maxVol" class="pill">max —</span>
+    </div>
+
+    <canvas id="vol" class="can"></canvas>
+  </div>
+</div>
+
+<span id="conn" class="pill">Connecting…</span>
 
 <script>
-/* ====== elements ====== */
-const priceEl = document.getElementById('bigPrice');
-const priceCanvas = document.getElementById('priceCanvas');
-const volCanvas = document.getElementById('volCanvas');
-const maxVolPill = document.getElementById('maxVolPill');
-const connPill = document.getElementById('connPill');
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const fmtUSD=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
+const fmtUSD0=new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+const fmtBTC=new Intl.NumberFormat(undefined,{maximumFractionDigits:2});
 
-/* ====== state ====== */
-let lastPrice = null;
-let series = [];           // {t, p}
-let volBins = [];          // {ts,buy,sell} x10 fixed
-const MS10 = 600000;
+const priceEl=$('#price'), connEl=$('#conn'), maxVolEl=$('#maxVol');
+const chart=$('#chart'), ctx=chart.getContext('2d',{desynchronized:true});
+const vol=$('#vol'), vctx=vol.getContext('2d',{desynchronized:true});
 
-/* ====== helpers ====== */
-function sizeCanvas(c){
-  const dpr = Math.min(3, window.devicePixelRatio||1);
-  c.width = Math.max(1, c.clientWidth*dpr);
-  c.height = Math.max(1, c.clientHeight*dpr);
-  c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
-  return c.getContext('2d');
+function sizeCanvas(c, ctx){
+  const dpr=Math.max(1,Math.min(devicePixelRatio||1,3));
+  c.width=Math.max(1,c.clientWidth*dpr); c.height=Math.max(1,c.clientHeight*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-function fmtUSD(v,fd=0){ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v); }
-function roundRect(ctx,x,y,w,h,r,fill,stroke){
-  ctx.beginPath(); ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
-  if(fill) ctx.fill(); if(stroke) ctx.stroke();
-}
-function initBins(){
-  const now = Date.now();
-  const start = now - (now % 60000) - 9*60000;
-  volBins = Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
-}
-initBins();
+function resizeAll(){ sizeCanvas(chart,ctx); sizeCanvas(vol,vctx); draw(); }
+new ResizeObserver(resizeAll).observe(document.body);
 
-/* ====== trade intake ====== */
-function onTrade({price,size,side,time}){
-  const ts = new Date(time).getTime();
-  series.push({t:ts,p:price});
+/* ---------- state ---------- */
+let trades=[], series=[];
+let lastPrice=null, startTime=null;
+const MS1M=60000, MS10=600000;
 
-  // fix 10 bins aligned to minutes (scroll left-to-right)
-  const startAligned = ts - (ts % 60000) - 9*60000;
-  while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
-  while(volBins.length<10){
-    const lastTs = volBins.length?volBins[volBins.length-1].ts:startAligned;
-    volBins.push({ts:lastTs+60000,buy:0,sell:0});
+/* ---------- WS ---------- */
+let ws, recon;
+function setConn(txt){connEl.textContent=txt;}
+function startWS(){
+  try{ ws && ws.close(); }catch(e){}
+  ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  setConn('Connecting…');
+  ws.onopen=()=>{
+    setConn('Live');
+    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
+  };
+  ws.onmessage=e=>{
+    try{
+      const m=JSON.parse(e.data);
+      if(m.type==='match' && m.product_id==='BTC-USD'){
+        const t={t:new Date(m.time).getTime(), p:+m.price, s:+m.size, side:(m.side||'buy').toLowerCase()};
+        ingest(t);
+      }
+    }catch{}
+  };
+  ws.onclose=()=>{ setConn('Reconnecting…'); clearTimeout(recon); recon=setTimeout(startWS,1000); };
+  ws.onerror=()=>{ setConn('Reconnecting…'); try{ws.close()}catch{} };
+}
+startWS();
+
+/* ---------- ingestion ---------- */
+function ingest(t){
+  if(!startTime) startTime=t.t;
+
+  if(lastPrice!==null){
+    priceEl.classList.remove('price-up','price-down');
+    if(t.p>lastPrice) priceEl.classList.add('price-up'); else if(t.p<lastPrice) priceEl.classList.add('price-down');
   }
-  const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
-  if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
+  lastPrice=t.p; priceEl.textContent=fmtUSD.format(t.p);
 
-  // price color only on number
-  if(lastPrice!=null){
-    priceEl.classList.remove('up','down');
-    if(price>lastPrice) priceEl.classList.add('up');
-    else if(price<lastPrice) priceEl.classList.add('down');
-  }
-  lastPrice = price;
-  priceEl.textContent = fmtUSD(price,2);
-}
-function prune(){
-  const now = Date.now();
-  series = series.filter(d=> d.t >= now-MS10);
+  trades.push(t); series.push({t:t.t,p:t.p});
+  const cutoff=Date.now()-MS10;
+  trades=trades.filter(x=>x.t>=cutoff);
+  series=series.filter(x=>x.t>=cutoff);
+
+  draw();
 }
 
-/* ====== price chart (smooth) ====== */
+/* ---------- draw orchestrator ---------- */
+function draw(){ drawPrice(); drawVol(); }
+
+/* ---------- ticks ---------- */
+function ticksEvery(start, span, stepMs){
+  const right = Math.floor((start+span)/stepMs)*stepMs;
+  const first = right - Math.floor(span/stepMs)*stepMs;
+  const out=[];
+  for(let t=first;t<=right;t+=stepMs) out.push(t);
+  return out;
+}
+
+/* ---------- Catmull–Rom → Bézier ---------- */
+function catmullRomToBezier(p0,p1,p2,p3,t=0.5){
+  // Returns control points for the Bézier segment between p1 and p2
+  const d1=t*(p2.x-p0.x), d2=t*(p3.x-p1.x);
+  return [
+    {x:p1.x + d1/3, y: p1.y + t*(p2.y-p0.y)/3},
+    {x:p2.x - d2/3, y: p2.y - t*(p3.y-p1.y)/3}
+  ];
+}
+
+/* ---------- price chart ---------- */
 function drawPrice(){
-  const ctx = sizeCanvas(priceCanvas);
-  const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
+  const w=chart.clientWidth, h=chart.clientHeight;
   ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
-  ctx.fillRect(0,0,w,h);
-  if(series.length<2) return;
 
-  const min = Math.min(...series.map(d=>d.p));
-  const max = Math.max(...series.map(d=>d.p));
-  const range = (max-min)||1;
+  const padL=58, padR=12, padT=10, padB=28;
+  const innerW=w-padL-padR, innerH=h-padT-padB;
 
-  const padX=12, padY=18;
-  // grid lines
-  ctx.strokeStyle='var(--grid)';
-  for(let i=1;i<=3;i++){
-    const y = padY+(h-2*padY)*(i/4*(4/3));
-    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+  if(series.length<2){
+    drawPriceGridLabels(w,h,padL,padR,padT,padB,null);
+    return;
   }
-  // average line
-  const avg = series.reduce((a,d)=>a+d.p,0)/series.length;
-  const yAvg = padY + (h-2*padY)*(1-(avg-min)/range);
-  ctx.setLineDash([6,6]);
-  ctx.strokeStyle='rgba(255,255,255,.35)';
-  ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
-  ctx.setLineDash([]);
 
-  // map points left -> right over last 10m span
-  const span = MS10; const now = Date.now();
-  const pts = series.map(d=>{
-    const x = padX + ((d.t-(now-span))/span)*(w-2*padX);
-    const y = padY + (h-2*padY)*(1-(d.p-min)/range);
-    return {x,y};
-  }).filter(p=>p.x>=padX-4); // ignore far-left off-canvas
+  const now=Date.now();
+  const elapsed=now-(startTime||now);
+  const windowLen=Math.min(MS10,elapsed);
+  const start=now-windowLen;
 
+  // stats
+  let min=Infinity,max=-Infinity,sum=0,count=0;
+  for(const s of series){ if(s.t>=start){min=Math.min(min,s.p);max=Math.max(max,s.p);sum+=s.p;count++;} }
+  if(!isFinite(min)||!isFinite(max)){ drawPriceGridLabels(w,h,padL,padR,padT,padB,null); return; }
+  const avg=sum/(count||1), range=(max-min)||1;
+  drawPriceGridLabels(w,h,padL,padR,padT,padB,{min,max,avg,range});
+
+  // points mapped to canvas
+  const pts=[];
+  for(const s of series){ if(s.t<start) continue;
+    const x=padL + innerW*((s.t-start)/windowLen);
+    const y=padT + innerH*(1-(s.p-min)/range);
+    pts.push({x,y,p:s.p});
+  }
   if(pts.length<2) return;
 
-  // Catmull–Rom → Bezier
-  const cr2bz = (p0,p1,p2,p3,t=0.5)=>{
-    const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
-    const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
-    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
-  };
-  ctx.strokeStyle=getComputedStyle(document.body).getPropertyValue('--up').trim();
-  ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-  for(let i=0;i<pts.length-1;i++){
-    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
-    const [c1,c2]=cr2bz(p0,p1,p2,p3,0.5);
+  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+  const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
+
+  ctx.lineWidth=2; ctx.lineJoin='round'; ctx.lineCap='round';
+
+  // Build extended points for CR splines
+  const ext=[pts[0], ...pts, pts.at(-1)];
+  for(let i=1;i<ext.length-2;i++){
+    const p0=ext[i-1], p1=ext[i], p2=ext[i+1], p3=ext[i+2];
+    const [c1,c2]=catmullRomToBezier(p0,p1,p2,p3,0.5);
+    // color by midpoint price vs avg
+    const midP=(p1.p+p2.p)/2;
+    ctx.strokeStyle = midP>=avg ? up : dn;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
     ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
+    ctx.stroke();
   }
-  ctx.stroke();
 
-  // axis labels (3 prices)
-  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  ctx.fillText(fmtUSD(max,0), padX, padY+4);
-  ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
-  ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
+  // price pill (clamped inside)
+  const last=pts.at(-1);
+  const tag=fmtUSD0.format(lastPrice??avg);
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  const tw=ctx.measureText(tag).width+12, th=18;
+  const bx=Math.min(w-padR-tw, Math.max(padL, last.x - tw/2));
+  const by=Math.max(padT+2, Math.min(h-padB-th-2, last.y - th - 8));
+  ctx.fillStyle='rgba(0,0,0,.85)'; roundRect(ctx,bx,by,tw,th,9); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.stroke();
+  ctx.fillStyle='white'; ctx.textBaseline='middle'; ctx.textAlign='left';
+  ctx.fillText(tag,bx+6,by+th/2);
 
-  // last price pill
-  const last = pts[pts.length-1];
-  const label = fmtUSD(lastPrice,0);
-  const tw = ctx.measureText(label).width+18, th=22;
-  const bx = Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by = Math.max(8, last.y - th - 8);
-  ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
-  roundRect(ctx,bx,by,tw,th,10,true,true);
-  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
+  // x labels every 2 minutes
+  const tick2=ticksEvery(start,windowLen,2*MS1M);
+  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  for(const t of tick2){
+    if(t<start||t>start+windowLen) continue;
+    const x=padL + innerW*((t-start)/windowLen);
+    ctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-18);
+  }
 }
 
-/* ====== volume (stacked) with +/- pill ====== */
+function drawPriceGridLabels(w,h,padL,padR,padT,padB,stats){
+  const innerH=h-padT-padB;
+  ctx.strokeStyle='var(--grid)'; ctx.lineWidth=1;
+  for(let i=1;i<=3;i++){
+    const y=padT + innerH*(i/4*(4/3));
+    ctx.beginPath(); ctx.moveTo(padL-6,y); ctx.lineTo(w-padR+6,y); ctx.stroke();
+  }
+  if(!stats) return;
+  const {min,max,avg,range}=stats;
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
+  const yMax=padT+10, yMin=h-padB-10, yAvg=padT + innerH*(1-(avg-min)/range);
+  ctx.fillText(fmtUSD0.format(max), 8, yMax);
+  ctx.fillText(fmtUSD0.format(avg), 8, Math.max(padT+14, Math.min(h-padB-14, yAvg)));
+  ctx.fillText(fmtUSD0.format(min), 8, yMin);
+}
+
+/* ---------- volume ---------- */
+function bins10(){
+  const now=Date.now();
+  const start=(now-9*MS1M) - ((now-9*MS1M)%MS1M);
+  const bins=Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
+  for(const t of trades){
+    const idx=Math.floor((t.t-start)/MS1M);
+    if(idx>=0&&idx<10){ if(t.side==='sell') bins[idx].sell+=t.s; else bins[idx].buy+=t.s; }
+  }
+  return bins;
+}
+
 function drawVol(){
-  const ctx = sizeCanvas(volCanvas);
-  const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
-  ctx.fillRect(0,0,w,h);
+  const w=vol.clientWidth,h=vol.clientHeight;
+  vctx.clearRect(0,0,w,h);
 
-  const max = Math.max(0.01, ...volBins.map(b=>b.buy+b.sell));
-  maxVolPill.textContent = `max ₿${max.toFixed(2)}`;
+  const bins=bins10();
+  const totals=bins.map(b=>b.buy+b.sell);
+  const max=Math.max(1,...totals);
+  maxVolEl.textContent='max ₿'+fmtBTC.format(Math.max(...totals)||0);
 
-  const padX=16, padTop=14, padBottom=22;
-  const chartH = h - padTop - padBottom;
-  const step = (w - padX*2) / volBins.length;
-  const barW = step*0.62;
+  const padX=26,padY=12,innerW=w-2*padX,innerH=h-2*padY;
+  const step=innerW/10,barW=step*0.62;
+  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
+  const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
-  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  // horizontals
+  vctx.strokeStyle='var(--grid)'; vctx.lineWidth=1;
+  for(let i=1;i<=3;i++){ const y=padY+innerH*(i/4*(4/3)); vctx.beginPath(); vctx.moveTo(padX-6,y); vctx.lineTo(w-padX+6,y); vctx.stroke(); }
 
-  // two faint grid lines
-  ctx.strokeStyle='var(--grid-2)';
-  for(let i=1;i<=2;i++){
-    const y = padTop + chartH*(i/3*(3/2));
-    ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
+  // x labels: every 4 minutes, small, further down; auto-skip near edges
+  const now=Date.now(), start=now-10*MS1M;
+  const tick4=ticksEvery(start,10*MS1M,4*MS1M);
+  vctx.fillStyle='rgba(255,255,255,.7)'; vctx.textAlign='center'; vctx.textBaseline='top'; vctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  let lastX=-1e9;
+  for(const t of tick4){
+    const x=padX + innerW * ((t - (now-10*MS1M)) / (10*MS1M));
+    if(x<padX+12 || x>w-padX-12) continue;
+    if(Math.abs(x-lastX)<26) continue; // keep airy
+    vctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-14);
+    lastX=x;
   }
 
-  // bottom time labels (every other minute, pushed slightly up to avoid bars)
-  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
-  for(let i=0;i<volBins.length;i+=2){
-    const xC = padX + i*step + step/2;
-    const t = new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'});
-    ctx.fillText(':'+t, xC-8, h-18); // small, centered-ish
-  }
+  // bars + labels
+  for(let i=0;i<bins.length;i++){
+    const b=bins[i], x=padX+step*i+(step-barW)/2, tot=b.buy+b.sell;
+    const hTot=Math.max(2,innerH*(tot/max));
+    const hSell=(b.sell/tot||0)*hTot, hBuy=hTot-hSell, yBase=padY+innerH;
 
-  for(let i=0;i<volBins.length;i++){
-    const b = volBins[i];
-    const xC = padX + i*step + step/2;
-    const tot = b.buy + b.sell;
-    const hT = Math.max(4, (tot/max)*chartH);
-    const hBuy = tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
-    const yB = padTop + chartH;
+    vctx.fillStyle=dn; vctx.fillRect(x,yBase-hSell,barW,hSell);
+    vctx.fillStyle=up; vctx.fillRect(x,yBase-hSell-hBuy,barW,hBuy);
 
-    // stacked bars
-    ctx.fillStyle = dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
-    ctx.fillStyle = up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+    // total pill (above bar) — clamped
+    if(hTot>22 && tot>0){
+      const totalTxt='₿'+fmtBTC.format(tot);
+      const tw=vctx.measureText(totalTxt).width+10, th=16;
+      const bx=Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const by=Math.max(padY+2, yBase-hTot-20);
+      vctx.fillStyle='rgba(0,0,0,.85)'; roundRect(vctx,bx,by,tw,th,8); vctx.fill();
+      vctx.fillStyle='white'; vctx.textBaseline='middle'; vctx.textAlign='center';
+      vctx.fillText(totalTxt, bx+tw/2, by+th/2);
+    }
 
-    // +/- diff pill if tall enough
-    if(hT>26){
-      const diff = b.buy - b.sell;
-      const txt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
-      const tw = ctx.measureText(txt).width+16, th=20;
-      const bx = xC - tw/2, by = yB - hT - th - 4;
-      ctx.fillStyle='rgba(0,0,0,.88)'; ctx.strokeStyle='rgba(255,255,255,.25)';
-      roundRect(ctx,bx,by,tw,th,10,true,true);
-      ctx.fillStyle = diff>=0 ? up : dn;
-      ctx.textBaseline='middle'; ctx.fillText(txt, bx+8, by+th/2);
+    // +/- diff pill at center if meaningful
+    const diff=b.buy-b.sell;
+    if(Math.abs(diff)>=0.01 && hTot>34){
+      const diffTxt=(diff>0?'+':'')+fmtBTC.format(diff);
+      const tw=vctx.measureText(diffTxt).width+12, th=16;
+      const bx=Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const by=yBase - hSell - hBuy/2 - th/2;
+      vctx.fillStyle='rgba(0,0,0,.85)'; roundRect(vctx,bx,by,tw,th,9); vctx.fill();
+      vctx.strokeStyle = diff>=0 ? up : dn; vctx.lineWidth=1; vctx.stroke();
+      vctx.fillStyle   = diff>=0 ? up : dn; vctx.textBaseline='middle'; vctx.textAlign='center';
+      vctx.fillText(diffTxt, bx+tw/2, by+th/2);
     }
   }
 }
 
-/* ====== loop ====== */
-function drawAll(){ prune(); drawPrice(); drawVol(); requestAnimationFrame(drawAll); }
-
-/* ====== feed ====== */
-let ws, recon;
-function startWS(){
-  try{ ws && ws.close(); }catch{}
-  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
-  ws.onopen = ()=>{
-    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-    connPill.textContent='Live';
-  };
-  ws.onmessage = (e)=>{
-    try{
-      const m = JSON.parse(e.data);
-      if(m.type==='match' && m.product_id==='BTC-USD'){
-        onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
-      }
-    }catch{}
-  };
-  ws.onclose = ()=>{ connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000); };
-  ws.onerror = ()=>{ try{ws.close()}catch{} };
+/* ---------- drawing utils ---------- */
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
-startWS();
 
-/* ====== layout ====== */
-new ResizeObserver(()=>{ drawAll(); }).observe(document.body);
-requestAnimationFrame(drawAll);
+/* ---------- boot ---------- */
+resizeAll();
 </script>
 </body>
 </html>
