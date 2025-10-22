@@ -15,8 +15,8 @@
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
   .wrap{padding:12px;max-width:760px;margin:0 auto}
   .card{background:var(--panel);border-radius:16px;padding:10px 10px 12px;
-        box-shadow:0 0 0 1px rgba(255,255,255,.06), 0 10px 26px rgba(0,0,0,.35)}
-  #price{font-size:clamp(28px,8vw,44px);font-weight:900;text-align:center;margin:0 0 8px}
+        box-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 26px rgba(0,0,0,.35)}
+  #price{font-size:clamp(28px,8vw,44px);font-weight:900;text-align:center;margin:0 0 6px}
   #price.price-up{color:var(--up)} #price.price-down{color:var(--down)}
   .can{display:block;width:100%;height:240px;border-radius:12px}
   #vol{height:170px;margin-top:12px}
@@ -62,8 +62,7 @@ const vol=$('#vol'), vctx=vol.getContext('2d',{desynchronized:true});
 
 function sizeCanvas(c, ctx){
   const dpr=Math.max(1,Math.min(devicePixelRatio||1,3));
-  const {clientWidth:w, clientHeight:h}=c;
-  c.width=Math.max(1,w*dpr); c.height=Math.max(1,h*dpr);
+  c.width=Math.max(1,c.clientWidth*dpr); c.height=Math.max(1,c.clientHeight*dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);
 }
 function resizeAll(){ sizeCanvas(chart,ctx); sizeCanvas(vol,vctx); draw(); }
@@ -72,31 +71,30 @@ new ResizeObserver(resizeAll).observe(document.body);
 /* ---------- state ---------- */
 let trades=[], series=[];
 let lastPrice=null, startTime=null;
-const MS1M = 60000, MS10 = 600000;
+const MS1M=60000, MS10=600000;
 
 /* ---------- WS ---------- */
 let ws, recon;
 function setConn(txt){connEl.textContent=txt;}
 function startWS(){
   try{ ws && ws.close(); }catch(e){}
-  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
   setConn('Connecting…');
-  ws.onopen=()=> {
+  ws.onopen=()=>{
     setConn('Live');
     ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
   };
-  ws.onmessage = e=>{
+  ws.onmessage=e=>{
     try{
       const m=JSON.parse(e.data);
       if(m.type==='match' && m.product_id==='BTC-USD'){
-        const t={ t: new Date(m.time).getTime(), p:+m.price, s:+m.size,
-                  side:(m.side||'buy').toLowerCase() };
+        const t={t:new Date(m.time).getTime(), p:+m.price, s:+m.size, side:(m.side||'buy').toLowerCase()};
         ingest(t);
       }
     }catch{}
   };
-  ws.onclose = () => { setConn('Reconnecting…'); clearTimeout(recon); recon=setTimeout(startWS,1000); };
-  ws.onerror = () => { setConn('Reconnecting…'); try{ws.close()}catch{} };
+  ws.onclose=()=>{ setConn('Reconnecting…'); clearTimeout(recon); recon=setTimeout(startWS,1000); };
+  ws.onerror=()=>{ setConn('Reconnecting…'); try{ws.close()}catch{} };
 }
 startWS();
 
@@ -106,43 +104,38 @@ function ingest(t){
 
   if(lastPrice!==null){
     priceEl.classList.remove('price-up','price-down');
-    if(t.p>lastPrice) priceEl.classList.add('price-up');
-    else if(t.p<lastPrice) priceEl.classList.add('price-down');
+    if(t.p>lastPrice) priceEl.classList.add('price-up'); else if(t.p<lastPrice) priceEl.classList.add('price-down');
   }
-  lastPrice=t.p;
-  priceEl.textContent=fmtUSD.format(t.p);
+  lastPrice=t.p; priceEl.textContent=fmtUSD.format(t.p);
 
-  trades.push(t);
-  series.push({t:t.t, p:t.p});
-
-  const cutoff = Date.now() - MS10;
-  trades = trades.filter(tr=>tr.t>=cutoff);
-  series = series.filter(s=>s.t>=cutoff);
+  trades.push(t); series.push({t:t.t,p:t.p});
+  const cutoff=Date.now()-MS10;
+  trades=trades.filter(x=>x.t>=cutoff);
+  series=series.filter(x=>x.t>=cutoff);
 
   draw();
 }
 
-/* ---------- draw orchestration ---------- */
+/* ---------- draw orchestrator ---------- */
 function draw(){ drawPrice(); drawVol(); }
 
-/* ---------- utilities ---------- */
-function rounded(ctx,x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
+/* ---------- ticks ---------- */
+function ticksEvery(start, span, stepMs){
+  const right = Math.floor((start+span)/stepMs)*stepMs;
+  const first = right - Math.floor(span/stepMs)*stepMs;
+  const out=[];
+  for(let t=first;t<=right;t+=stepMs) out.push(t);
+  return out;
 }
 
-function twoMinuteTicks(windowStart, windowLen, count=6){
-  // anchor ticks to nearest even minute
-  const right = Math.floor((windowStart+windowLen)/ (2*MS1M)) * (2*MS1M);
-  const first = right - (count-1)*2*MS1M;
-  const ticks=[];
-  for(let i=0;i<count;i++) ticks.push(first + i*2*MS1M);
-  return ticks;
+/* ---------- Catmull–Rom → Bézier ---------- */
+function catmullRomToBezier(p0,p1,p2,p3,t=0.5){
+  // Returns control points for the Bézier segment between p1 and p2
+  const d1=t*(p2.x-p0.x), d2=t*(p3.x-p1.x);
+  return [
+    {x:p1.x + d1/3, y: p1.y + t*(p2.y-p0.y)/3},
+    {x:p2.x - d2/3, y: p2.y - t*(p3.y-p1.y)/3}
+  ];
 }
 
 /* ---------- price chart ---------- */
@@ -150,97 +143,87 @@ function drawPrice(){
   const w=chart.clientWidth, h=chart.clientHeight;
   ctx.clearRect(0,0,w,h);
 
-  const padL=58, padR=12, padT=10, padB=28; // extra B for labels
+  const padL=58, padR=12, padT=10, padB=28;
   const innerW=w-padL-padR, innerH=h-padT-padB;
 
-  // not enough data yet — draw grid & labels
   if(series.length<2){
-    drawPriceGridLabels(w,h,padL,padR,padT,padB, null);
+    drawPriceGridLabels(w,h,padL,padR,padT,padB,null);
     return;
   }
 
-  const now = Date.now();
-  const elapsed = now - (startTime||now);
-  const windowLen = Math.min(MS10, elapsed);
-  const start = now - windowLen;
+  const now=Date.now();
+  const elapsed=now-(startTime||now);
+  const windowLen=Math.min(MS10,elapsed);
+  const start=now-windowLen;
 
-  // min/max/avg inside window
+  // stats
   let min=Infinity,max=-Infinity,sum=0,count=0;
   for(const s of series){ if(s.t>=start){min=Math.min(min,s.p);max=Math.max(max,s.p);sum+=s.p;count++;} }
-  if(!isFinite(min)||!isFinite(max)){ drawPriceGridLabels(w,h,padL,padR,padT,padB, null); return; }
-  const avg = sum/(count||1);
-  const range=(max-min)||1;
-
+  if(!isFinite(min)||!isFinite(max)){ drawPriceGridLabels(w,h,padL,padR,padT,padB,null); return; }
+  const avg=sum/(count||1), range=(max-min)||1;
   drawPriceGridLabels(w,h,padL,padR,padT,padB,{min,max,avg,range});
 
-  // map points
+  // points mapped to canvas
   const pts=[];
-  for(const s of series){
-    if(s.t<start) continue;
-    const x = padL + innerW * ((s.t - start) / windowLen);
-    const y = padT + innerH * (1 - (s.p-min)/range);
+  for(const s of series){ if(s.t<start) continue;
+    const x=padL + innerW*((s.t-start)/windowLen);
+    const y=padT + innerH*(1-(s.p-min)/range);
     pts.push({x,y,p:s.p});
   }
   if(pts.length<2) return;
 
-  // draw segment-by-segment, coloring by avg
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
-  const yAvg = padT + innerH * (1 - (avg-min)/range);
 
   ctx.lineWidth=2; ctx.lineJoin='round'; ctx.lineCap='round';
-  for(let i=1;i<pts.length;i++){
-    const a=pts[i-1], b=pts[i];
-    const color = (a.p+ b.p)/2 >= avg ? up : dn;
-    ctx.strokeStyle=color;
-    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+  // Build extended points for CR splines
+  const ext=[pts[0], ...pts, pts.at(-1)];
+  for(let i=1;i<ext.length-2;i++){
+    const p0=ext[i-1], p1=ext[i], p2=ext[i+1], p3=ext[i+2];
+    const [c1,c2]=catmullRomToBezier(p0,p1,p2,p3,0.5);
+    // color by midpoint price vs avg
+    const midP=(p1.p+p2.p)/2;
+    ctx.strokeStyle = midP>=avg ? up : dn;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
+    ctx.stroke();
   }
 
-  // latest price pill (clamped)
+  // price pill (clamped inside)
   const last=pts.at(-1);
   const tag=fmtUSD0.format(lastPrice??avg);
   ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  const tw = ctx.measureText(tag).width + 12;
-  const th = 18;
-  const bx = Math.min(w-padR-tw, Math.max(padL, last.x - tw/2));
-  const by = Math.max(padT+2, Math.min(h-padB-th-2, last.y - th - 8));
-  ctx.fillStyle='rgba(0,0,0,.85)';
-  ctx.strokeStyle='rgba(255,255,255,.25)';
-  rounded(ctx, bx, by, tw, th, 9); ctx.fill(); ctx.stroke();
+  const tw=ctx.measureText(tag).width+12, th=18;
+  const bx=Math.min(w-padR-tw, Math.max(padL, last.x - tw/2));
+  const by=Math.max(padT+2, Math.min(h-padB-th-2, last.y - th - 8));
+  ctx.fillStyle='rgba(0,0,0,.85)'; roundRect(ctx,bx,by,tw,th,9); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.stroke();
   ctx.fillStyle='white'; ctx.textBaseline='middle'; ctx.textAlign='left';
-  ctx.fillText(tag, bx+6, by+th/2);
+  ctx.fillText(tag,bx+6,by+th/2);
 
-  // dashed avg
-  ctx.save();
-  ctx.setLineDash([6,6]);
-  ctx.strokeStyle='rgba(200,214,207,.6)';
-  ctx.beginPath(); ctx.moveTo(padL, yAvg); ctx.lineTo(w-padR, yAvg); ctx.stroke();
-  ctx.restore();
-
-  // x ticks every 2 minutes
-  const ticks = twoMinuteTicks(start, windowLen, 6); // 6 labels across
-  ctx.fillStyle='rgba(255,255,255,.75)';
-  ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  for(const t of ticks){
-    if(t<start || t>start+windowLen) continue;
-    const x = padL + innerW * ((t - start)/windowLen);
+  // x labels every 2 minutes
+  const tick2=ticksEvery(start,windowLen,2*MS1M);
+  ctx.fillStyle='rgba(255,255,255,.75)'; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  for(const t of tick2){
+    if(t<start||t>start+windowLen) continue;
+    const x=padL + innerW*((t-start)/windowLen);
     ctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-18);
   }
 }
 
-function drawPriceGridLabels(w,h,padL,padR,padT,padB, stats){
+function drawPriceGridLabels(w,h,padL,padR,padT,padB,stats){
   const innerH=h-padT-padB;
-  // horizontals
   ctx.strokeStyle='var(--grid)'; ctx.lineWidth=1;
   for(let i=1;i<=3;i++){
-    const y = padT + innerH*(i/4*(4/3));
+    const y=padT + innerH*(i/4*(4/3));
     ctx.beginPath(); ctx.moveTo(padL-6,y); ctx.lineTo(w-padR+6,y); ctx.stroke();
   }
   if(!stats) return;
   const {min,max,avg,range}=stats;
-  // y labels
   ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  const yMax=padT+10, yMin=h-padB-10, yAvg=padT + innerH*(1 - (avg-min)/range);
+  const yMax=padT+10, yMin=h-padB-10, yAvg=padT + innerH*(1-(avg-min)/range);
   ctx.fillText(fmtUSD0.format(max), 8, yMax);
   ctx.fillText(fmtUSD0.format(avg), 8, Math.max(padT+14, Math.min(h-padB-14, yAvg)));
   ctx.fillText(fmtUSD0.format(min), 8, yMin);
@@ -249,11 +232,11 @@ function drawPriceGridLabels(w,h,padL,padR,padT,padB, stats){
 /* ---------- volume ---------- */
 function bins10(){
   const now=Date.now();
-  const start = (now - 9*MS1M) - ((now - 9*MS1M) % MS1M);
-  const bins = Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
+  const start=(now-9*MS1M) - ((now-9*MS1M)%MS1M);
+  const bins=Array.from({length:10},(_,i)=>({ts:start+i*MS1M,buy:0,sell:0}));
   for(const t of trades){
-    const idx = Math.floor((t.t - start)/MS1M);
-    if(idx>=0 && idx<10){ if(t.side==='sell') bins[idx].sell += t.s; else bins[idx].buy += t.s; }
+    const idx=Math.floor((t.t-start)/MS1M);
+    if(idx>=0&&idx<10){ if(t.side==='sell') bins[idx].sell+=t.s; else bins[idx].buy+=t.s; }
   }
   return bins;
 }
@@ -272,18 +255,21 @@ function drawVol(){
   const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
-  // faint horizontals
+  // horizontals
   vctx.strokeStyle='var(--grid)'; vctx.lineWidth=1;
   for(let i=1;i<=3;i++){ const y=padY+innerH*(i/4*(4/3)); vctx.beginPath(); vctx.moveTo(padX-6,y); vctx.lineTo(w-padX+6,y); vctx.stroke(); }
 
-  // x ticks every 2m
-  const now=Date.now();
-  const start = (now - 10*MS1M);
-  const ticks = twoMinuteTicks(start, 10*MS1M, 6);
-  vctx.fillStyle='rgba(255,255,255,.75)'; vctx.textAlign='center'; vctx.textBaseline='top'; vctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  for(const t of ticks){
+  // x labels: every 4 minutes, small, further down; auto-skip near edges
+  const now=Date.now(), start=now-10*MS1M;
+  const tick4=ticksEvery(start,10*MS1M,4*MS1M);
+  vctx.fillStyle='rgba(255,255,255,.7)'; vctx.textAlign='center'; vctx.textBaseline='top'; vctx.font='10px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  let lastX=-1e9;
+  for(const t of tick4){
     const x=padX + innerW * ((t - (now-10*MS1M)) / (10*MS1M));
-    if(x>=padX && x<=w-padX) vctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-18);
+    if(x<padX+12 || x>w-padX-12) continue;
+    if(Math.abs(x-lastX)<26) continue; // keep airy
+    vctx.fillText(':'+new Date(t).toLocaleTimeString([],{minute:'2-digit'}), x, h-14);
+    lastX=x;
   }
 
   // bars + labels
@@ -291,33 +277,45 @@ function drawVol(){
     const b=bins[i], x=padX+step*i+(step-barW)/2, tot=b.buy+b.sell;
     const hTot=Math.max(2,innerH*(tot/max));
     const hSell=(b.sell/tot||0)*hTot, hBuy=hTot-hSell, yBase=padY+innerH;
+
     vctx.fillStyle=dn; vctx.fillRect(x,yBase-hSell,barW,hSell);
     vctx.fillStyle=up; vctx.fillRect(x,yBase-hSell-hBuy,barW,hBuy);
 
-    // total pill (above bar) clamped
+    // total pill (above bar) — clamped
     if(hTot>22 && tot>0){
       const totalTxt='₿'+fmtBTC.format(tot);
       const tw=vctx.measureText(totalTxt).width+10, th=16;
-      const bx = Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
-      const by = Math.max(padY+2, yBase-hTot-22);
-      vctx.fillStyle='rgba(0,0,0,.85)'; rounded(vctx,bx,by,tw,th,8); vctx.fill();
+      const bx=Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const by=Math.max(padY+2, yBase-hTot-20);
+      vctx.fillStyle='rgba(0,0,0,.85)'; roundRect(vctx,bx,by,tw,th,8); vctx.fill();
       vctx.fillStyle='white'; vctx.textBaseline='middle'; vctx.textAlign='center';
       vctx.fillText(totalTxt, bx+tw/2, by+th/2);
     }
 
-    // ± diff pill (center) with color by sign
+    // +/- diff pill at center if meaningful
     const diff=b.buy-b.sell;
     if(Math.abs(diff)>=0.01 && hTot>34){
       const diffTxt=(diff>0?'+':'')+fmtBTC.format(diff);
       const tw=vctx.measureText(diffTxt).width+12, th=16;
-      const bx = Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
-      const by = yBase - hSell - hBuy/2 - th/2;
-      vctx.fillStyle='rgba(0,0,0,.85)'; rounded(vctx,bx,by,tw,th,9); vctx.fill();
+      const bx=Math.max(padX+2, Math.min(w-padX-2-tw, x+(barW-tw)/2));
+      const by=yBase - hSell - hBuy/2 - th/2;
+      vctx.fillStyle='rgba(0,0,0,.85)'; roundRect(vctx,bx,by,tw,th,9); vctx.fill();
       vctx.strokeStyle = diff>=0 ? up : dn; vctx.lineWidth=1; vctx.stroke();
       vctx.fillStyle   = diff>=0 ? up : dn; vctx.textBaseline='middle'; vctx.textAlign='center';
       vctx.fillText(diffTxt, bx+tw/2, by+th/2);
     }
   }
+}
+
+/* ---------- drawing utils ---------- */
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
 
 /* ---------- boot ---------- */
