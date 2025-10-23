@@ -265,16 +265,15 @@ function drawPrice(){
 
   const now = Date.now();
   const firstTs = Math.min(...series.map(d=>d.t));
-  // dynamic span grows from 0 → 10m, then fixed (this is your stretch-from-left behavior)
+  // dynamic span grows from 0 → 10m, then fixed
   const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
   const startT = now - windowSpan;
   const span   = windowSpan;
 
-  // 1s buckets within [startT, now], pick latest sample <= t (carry-forward) for continuity
+  // 1s buckets within [startT, now], carry-forward latest sample
   const step = 1000;
   const buckets = [];
   let lastSeen = null;
-  // walk source once from oldest to newest
   let si = 0;
   while(si < series.length && series[si].t < startT) si++;
   for(let t = startT; t <= now; t += step){
@@ -288,8 +287,8 @@ function drawPrice(){
   for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
   const avg=sum/buckets.length;
 
-  // smooth min/max to avoid vertical “glitch” as range breathes
-  const alpha = 0.2; // smoothing strength
+  // smooth min/max to avoid vertical jitter
+  const alpha = 0.2;
   if(yMinS==null || yMaxS==null){ yMinS=min; yMaxS=max; }
   else {
     yMinS += (min - yMinS) * alpha;
@@ -307,13 +306,13 @@ function drawPrice(){
     ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
   }
 
-  // average dashed (map avg against smoothed range)
+  // average dashed
   const yAvg=padY+(h-2*padY)*(1-(avg - yMinS)/rangeS);
   ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels across dynamic span (dedupe to pixel columns)
+  // map to pixels across dynamic span
   const usableW=(w-2*padX), pts=[]; let lastX=-1;
   for(const d of buckets){
     const x=padX+((d.t - startT)/span)*usableW;
@@ -326,7 +325,7 @@ function drawPrice(){
   const cr2bz=(p0,p1,p2,p3,t=0.5)=>{
     const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
     const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
-    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2x/3}];
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
   };
   const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
   ctx.strokeStyle=up; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
@@ -338,7 +337,7 @@ function drawPrice(){
   }
   ctx.stroke();
 
-  // labels (use *raw* min/max for honesty)
+  // labels
   ctx.fillStyle='rgba(255,255,255,.9)';
   ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
   ctx.fillText(fmtUSD(max,0), padX, padY+4);
@@ -355,7 +354,7 @@ function drawPrice(){
   ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked) + max pill + NEW total pill on top (non-zero only) ===== */
+/* ===== volume (stacked) + max pill + per-bar TOTAL (top) + per-bar DIFF (inside) ===== */
 function drawVol(){
   const ctx = sizeCanvas(volCanvas);
   const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
@@ -386,29 +385,48 @@ function drawVol(){
     ctx.fillText(':'+t, xC-8, h-18);
   }
 
-  // bars + top total pill (only if tot>0)
+  // bars + pills
   ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
   ctx.textBaseline='middle';
   for(let i=0;i<volBins.length;i++){
-    const b=volBins[i]; const xC=padX+i*step+step/2; const tot=b.buy+b.sell;
+    const b=volBins[i]; 
+    const xC=padX+i*step+step/2; 
+    const tot=b.buy+b.sell;
+    const diff=b.buy-b.sell;
+
     const hT=Math.max(4,(tot/max)*chartH);
     const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
     const yB=padTop+chartH;
 
+    // stacked bars
     ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
     ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
 
-    // total pill on top (hide if zero)
+    // TOTAL pill on top (hide if zero)
     if(tot>0){
       const txt = `₿${tot.toFixed(2)}`;
       const tw = ctx.measureText(txt).width + 14, th = 18;
       const bx = Math.round(xC - tw/2);
-      const by = Math.max(4, Math.round(yB - hT - th - 4)); // avoid clipping top
+      const by = Math.max(4, Math.round(yB - hT - th - 4));
       ctx.fillStyle='rgba(0,0,0,.88)';
       ctx.strokeStyle='rgba(255,255,255,.25)';
       roundRect(ctx,bx,by,tw,th,9,true,true);
       ctx.fillStyle='#fff';
       ctx.fillText(txt, bx+tw/2 - ctx.measureText(txt).width/2, by+th/2);
+    }
+
+    // +/- DIFF pill inside bar (only if bar is tall enough)
+    if(hT > 26 && Math.abs(diff) > 0.0001){
+      const dTxt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
+      const dtw = ctx.measureText(dTxt).width + 14, dth = 18;
+      const dbx = Math.round(xC - dtw/2);
+      // center the diff pill within the bar column
+      const dby = Math.max(padTop+2, Math.round(yB - hT + (hT - dth)/2));
+      ctx.fillStyle='rgba(0,0,0,.85)';
+      ctx.strokeStyle='rgba(255,255,255,.22)';
+      roundRect(ctx,dbx,dby,dtw,dth,9,true,true);
+      ctx.fillStyle = diff>=0 ? up : dn;
+      ctx.fillText(dTxt, dbx+dtw/2 - ctx.measureText(dTxt).width/2, dby+dth/2);
     }
   }
 }
