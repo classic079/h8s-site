@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Coinbase Stalker — Desktop (per-panel tops)</title>
+<title>Coinbase Stalker — Desktop (prefill + avg-color)</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -24,7 +24,6 @@
   .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--pill-bg);
     border:1px solid var(--pill-bd);font-size:12px;white-space:nowrap;color:#fff;}
 
-  /* Grid of 4 panels */
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
   @media (max-width:1400px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:800px){.grid{grid-template-columns:1fr}}
@@ -36,7 +35,6 @@
   canvas.chartCanvas{display:block;width:100%;height:220px;border-radius:12px;background:var(--panel-2)}
   canvas.volCanvas{display:block;width:100%;height:170px;border-radius:12px;background:var(--panel-2);margin-top:6px}
 
-  /* gauge under charts */
   .gaugeRow{display:flex;align-items:center;gap:8px;padding:6px 6px 2px}
   .gLabel{font-size:12px;opacity:.9;user-select:none}
   .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
@@ -45,7 +43,6 @@
   .needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25);}
   .biasGauge{height:22px;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);width:100%}
 
-  /* per-panel mirrored tops */
   .topsHead{margin:8px 2px 6px;font-size:12px;opacity:.85}
   canvas.topsCanvas{display:block;width:100%;height:300px;border-radius:12px;background:var(--panel-2)}
 </style>
@@ -82,7 +79,7 @@
       <!-- 1 hour -->
       <article class="card" id="p1h">
         <div class="titleRow">
-          <h2>BTC-USD — 1 hour</h2>
+          <h2>BTC-USD — 1 hour (prefilled)</h2>
           <span class="pill maxPill" id="max1h">max ₿—</span>
         </div>
         <div class="chart"><canvas class="chartCanvas" id="c1h"></canvas></div>
@@ -103,7 +100,7 @@
       <!-- 8 hours -->
       <article class="card" id="p8h">
         <div class="titleRow">
-          <h2>BTC-USD — 8 hours</h2>
+          <h2>BTC-USD — 8 hours (prefilled)</h2>
           <span class="pill maxPill" id="max8h">max ₿—</span>
         </div>
         <div class="chart"><canvas class="chartCanvas" id="c8h"></canvas></div>
@@ -124,7 +121,7 @@
       <!-- 24 hours -->
       <article class="card" id="p24h">
         <div class="titleRow">
-          <h2>BTC-USD — 24 hours</h2>
+          <h2>BTC-USD — 24 hours (prefilled)</h2>
           <span class="pill maxPill" id="max24h">max ₿—</span>
         </div>
         <div class="chart"><canvas class="chartCanvas" id="c24h"></canvas></div>
@@ -145,11 +142,10 @@
   </main>
 
 <script>
-/* ===== helpers ===== */
+/* ===== tiny utils ===== */
 const $ = s => document.querySelector(s);
 const fmtUSD0 = v => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
 const fmtBTC2 = v => `₿${(Math.round(v*100)/100).toFixed(2)}`;
-
 function sizeCanvas(c){
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   c.width = Math.max(1, c.clientWidth * dpr);
@@ -165,7 +161,7 @@ function roundRect(ctx,x,y,w,h,r,fill=true,stroke=false){
   if(fill) ctx.fill(); if(stroke) ctx.stroke();
 }
 
-/* ===== elements mapping ===== */
+/* ===== DOM refs ===== */
 const connPill = $('#connPill');
 const canv = {
   chart: { '10m': $('#c10m'), '1h': $('#c1h'), '8h': $('#c8h'), '24h': $('#c24h') },
@@ -177,7 +173,7 @@ const needles = { '10m': $('#n10m'), '1h': $('#n1h'), '8h': $('#n8h'), '24h': $(
 const nVals   = { '10m': $('#nv10m'),'1h': $('#nv1h'),'8h': $('#nv8h'),'24h': $('#nv24h') };
 const maxPills= { '10m': $('#max10m'),'1h': $('#max1h'),'8h': $('#max8h'),'24h': $('#max24h') };
 
-/* ===== data state ===== */
+/* ===== data ===== */
 const NOW = ()=>Date.now();
 const MS = { '10m': 10*60*1000, '1h': 60*60*1000, '8h': 8*60*60*1000, '24h': 24*60*60*1000 };
 const BINS= { '10m': 10, '1h': 12, '8h': 12, '24h': 12 };
@@ -186,7 +182,7 @@ let series = [];       // {t, p}
 let trades = [];       // {t, price, size, side}
 let needlePos = { '10m':.5,'1h':.5,'8h':.5,'24h':.5 };
 
-/* ===== intake ===== */
+/* ===== websocket intake ===== */
 function onTrade(m){
   const t = new Date(m.time).getTime();
   const price = +m.price, size = +m.size, side = (m.side==='sell'?'sell':'buy');
@@ -200,7 +196,37 @@ function prune(){
   trades = trades.filter(tr => tr.t >= now - maxSpan);
 }
 
-/* ===== price (classic smooth) ===== */
+/* ===== prefill 1h/8h/24h from Coinbase candles ===== */
+async function prefill(tf, gran){
+  try{
+    const end = Math.floor(Date.now()/1000);
+    const start = end - Math.floor(MS[tf]/1000);
+    const url = `https://api.exchange.coinbase.com/products/BTC-USD/candles?start=${start}&end=${end}&granularity=${gran}`;
+    const res = await fetch(url, {headers:{'Accept':'application/json'}});
+    const arr = await res.json(); // [[time, low, high, open, close, volume], ...] desc order
+    if(!Array.isArray(arr)) return;
+    // sort asc by time
+    arr.sort((a,b)=>a[0]-b[0]);
+    for(const [sec, low, high, open, close, vol] of arr){
+      const t = sec*1000;
+      series.push({t, p: close});
+      // synth split buy/sell (heuristic): green candle=>buy heavy; red=>sell heavy
+      const buyFrac = close>=open ? 0.6 : 0.4;
+      const sellFrac= 1 - buyFrac;
+      if(vol>0){
+        trades.push({t, price: close, size: vol*buyFrac, side:'buy'});
+        trades.push({t, price: close, size: vol*sellFrac, side:'sell'});
+      }
+    }
+    prune();
+  }catch(e){/* ignore prefill errors to not block UI */}
+}
+// Prefill: 1h=60s, 8h=300s(5m), 24h=900s(15m)
+prefill('1h', 60);
+prefill('8h', 300);
+prefill('24h', 900);
+
+/* ===== price (classic) with segment color vs average ===== */
 function drawPrice(tf){
   const c = canv.chart[tf]; if(!c) return; const ctx = sizeCanvas(c);
   const w = c.clientWidth, h = c.clientHeight;
@@ -245,22 +271,37 @@ function drawPrice(tf){
   for(const d of buckets){
     const x = padX + ((d.t - startT)/span)*usable;
     const y = padY + (h-2*padY)*(1-(d.p-min)/range);
-    const xi = Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
+    const xi = Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y,v:d.p});
   }
   if(pts.length<2) return;
 
-  // Catmull–Rom → Bézier
-  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
-  ctx.strokeStyle=up; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=2.25;
+  // draw smooth (single pass) as a base
+  const upCol = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dnCol = getComputedStyle(document.body).getPropertyValue('--down').trim();
   const cr2bz=(p0,p1,p2,p3,t=.5)=>{const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t;
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2x/3}];}; // small typo fix below
+  // (typo fix) correct d2y:
+  const _cr2bz=(p0,p1,p2,p3,t=.5)=>{const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t;
     return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];};
+
+  ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.lineWidth=2.25; ctx.strokeStyle=upCol;
   ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
   for(let i=0;i<pts.length-1;i++){
     const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
-    const [c1,c2]=cr2bz(p0,p1,p2,p3,.5);
+    const [c1,c2]=_cr2bz(p0,p1,p2,p3,.5);
     ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
   }
   ctx.stroke();
+
+  // overlay short colored segments vs average (thin, to tint above/below)
+  ctx.lineWidth=3;
+  for(let i=0;i<pts.length-1;i++){
+    const a=pts[i], b=pts[i+1];
+    const yMid=(a.y+b.y)/2; // compare midpoint vs yAvg
+    ctx.strokeStyle = (yMid < yAvg) ? upCol : dnCol;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
 
   // labels
   ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
@@ -269,7 +310,7 @@ function drawPrice(tf){
   ctx.fillText(fmtUSD0(min), padX, h-padY-4);
 }
 
-/* ===== volume (stacked + pills) ===== */
+/* ===== volume (stacked + max/top +/- pills) ===== */
 function binsFor(tf){
   const n=BINS[tf], span=MS[tf], now=NOW();
   const binDur = Math.floor(span / n);
@@ -319,7 +360,7 @@ function drawVol(tf){
     const xC = padX + i*step + step/2;
     const tot = b.buy + b.sell;
     const yB = padTop + chartH;
-    // clamp to keep top pill readable
+    // keep headroom for top pill readability
     const hT = Math.max(4, (tot/max) * (chartH*0.88));
     const hBuy = tot ? (b.buy/tot)*hT : 0;
     const hSell = hT - hBuy;
@@ -386,7 +427,7 @@ function drawGauge(tf){
   nVals[tf].style.left = `${leftPx}px`;
 }
 
-/* ===== per-panel mirrored tops ===== */
+/* ===== mirrored tops per panel ===== */
 function drawTops(tf){
   const c = canv.tops[tf]; if(!c) return; const ctx = sizeCanvas(c);
   const w=c.clientWidth, h=c.clientHeight;
@@ -450,7 +491,7 @@ function frame(){
   requestAnimationFrame(frame);
 }
 
-/* ===== feed ===== */
+/* ===== websocket ===== */
 let ws, recon;
 function startWS(){
   try{ ws && ws.close(); }catch{}
@@ -471,8 +512,7 @@ function startWS(){
 }
 startWS();
 
-/* ===== resize ===== */
-new ResizeObserver(()=>{ /* draw functions size canvases each frame */ }).observe(document.body);
+new ResizeObserver(()=>{}).observe(document.body);
 requestAnimationFrame(frame);
 </script>
 </body>
