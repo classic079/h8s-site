@@ -2,177 +2,494 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>h8s — desktop (4-up, fixed bias gauge + 10m bars)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Coinbase Stalker — Desktop</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
     --text:#e9fef7; --muted:#c8d6cf;
     --up:#2dd4bf; --down:#f59e0b;
     --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
-    --pill-bg:rgba(0,0,0,.8); --pill-bd:rgba(255,255,255,.25);
+    --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
     --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-  .wrap{padding:16px;max-width:1900px;margin:0 auto}
-  .grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(320px,1fr))}
-  @media (max-width:1600px){ .grid{grid-template-columns:repeat(3,minmax(320px,1fr));} }
-  @media (max-width:1200px){ .grid{grid-template-columns:repeat(2,minmax(320px,1fr));} }
-  @media (max-width:800px){  .grid{grid-template-columns:1fr;} }
+  .wrap{padding:14px;max-width:1600px;margin:0 auto;}
+  .head{display:flex;align-items:center;gap:12px;margin:2px 2px 10px}
+  .brand{font-weight:800;letter-spacing:.5px;opacity:.9}
+  .conn{margin-left:auto}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:var(--pill-bg);
+    border:1px solid var(--pill-bd);font-size:12px;white-space:nowrap;color:#fff;}
+  /* Grid of 4 panels */
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media (max-width:1400px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:800px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border-radius:14px;box-shadow:var(--glow);position:relative;padding:10px}
+  .titleRow{display:flex;align-items:center;gap:10px;margin:2px 2px 6px}
+  .titleRow h2{margin:0;font-size:14px;opacity:.9;letter-spacing:.3px}
+  .maxPill{margin-left:auto}
+  .chart{padding:4px 4px 0}
+  canvas.chartCanvas{display:block;width:100%;height:220px;border-radius:12px;background:var(--panel-2)}
+  canvas.volCanvas{display:block;width:100%;height:170px;border-radius:12px;background:var(--panel-2);margin-top:6px}
 
-  .card{background:var(--panel);border-radius:14px;box-shadow:var(--glow);overflow:hidden}
-  .hdr{display:flex;align-items:center;gap:10px;padding:10px 12px 6px}
-  .title{font-weight:800;letter-spacing:.4px}
-  .sub{opacity:.85;font-size:12px;margin-left:auto}
-  canvas{display:block;width:100%;border-radius:12px;background:var(--panel-2)}
-  .priceCanvas{height:220px;margin:8px 10px}
-  .volCanvas{height:160px;margin:6px 10px 10px}
-  .gaugeRow{display:flex;align-items:center;gap:10px;padding:0 12px 8px}
-  #connPill{position:fixed;left:14px;bottom:14px;z-index:40}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
-        background:var(--pill-bg);border:1px solid var(--pill-bd);font-size:12px;color:#fff;white-space:nowrap}
-  .topsCanvas{height:240px;margin:0 10px 10px}
-  .legend{display:flex;align-items:center;gap:10px;padding:0 12px 4px}
-  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
-  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
+  /* gauge under charts */
+  .gaugeRow{display:flex;align-items:center;gap:8px;padding:6px 6px 2px}
+  .gLabel{font-size:12px;opacity:.9;user-select:none}
+  .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
+  .gaugeBox{position:relative;flex:1}
+  .needle{position:absolute;top:3px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));transition:left .2s ease;}
+  .needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25);}
+  .biasGauge{height:22px;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);width:100%}
+
+  /* mirrored tops (10m) */
+  .topsCard{margin-top:14px;padding:10px}
+  #topsCanvas{display:block;width:100%;height:360px;border-radius:12px;background:var(--panel-2)}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="grid" id="panelGrid"></div>
-    <span id="connPill" class="pill">Connecting…</span>
-  </div>
+  <main class="wrap">
+    <div class="head">
+      <div class="brand">Coinbase Stalker — Desktop</div>
+      <span class="pill conn" id="connPill">Connecting…</span>
+    </div>
+
+    <section class="grid">
+      <!-- Panel template repeated for 10m / 1h / 8h / 24h -->
+      <article class="card" id="p10m">
+        <div class="titleRow">
+          <h2>BTC-USD — 10 minutes</h2>
+          <span class="pill maxPill" id="max10m">max ₿—</span>
+        </div>
+        <div class="chart">
+          <canvas class="chartCanvas" id="c10m"></canvas>
+        </div>
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div class="gaugeBox">
+            <canvas class="biasGauge" id="g10m"></canvas>
+            <div class="needle" id="n10m" style="left:50%"></div>
+            <div class="needleValue" id="nv10m" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+        <canvas class="volCanvas" id="v10m"></canvas>
+      </article>
+
+      <article class="card" id="p1h">
+        <div class="titleRow">
+          <h2>BTC-USD — 1 hour</h2>
+          <span class="pill maxPill" id="max1h">max ₿—</span>
+        </div>
+        <div class="chart"><canvas class="chartCanvas" id="c1h"></canvas></div>
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div class="gaugeBox">
+            <canvas class="biasGauge" id="g1h"></canvas>
+            <div class="needle" id="n1h" style="left:50%"></div>
+            <div class="needleValue" id="nv1h" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+        <canvas class="volCanvas" id="v1h"></canvas>
+      </article>
+
+      <article class="card" id="p8h">
+        <div class="titleRow">
+          <h2>BTC-USD — 8 hours</h2>
+          <span class="pill maxPill" id="max8h">max ₿—</span>
+        </div>
+        <div class="chart"><canvas class="chartCanvas" id="c8h"></canvas></div>
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div class="gaugeBox">
+            <canvas class="biasGauge" id="g8h"></canvas>
+            <div class="needle" id="n8h" style="left:50%"></div>
+            <div class="needleValue" id="nv8h" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+        <canvas class="volCanvas" id="v8h"></canvas>
+      </article>
+
+      <article class="card" id="p24h">
+        <div class="titleRow">
+          <h2>BTC-USD — 24 hours</h2>
+          <span class="pill maxPill" id="max24h">max ₿—</span>
+        </div>
+        <div class="chart"><canvas class="chartCanvas" id="c24h"></canvas></div>
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div class="gaugeBox">
+            <canvas class="biasGauge" id="g24h"></canvas>
+            <div class="needle" id="n24h" style="left:50%"></div>
+            <div class="needleValue" id="nv24h" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+        <canvas class="volCanvas" id="v24h"></canvas>
+      </article>
+    </section>
+
+    <!-- Mirrored Top Trades (10m) -->
+    <section class="card topsCard">
+      <div class="titleRow"><h2>Top Trades (10m)</h2></div>
+      <canvas id="topsCanvas"></canvas>
+    </section>
+  </main>
 
 <script>
-const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
+/* ====== short helpers ====== */
+const $ = s => document.querySelector(s);
+const fmtUSD0 = v => new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(v);
+const fmtBTC2 = v => `₿${(Math.round(v*100)/100).toFixed(2)}`;
+
 function sizeCanvas(c){
-  const dpr=Math.min(3,window.devicePixelRatio||1);
-  c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr;
-  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx;
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  c.width = Math.max(1, c.clientWidth * dpr);
+  c.height = Math.max(1, c.clientHeight * dpr);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
 }
-function roundRect(ctx,x,y,w,h,r,fill,stroke){
-  ctx.beginPath();ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
-  if(fill)ctx.fill(); if(stroke)ctx.stroke();
-}
-const MS={M1:6e4,M2:12e4,M5:3e5,M10:6e5,H1:36e5,H8:288e5,D1:864e5};
-let trades=[];
-const PANEL_SPECS=[
-  {label:'10 MIN',span:MS.M10,binMs:MS.M1,volScale:'linear',topN:10,classic:true, preload:false,granSec:60},
-  {label:'1 HOUR',span:MS.H1, binMs:MS.M5,volScale:'linear',topN:12,classic:false,preload:true,granSec:60},
-  {label:'8 HOURS',span:MS.H8, binMs:MS.H8/12,volScale:'sqrt',topN:10,classic:false,preload:true,granSec:300},
-  {label:'24 HOURS',span:MS.D1,binMs:MS.D1/12,volScale:'sqrt',topN:10,classic:false,preload:true,granSec:900},
-];
-
-async function preloadCandles(spanMs,granSec){
-  const end=Math.floor(Date.now()/1000),start=end-Math.ceil(spanMs/1000);
-  const url=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${granSec}&start=${start}&end=${end}`;
-  try{
-    const res=await fetch(url,{headers:{Accept:'application/json'}});
-    if(!res.ok)return;
-    const arr=await res.json(); const synth=[];
-    for(const [ts,low,high,open,close,vol] of arr){
-      const t=ts*1000; if(!isFinite(close)||!isFinite(vol))continue;
-      const half=vol/2; synth.push({t,price:close,size:half,side:'buy'},{t,price:close,size:half,side:'sell'});
-    }
-    synth.sort((a,b)=>a.t-b.t);
-    const cutoff=Date.now()-spanMs-MS.M10;
-    trades=trades.filter(tr=>tr.t>cutoff); trades=[...synth,...trades];
-  }catch(e){console.warn('preload',e);}
+function roundRect(ctx,x,y,w,h,r,fill=true,stroke=false){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  if(fill) ctx.fill(); if(stroke) ctx.stroke();
 }
 
-class Panel{
-  constructor(parent,spec){
-    this.s=spec;
-    this.root=document.createElement('section');this.root.className='card';
-    this.root.innerHTML=`
-      <div class="hdr"><div class="title">${spec.label}</div><div class="sub" data-max>max ₿—</div></div>
-      <canvas class="priceCanvas" data-price></canvas>
-      <div class="gaugeRow"><span style="color:var(--up);font-size:12px">Buys</span>
-        <canvas data-gauge style="height:22px;border-radius:999px;flex:1;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)"></canvas>
-        <span style="color:var(--down);font-size:12px">Sells</span></div>
-      <div class="legend"><span class="dot up"></span><span style="opacity:.85">Buys</span><span class="dot down"></span><span style="opacity:.85">Sells</span></div>
-      <canvas class="volCanvas" data-vol></canvas><canvas class="topsCanvas" data-tops></canvas>`;
-    parent.appendChild(this.root);
-    this.price=this.root.querySelector('[data-price]');
-    this.vol=this.root.querySelector('[data-vol]');
-    this.gauge=this.root.querySelector('[data-gauge]');
-    this.tops=this.root.querySelector('[data-tops]');
-    this.max=this.root.querySelector('[data-max]');
-    this._needle=0.5;
-  }
-  rebuild(now){
-    const {span,binMs}=this.s;
-    const bins=Math.ceil(span/binMs);
-    const start=now-span; this.bins=Array.from({length:bins},(_,i)=>({ts:start+i*binMs,buy:0,sell:0}));
-    for(const t of trades){
-      if(t.t<start||t.t>now)continue;
-      const i=Math.floor((t.t-start)/binMs);
-      if(i<0||i>=bins)continue;
-      if(t.side==='sell')this.bins[i].sell+=t.size;else this.bins[i].buy+=t.size;
-    }
-  }
-  _sample(now){
-    const span=this.s.span,start=now-span,end=now;
-    const pts=trades.filter(t=>t.t>=start&&t.t<=end).map(t=>({t:t.t,p:t.price}));
-    if(pts.length<2)return null; return{start,end,pts};
-  }
-  drawPrice(now){
-    const ctx=sizeCanvas(this.price),w=this.price.clientWidth,h=this.price.clientHeight;
-    ctx.clearRect(0,0,w,h);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2');ctx.fillRect(0,0,w,h);
-    const s=this._sample(now);if(!s)return;
-    const {start,end,pts}=s;const padX=14,padY=18,usable=w-2*padX;
-    const min=Math.min(...pts.map(p=>p.p)),max=Math.max(...pts.map(p=>p.p)),range=(max-min)||1;
-    const arr=[];let lx=-1;for(const d of pts){const x=padX+((d.t-start)/(end-start))*usable,y=padY+(h-2*padY)*(1-(d.p-min)/range);if(x<=lx)continue;lx=x;arr.push({x,y,p:d.p});}
-    if(arr.length<2)return;
-    ctx.strokeStyle='var(--grid)';for(let i=1;i<=3;i++){const y=padY+(h-2*padY)*(i/4*(4/3));ctx.beginPath();ctx.moveTo(padX,y);ctx.lineTo(w-padX,y);ctx.stroke();}
-    const avg=pts.reduce((a,b)=>a+b.p,0)/pts.length,yA=padY+(h-2*padY)*(1-(avg-min)/range);
-    ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.moveTo(padX,yA);ctx.lineTo(w-padX,yA);ctx.stroke();ctx.setLineDash([]);
-    const up=getComputedStyle(document.body).getPropertyValue('--up');const cr=(p0,p1,p2,p3,t=.5)=>{const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t;return[{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}]};
-    ctx.strokeStyle=up;ctx.lineWidth=2.25;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();ctx.moveTo(arr[0].x,arr[0].y);
-    for(let i=0;i<arr.length-1;i++){const p0=arr[i-1]||arr[i],p1=arr[i],p2=arr[i+1],p3=arr[i+2]||p2;const[c1,c2]=cr(p0,p1,p2,p3,.5);ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);}ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.9)';ctx.font='12px system-ui';ctx.fillText(fmtUSD(max,0),padX,padY+4);ctx.fillText(fmtUSD(min,0),padX,h-padY-4);
-  }
-  drawGauge(){
-    const ctx=sizeCanvas(this.gauge),w=this.gauge.clientWidth,h=this.gauge.clientHeight;
-    ctx.clearRect(0,0,w,h);let buy=0,sell=0;for(const b of this.bins){buy+=b.buy;sell+=b.sell;}
-    const tot=buy+sell,target=tot?buy/tot:.5;this._needle+=(target-this._needle)*.25;
-    const up=getComputedStyle(document.body).getPropertyValue('--up'),dn=getComputedStyle(document.body).getPropertyValue('--down');
-    const g=ctx.createLinearGradient(0,0,w,0);const s=this._needle;
-    g.addColorStop(0,dn);g.addColorStop(Math.max(0,s-.001),dn);g.addColorStop(Math.min(1,s+.001),up);g.addColorStop(1,up);
-    const r=h/2;ctx.fillStyle=g;roundRect(ctx,1,1,w-2,h-2,r-1,true,false);
-    ctx.globalAlpha=.18;ctx.fillStyle=(this._needle>=.5)?up:dn;
-    const domW=(this._needle>=.5)?w*this._needle:w*(1-this._needle),domX=(this._needle>=.5)?0:w*this._needle;
-    roundRect(ctx,domX,1,domW,h-2,r-1,true,false);ctx.globalAlpha=1;
-  }
-  drawVol(){
-    const ctx=sizeCanvas(this.vol),w=this.vol.clientWidth,h=this.vol.clientHeight;
-    ctx.clearRect(0,0,w,h);ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2');ctx.fillRect(0,0,w,h);
-    const totals=this.bins.map(b=>b.buy+b.sell),max=Math.max(...totals,0.01)/.84;
-    this.max.textContent=`max ₿${(max*.84).toFixed(2)}`;
-    const padX=16,padTop=12,padBottom=26,chartH=h-padTop-padBottom,step=(w-padX*2)/this.bins.length,barW=step*.62;
-    const up=getComputedStyle(document.body).getPropertyValue('--up'),dn=getComputedStyle(document.body).getPropertyValue('--down');
-    for(let i=0;i<this.bins.length;i++){
-      const b=this.bins[i],xC=padX+i*step+step/2,tot=b.buy+b.sell,frac=Math.min(1,tot/max),hT=frac*chartH*.84,hB=tot?(b.buy/tot)*hT:0,hS=hT-hB,yB=padTop+chartH;
-      ctx.fillStyle=dn;ctx.fillRect(xC-barW/2,yB-hS,barW,hS);ctx.fillStyle=up;ctx.fillRect(xC-barW/2,yB-hS-hB,barW,hB);
-    }
-  }
-  render(now){this.rebuild(now);this.drawPrice(now);this.drawGauge();this.drawVol();}
+/* ====== elements ====== */
+const connPill = $('#connPill');
+const canv = {
+  chart: { '10m': $('#c10m'), '1h': $('#c1h'), '8h': $('#c8h'), '24h': $('#c24h') },
+  vol:   { '10m': $('#v10m'), '1h': $('#v1h'), '8h': $('#v8h'), '24h': $('#v24h') },
+  gauge: { '10m': $('#g10m'), '1h': $('#g1h'), '8h': $('#g8h'), '24h': $('#g24h') },
+};
+const needles = { '10m': $('#n10m'), '1h': $('#n1h'), '8h': $('#n8h'), '24h': $('#n24h') };
+const nVals   = { '10m': $('#nv10m'),'1h': $('#nv1h'),'8h': $('#nv8h'),'24h': $('#nv24h') };
+const maxPills= { '10m': $('#max10m'),'1h': $('#max1h'),'8h': $('#max8h'),'24h': $('#max24h') };
+const topsCanvas = $('#topsCanvas');
+
+/* ====== state (single feed, multiple windows) ====== */
+const NOW = ()=>Date.now();
+const MS = { '10m': 10*60*1000, '1h': 60*60*1000, '8h': 8*60*60*1000, '24h': 24*60*60*1000 };
+const BINS= { '10m': 10, '1h': 12, '8h': 12, '24h': 12 };
+
+let series = [];       // {t, p}
+let trades = [];       // {t, price, size, side}
+let needlePos = { '10m':.5,'1h':.5,'8h':.5,'24h':.5 };
+
+/* ====== trade intake ====== */
+function onTrade(m){
+  const t = new Date(m.time).getTime();
+  const price = +m.price, size = +m.size, side = (m.side==='sell'?'sell':'buy');
+  series.push({t, p: price});
+  trades.push({t, price, size, side});
+  prune();
 }
-const grid=document.getElementById('panelGrid');const panels=PANEL_SPECS.map(s=>new Panel(grid,s));
-(async()=>{for(const s of PANEL_SPECS)if(s.preload)await preloadCandles(s.span,s.granSec);})();
-const conn=document.getElementById('connPill');let ws;
-function startWS(){try{ws&&ws.close();}catch{};ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-conn.textContent='Connecting…';ws.onopen=()=>{ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));conn.textContent='Live';};
-ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='match'){trades.push({t:new Date(m.time).getTime(),price:+m.price,size:+m.size,side:m.side});}};
-ws.onclose=()=>{conn.textContent='Reconnecting…';setTimeout(startWS,1200);};}
+function prune(){
+  const now = NOW(), maxSpan = MS['24h'];
+  series = series.filter(s => s.t >= now - maxSpan);
+  trades = trades.filter(tr => tr.t >= now - maxSpan);
+}
+
+/* ====== price drawing (classic smooth, left→right stretch then roll) ====== */
+function drawPrice(tf){
+  const c = canv.chart[tf]; if(!c) return; const ctx = sizeCanvas(c);
+  const w = c.clientWidth, h = c.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const span = MS[tf], now = NOW();
+  if(series.length < 2) return;
+
+  let startT = now - span;
+  // for early fill, stretch until span reached
+  const firstTs = Math.min(...series.map(d=>d.t));
+  if(now - firstTs < span) startT = firstTs;
+
+  // 1s buckets
+  const step = 1000, buckets = [];
+  for(let t = startT; t <= now; t += step){
+    let chosen = null;
+    for(let i=series.length-1;i>=0;i--){
+      const s=series[i]; if(s.t <= t){ chosen = s; break; }
+    }
+    if(chosen) buckets.push(chosen);
+  }
+  if(buckets.length<2) return;
+
+  let min=Infinity,max=-Infinity,sum=0;
+  for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
+  const range = (max-min)||1, avg = sum/buckets.length;
+
+  const padX=14,padY=18;
+  // grid
+  ctx.strokeStyle = 'var(--grid)'; ctx.lineWidth=1;
+  for(let i=1;i<=3;i++){
+    const y = padY + (h-2*padY)*(i/4*(4/3));
+    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+  }
+  // avg dashed
+  const yAvg = padY + (h-2*padY)*(1-(avg-min)/range);
+  ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // map points
+  const usable = w-2*padX; const pts=[]; let lastX=-1;
+  for(const d of buckets){
+    const x = padX + ((d.t - startT)/span)*usable;
+    const y = padY + (h-2*padY)*(1-(d.p-min)/range);
+    const xi = Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
+  }
+  if(pts.length<2) return;
+
+  // Catmull–Rom → Bézier
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.strokeStyle = up; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=2.25;
+  const cr2bz = (p0,p1,p2,p3,t=.5)=>{ const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t;
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}]; };
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+    const [c1,c2]=cr2bz(p0,p1,p2,p3,.5);
+    ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
+  }
+  ctx.stroke();
+
+  // labels (max/avg/min)
+  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
+  ctx.fillText(fmtUSD0(max), padX, padY+4);
+  ctx.fillText(fmtUSD0(avg), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
+  ctx.fillText(fmtUSD0(min), padX, h-padY-4);
+}
+
+/* ====== volume drawing (stacked buys/sells + pill) ====== */
+function binsFor(tf){
+  const n = BINS[tf], span = MS[tf], now=NOW();
+  const binDur = Math.floor(span / n);
+  const start = now - span;
+  const bins = Array.from({length:n},(_,i)=>({ts:start + i*binDur,buy:0,sell:0,dur:binDur}));
+  for(const t of trades){
+    if(t.t < start) continue;
+    const idx = Math.min(n-1, Math.floor((t.t - start)/binDur));
+    if(t.side==='buy') bins[idx].buy += t.size; else bins[idx].sell += t.size;
+  }
+  return bins;
+}
+
+function drawVol(tf){
+  const c = canv.vol[tf]; if(!c) return; const ctx = sizeCanvas(c);
+  const w=c.clientWidth, h=c.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const bins = binsFor(tf);
+  const totals = bins.map(b=>b.buy+b.sell);
+  const max = Math.max(0.01, ...totals);
+  // write max pill
+  const pill = maxPills[tf]; if(pill) pill.textContent = `max ${fmtBTC2(max)}`;
+
+  // layout
+  const padX=16, padTop=12, padBottom=26;
+  const chartH = h - padTop - padBottom;
+  const step = (w - padX*2) / bins.length;
+  const barW = step*0.62;
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // faint grid
+  ctx.strokeStyle='var(--grid-2)';
+  for(let i=1;i<=2;i++){
+    const y = padTop + chartH*(i/3*(3/2));
+    ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
+  }
+
+  // time labels (every other bin)
+  ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
+  for(let i=0;i<bins.length;i+=2){
+    const xC = padX + i*step + step/2;
+    const t = new Date(bins[i].ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    ctx.fillText(t, xC-12, h-18);
+  }
+
+  for(let i=0;i<bins.length;i++){
+    const b = bins[i];
+    const xC = padX + i*step + step/2;
+    const tot = b.buy + b.sell;
+    const yB = padTop + chartH;
+    // clamp height so the +/- pill never gets jammed at the very top
+    const hT = Math.max(4, (tot/max) * (chartH*0.88));
+    const hBuy = tot ? (b.buy/tot)*hT : 0;
+    const hSell = hT - hBuy;
+
+    // stacked bars
+    ctx.fillStyle=dn; ctx.fillRect(xC - barW/2, yB - hSell, barW, hSell);
+    ctx.fillStyle=up; ctx.fillRect(xC - barW/2, yB - hSell - hBuy, barW, hBuy);
+
+    // total pill (top of bar) — show only if non-zero
+    if(tot > 0){
+      const txtT = fmtBTC2(tot);
+      const twT = ctx.measureText(txtT).width + 14, thT = 18;
+      const bxT = xC - twT/2, byT = yB - hT - thT - 4;
+      ctx.fillStyle='rgba(0,0,0,.85)'; ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1;
+      roundRect(ctx,bxT,byT,twT,thT,9,true,true);
+      ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(txtT, bxT+7, byT+thT/2);
+    }
+
+    // +/- diff pill inside bar if tall enough
+    if(hT > 24){
+      const diff = b.buy - b.sell;
+      const txt = `${diff>=0?'+':''}${(Math.round(diff*100)/100).toFixed(2)}`;
+      const tw = ctx.measureText(txt).width + 16, th = 18;
+      const bx = xC - tw/2, by = yB - (hSell + hBuy/2) - th/2;
+      ctx.fillStyle='rgba(0,0,0,.88)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+      roundRect(ctx,bx,by,tw,th,9,true,true);
+      ctx.fillStyle = diff>=0 ? up : dn; ctx.textBaseline='middle';
+      ctx.fillText(txt, bx+8, by+th/2);
+    }
+  }
+}
+
+/* ====== bias gauge (per panel) ====== */
+function drawGauge(tf){
+  const c = canv.gauge[tf]; if(!c) return; const ctx = sizeCanvas(c);
+  const w = c.clientWidth, h = c.clientHeight; ctx.clearRect(0,0,w,h);
+
+  const span = MS[tf], now=NOW(), start=now-span;
+  let buy=0, sell=0;
+  for(const t of trades){ if(t.t>=start){ if(t.side==='buy') buy+=t.size; else sell+=t.size; } }
+  const tot = buy+sell, target = tot ? (buy/tot) : 0.5;
+
+  // ease
+  needlePos[tf] += (target - needlePos[tf]) * 0.25;
+
+  // gradient split at needle
+  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const g = ctx.createLinearGradient(0,0,w,0);
+  const split = needlePos[tf];
+  g.addColorStop(0,dn); g.addColorStop(Math.max(0,split-0.001),dn);
+  g.addColorStop(Math.min(1,split+0.001),up); g.addColorStop(1,up);
+
+  const r = h/2;
+  ctx.fillStyle = g; roundRect(ctx,1,1,w-2,h-2,r-1,true,false);
+
+  // mild dominance overlay
+  ctx.globalAlpha=.18; ctx.fillStyle=(needlePos[tf]>=0.5)?up:dn;
+  const domW=(needlePos[tf]>=0.5)?(w*needlePos[tf]):(w*(1-needlePos[tf]));
+  const domX=(needlePos[tf]>=0.5)?0:(w*needlePos[tf]);
+  roundRect(ctx,domX,1,domW,h-2,r-1,true,false); ctx.globalAlpha=1;
+
+  // place needle
+  const leftPx = Math.round(c.getBoundingClientRect().width * needlePos[tf]);
+  needles[tf].style.left = `${leftPx}px`;
+  const biasPct = tot ? ((buy - sell)/tot)*100 : 0;
+  nVals[tf].textContent = `${biasPct>=0?'+':''}${biasPct.toFixed(0)}%`;
+  nVals[tf].style.left = `${leftPx}px`;
+}
+
+/* ====== mirrored tops (10m) ====== */
+function drawTops(){
+  const ctx = sizeCanvas(topsCanvas);
+  const w=topsCanvas.clientWidth, h=topsCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const start = NOW() - MS['10m'];
+  const items = trades.filter(t=>t.t>=start).map(t=>({...t,usd:t.price*t.size}));
+  const TOP_N = 20;
+  const buys = items.filter(i=>i.side==='buy').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+  const sells= items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+
+  const rows = Math.max(buys.length, sells.length);
+  const padX=10,padY=14,gap=6,rowH=24,midX=Math.floor(w/2);
+
+  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // center divider
+  ctx.strokeStyle='rgba(255,255,255,.18)';
+  ctx.beginPath();ctx.moveTo(midX+.5,padY-8);ctx.lineTo(midX+.5,h-padY+8);ctx.stroke();
+
+  const maxUSD = Math.max(1, ...buys.map(b=>b.usd), ...sells.map(s=>s.usd));
+  const leftMaxW = midX - padX - 10;
+  const rightMaxW= w - midX - padX - 10;
+
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
+
+  for(let i=0;i<rows;i++){
+    const y = padY + i*(rowH+gap) + rowH/2;
+
+    const s = sells[i];
+    if(s){
+      const frac = Math.min(1, s.usd/maxUSD);
+      const barW = Math.max(4, frac*leftMaxW);
+      ctx.fillStyle = dn; roundRect(ctx, midX-barW, y-rowH/2, barW, rowH, 6, true, false);
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle='rgba(0,0,0,.55)';
+      ctx.fillRect(midX-labelW, y-rowH/2, labelW, rowH);
+      ctx.fillStyle='#fff'; ctx.textAlign='right';
+      ctx.fillText(`${fmtUSD0(s.usd)} (${s.size.toFixed(2)} BTC)`, midX-8, y);
+    }
+
+    const b = buys[i];
+    if(b){
+      const frac = Math.min(1, b.usd/maxUSD);
+      const barW = Math.max(4, frac*rightMaxW);
+      ctx.fillStyle = up; roundRect(ctx, midX, y-rowH/2, barW, rowH, 6, true, false);
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle='rgba(0,0,0,.55)';
+      ctx.fillRect(midX, y-rowH/2, labelW, rowH);
+      ctx.fillStyle='#fff'; ctx.textAlign='left';
+      ctx.fillText(`${fmtUSD0(b.usd)} (${b.size.toFixed(2)} BTC)`, midX+8, y);
+    }
+  }
+}
+
+/* ====== render loop ====== */
+function frame(){
+  prune();
+  ['10m','1h','8h','24h'].forEach(tf=>{
+    drawPrice(tf); drawVol(tf); drawGauge(tf);
+  });
+  drawTops();
+  requestAnimationFrame(frame);
+}
+
+/* ====== feed ====== */
+let ws, recon;
+function startWS(){
+  try{ ws && ws.close(); }catch{}
+  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  connPill.textContent='Connecting…';
+  ws.onopen = ()=>{
+    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
+    connPill.textContent='Live';
+  };
+  ws.onmessage = e=>{
+    try{
+      const m = JSON.parse(e.data);
+      if(m.type==='match' && m.product_id==='BTC-USD'){
+        onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
+      }
+    }catch{}
+  };
+  ws.onclose = ()=>{ connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000); };
+  ws.onerror = ()=>{ try{ws.close()}catch{} };
+}
 startWS();
-function frame(){const n=Date.now();for(const p of panels)p.render(n);requestAnimationFrame(frame);}
-new ResizeObserver(()=>{for(const p of panels)p.render(Date.now());}).observe(document.body);
+
+/* ====== resize ====== */
+new ResizeObserver(()=>{ /* canvases auto-size in draw */ }).observe(document.body);
 requestAnimationFrame(frame);
 </script>
 </body>
