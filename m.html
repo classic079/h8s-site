@@ -116,9 +116,11 @@
         <label for="themeSel">Theme</label>
         <select id="themeSel">
           <option value="showgirl">Life of a Showgirl (teal/orange) — default</option>
-          <option value="teal">Teal/Amber</option>
+          <option value="classic">Classic (green/red)</option>
           <option value="emerald">Emerald/Orange</option>
           <option value="violet">Violet/Gold</option>
+          <option value="ocean">Ocean (cyan/blue)</option>
+          <option value="mono">Monochrome (light/dim)</option>
         </select>
       </div>
       <div class="row">
@@ -214,8 +216,12 @@ topNInp.addEventListener('change', e=>{
 });
 function applyTheme(t){
   const r = document.documentElement.style;
-  if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
+  // core palettes
+  if(t==='classic'){ r.setProperty('--up','#22c55e'); r.setProperty('--down','#ef4444'); }
+  else if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
   else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
+  else if(t==='ocean'){ r.setProperty('--up','#06b6d4'); r.setProperty('--down','#3b82f6'); }
+  else if(t==='mono'){ r.setProperty('--up','#e5e7eb'); r.setProperty('--down','#9ca3af'); }
   else if(t==='showgirl'){ r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
   else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
 }
@@ -265,16 +271,12 @@ function drawPrice(){
 
   const now = Date.now();
   const firstTs = Math.min(...series.map(d=>d.t));
-  // dynamic span grows from 0 → 10m, then fixed
   const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
   const startT = now - windowSpan;
   const span   = windowSpan;
 
-  // 1s buckets within [startT, now], carry-forward latest sample
-  const step = 1000;
-  const buckets = [];
-  let lastSeen = null;
-  let si = 0;
+  // carry-forward latest sample into 1s buckets
+  const step = 1000, buckets=[]; let lastSeen=null, si=0;
   while(si < series.length && series[si].t < startT) si++;
   for(let t = startT; t <= now; t += step){
     for(; si<series.length && series[si].t <= t; si++) lastSeen = series[si];
@@ -282,12 +284,12 @@ function drawPrice(){
   }
   if(buckets.length<2) return;
 
-  // raw stats
+  // stats
   let min=Infinity,max=-Infinity,sum=0;
   for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
   const avg=sum/buckets.length;
 
-  // smooth min/max to avoid vertical jitter
+  // smooth min/max to limit vertical jitter
   const alpha = 0.2;
   if(yMinS==null || yMaxS==null){ yMinS=min; yMaxS=max; }
   else {
@@ -295,8 +297,7 @@ function drawPrice(){
     yMaxS += (max - yMaxS) * alpha;
     if(yMaxS - yMinS < 1e-6){ yMaxS = yMinS + 1e-6; }
   }
-  const padX=14, padY=20;
-  const rangeS = (yMaxS - yMinS);
+  const padX=14, padY=20, rangeS=(yMaxS-yMinS);
 
   // grid
   const grid='var(--grid)';
@@ -312,7 +313,7 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels across dynamic span
+  // map to pixels across dynamic span (left→right grow)
   const usableW=(w-2*padX), pts=[]; let lastX=-1;
   for(const d of buckets){
     const x=padX+((d.t - startT)/span)*usableW;
@@ -340,9 +341,9 @@ function drawPrice(){
   // labels
   ctx.fillStyle='rgba(255,255,255,.9)';
   ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  ctx.fillText(fmtUSD(max,0), padX, padY+4);
+  ctx.fillText(fmtUSD(Math.max(...buckets.map(b=>b.p)),0), padX, padY+4);
   ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
-  ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
+  ctx.fillText(fmtUSD(Math.min(...buckets.map(b=>b.p)),0), padX, h-padY-4);
 
   // last price pill (raw)
   const last=pts[pts.length-1];
@@ -354,7 +355,7 @@ function drawPrice(){
   ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked) + max pill + per-bar TOTAL (top) + per-bar DIFF (inside) ===== */
+/* ===== volume (stacked) + max pill + total & diff pills ===== */
 function drawVol(){
   const ctx = sizeCanvas(volCanvas);
   const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
@@ -420,7 +421,6 @@ function drawVol(){
       const dTxt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
       const dtw = ctx.measureText(dTxt).width + 14, dth = 18;
       const dbx = Math.round(xC - dtw/2);
-      // center the diff pill within the bar column
       const dby = Math.max(padTop+2, Math.round(yB - hT + (hT - dth)/2));
       ctx.fillStyle='rgba(0,0,0,.85)';
       ctx.strokeStyle='rgba(255,255,255,.22)';
