@@ -116,9 +116,11 @@
         <label for="themeSel">Theme</label>
         <select id="themeSel">
           <option value="showgirl">Life of a Showgirl (teal/orange) — default</option>
-          <option value="teal">Teal/Amber</option>
+          <option value="classic">Classic (green/red)</option>
           <option value="emerald">Emerald/Orange</option>
           <option value="violet">Violet/Gold</option>
+          <option value="ocean">Ocean (cyan/blue)</option>
+          <option value="mono">Monochrome (light/dim)</option>
         </select>
       </div>
       <div class="row">
@@ -214,8 +216,12 @@ topNInp.addEventListener('change', e=>{
 });
 function applyTheme(t){
   const r = document.documentElement.style;
-  if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
+  // core palettes
+  if(t==='classic'){ r.setProperty('--up','#22c55e'); r.setProperty('--down','#ef4444'); }
+  else if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
   else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
+  else if(t==='ocean'){ r.setProperty('--up','#06b6d4'); r.setProperty('--down','#3b82f6'); }
+  else if(t==='mono'){ r.setProperty('--up','#e5e7eb'); r.setProperty('--down','#9ca3af'); }
   else if(t==='showgirl'){ r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
   else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
 }
@@ -253,7 +259,8 @@ function prune(){
   win10 = win10.filter(t=> t.t >= now-MS10);
 }
 
-/* ===== PRICE CHART — CLASSIC: left→right stretch until 10m, then roll ===== */
+/* ===== PRICE CHART — CLASSIC with de-jittered Y (EMA smoothing) ===== */
+let yMinS = null, yMaxS = null; // smoothed min/max
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -264,31 +271,33 @@ function drawPrice(){
 
   const now = Date.now();
   const firstTs = Math.min(...series.map(d=>d.t));
-  // dynamic span grows from 0 → 10m, then stays at 10m
   const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
   const startT = now - windowSpan;
-  const span   = windowSpan;              // <<< use dynamic span (so it stretches)
+  const span   = windowSpan;
 
-  // 1s buckets within [startT, now], pick latest sample in [t, t+step)
-  const step = 1000;
-  const buckets = [];
+  // carry-forward latest sample into 1s buckets
+  const step = 1000, buckets=[]; let lastSeen=null, si=0;
+  while(si < series.length && series[si].t < startT) si++;
   for(let t = startT; t <= now; t += step){
-    let chosen = null;
-    for(let i=series.length-1; i>=0; i--){
-      const s = series[i];
-      if(s.t < t) break;
-      if(s.t >= t && s.t < t + step){ chosen = s; break; }
-    }
-    if(chosen) buckets.push(chosen);
+    for(; si<series.length && series[si].t <= t; si++) lastSeen = series[si];
+    if(lastSeen) buckets.push(lastSeen);
   }
   if(buckets.length<2) return;
 
   // stats
   let min=Infinity,max=-Infinity,sum=0;
   for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
-  const range=(max-min)||1, avg=sum/buckets.length;
+  const avg=sum/buckets.length;
 
-  const padX=14, padY=20;
+  // smooth min/max to limit vertical jitter
+  const alpha = 0.2;
+  if(yMinS==null || yMaxS==null){ yMinS=min; yMaxS=max; }
+  else {
+    yMinS += (min - yMinS) * alpha;
+    yMaxS += (max - yMaxS) * alpha;
+    if(yMaxS - yMinS < 1e-6){ yMaxS = yMinS + 1e-6; }
+  }
+  const padX=14, padY=20, rangeS=(yMaxS-yMinS);
 
   // grid
   const grid='var(--grid)';
@@ -299,16 +308,16 @@ function drawPrice(){
   }
 
   // average dashed
-  const yAvg=padY+(h-2*padY)*(1-(avg-min)/range);
+  const yAvg=padY+(h-2*padY)*(1-(avg - yMinS)/rangeS);
   ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels across dynamic span
+  // map to pixels across dynamic span (left→right grow)
   const usableW=(w-2*padX), pts=[]; let lastX=-1;
   for(const d of buckets){
     const x=padX+((d.t - startT)/span)*usableW;
-    const y=padY+(h-2*padY)*(1-(d.p-min)/range);
+    const y=padY+(h-2*padY)*(1-(d.p - yMinS)/rangeS);
     const xi=Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
   }
   if(pts.length<2) return;
@@ -329,12 +338,12 @@ function drawPrice(){
   }
   ctx.stroke();
 
-  // labels (max/avg/min)
+  // labels
   ctx.fillStyle='rgba(255,255,255,.9)';
   ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  ctx.fillText(fmtUSD(max,0), padX, padY+4);
+  ctx.fillText(fmtUSD(Math.max(...buckets.map(b=>b.p)),0), padX, padY+4);
   ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
-  ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
+  ctx.fillText(fmtUSD(Math.min(...buckets.map(b=>b.p)),0), padX, h-padY-4);
 
   // last price pill (raw)
   const last=pts[pts.length-1];
@@ -346,7 +355,7 @@ function drawPrice(){
   ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* ===== volume (stacked) + max pill ===== */
+/* ===== volume (stacked) + max pill + total & diff pills ===== */
 function drawVol(){
   const ctx = sizeCanvas(volCanvas);
   const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
@@ -377,14 +386,48 @@ function drawVol(){
     ctx.fillText(':'+t, xC-8, h-18);
   }
 
+  // bars + pills
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  ctx.textBaseline='middle';
   for(let i=0;i<volBins.length;i++){
-    const b=volBins[i]; const xC=padX+i*step+step/2; const tot=b.buy+b.sell;
+    const b=volBins[i]; 
+    const xC=padX+i*step+step/2; 
+    const tot=b.buy+b.sell;
+    const diff=b.buy-b.sell;
+
     const hT=Math.max(4,(tot/max)*chartH);
     const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
     const yB=padTop+chartH;
 
+    // stacked bars
     ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
     ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+
+    // TOTAL pill on top (hide if zero)
+    if(tot>0){
+      const txt = `₿${tot.toFixed(2)}`;
+      const tw = ctx.measureText(txt).width + 14, th = 18;
+      const bx = Math.round(xC - tw/2);
+      const by = Math.max(4, Math.round(yB - hT - th - 4));
+      ctx.fillStyle='rgba(0,0,0,.88)';
+      ctx.strokeStyle='rgba(255,255,255,.25)';
+      roundRect(ctx,bx,by,tw,th,9,true,true);
+      ctx.fillStyle='#fff';
+      ctx.fillText(txt, bx+tw/2 - ctx.measureText(txt).width/2, by+th/2);
+    }
+
+    // +/- DIFF pill inside bar (only if bar is tall enough)
+    if(hT > 26 && Math.abs(diff) > 0.0001){
+      const dTxt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
+      const dtw = ctx.measureText(dTxt).width + 14, dth = 18;
+      const dbx = Math.round(xC - dtw/2);
+      const dby = Math.max(padTop+2, Math.round(yB - hT + (hT - dth)/2));
+      ctx.fillStyle='rgba(0,0,0,.85)';
+      ctx.strokeStyle='rgba(255,255,255,.22)';
+      roundRect(ctx,dbx,dby,dtw,dth,9,true,true);
+      ctx.fillStyle = diff>=0 ? up : dn;
+      ctx.fillText(dTxt, dbx+dtw/2 - ctx.measureText(dTxt).width/2, dby+dth/2);
+    }
   }
 }
 
@@ -404,15 +447,15 @@ function drawGauge(){
   // ease toward target
   needlePos += (target - needlePos) * 0.25;
 
-  // base bar gradient from sells→buys with split at needlePos
+  // Buys (left) → Sells (right)
   const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
   const g = ctx.createLinearGradient(0,0,w,0);
   const split=needlePos;
-  g.addColorStop(0, dn);
-  g.addColorStop(Math.max(0, split-0.001), dn);
-  g.addColorStop(Math.min(1, split+0.001), up);
-  g.addColorStop(1, up);
+  g.addColorStop(0, up);
+  g.addColorStop(Math.max(0, split-0.001), up);
+  g.addColorStop(Math.min(1, split+0.001), dn);
+  g.addColorStop(1, dn);
 
   const r=h/2;
   ctx.fillStyle=g;
@@ -485,7 +528,6 @@ function drawTops(){
       ctx.fillStyle = dn;
       roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
 
-      // translucent label bg anchored near center
       const labelW = Math.min(barW, 170);
       ctx.fillStyle = 'rgba(0,0,0,.55)';
       ctx.fillRect(midX - labelW, y-rowH/2, labelW, rowH);
@@ -505,7 +547,6 @@ function drawTops(){
       ctx.fillStyle = up;
       roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
 
-      // translucent label bg anchored near center
       const labelW = Math.min(barW, 170);
       ctx.fillStyle = 'rgba(0,0,0,.55)';
       ctx.fillRect(midX, y-rowH/2, labelW, rowH);
