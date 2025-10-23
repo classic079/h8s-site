@@ -3,170 +3,171 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>h8s — multi-window desktop</title>
+<title>Coinbase Stalker — Desktop Multi-Range</title>
 <style>
   :root{
-    --bg:#0b0b0b; --panel:#111; --panel-2:#0e0e0e;
+    --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
     --text:#e9fef7; --muted:#c8d6cf;
     --up:#2dd4bf; --down:#f59e0b;
-    --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
-    --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
-    --glow:0 0 0 1px rgba(255,255,255,.06), 0 20px 50px rgba(0,0,0,.45);
+    --grid:rgba(255,255,255,.12); --grid-2:rgba(255,255,255,.10);
+    --pill-bg:rgba(0,0,0,.80); --pill-bd:rgba(255,255,255,.25);
+    --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
   }
+
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
-    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
-  .wrap{max-width:1600px;margin:20px auto;padding:0 20px;}
-  h1{margin:0 0 16px;font-weight:800;letter-spacing:.4px}
-  .grid{display:grid;gap:20px;
-        grid-template-columns:repeat(auto-fit,minmax(380px,1fr));}
-  .panel{background:var(--panel);border-radius:14px;box-shadow:var(--glow);padding:14px;display:flex;flex-direction:column;gap:10px;}
-  .title{font-weight:700;text-transform:uppercase;font-size:14px;opacity:.85;display:flex;justify-content:space-between;align-items:center;}
-  canvas{display:block;width:100%;background:var(--panel-2);border-radius:10px;}
-  .priceCanvas{height:180px;} .gaugeCanvas{height:20px;} .volCanvas{height:120px;}
-  .tops{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;}
-  .topList{list-style:none;margin:0;padding:0;font-variant-numeric:tabular-nums;}
-  .topItem{padding:4px 6px;border-radius:6px;margin-bottom:2px;}
-  .buy{background:color-mix(in oklab,var(--up) 18%,transparent);}
-  .sell{background:color-mix(in oklab,var(--down) 18%,transparent);}
-  .pill{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;
-        background:var(--pill-bg);border:1px solid var(--pill-bd);font-size:11px;}
-  .conn{position:fixed;bottom:12px;left:16px;z-index:20}
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+  /* Tiny outer margins; full width */
+  .wrap{padding:8px 10px 40px; max-width:100%; margin:0 auto;}
+  h1{margin:6px 4px 12px; font-size:22px; letter-spacing:.3px; opacity:.95}
+
+  /* 4-up grid, collapses if screen is small */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(280px, 1fr));
+    gap:10px;
+  }
+
+  .card{
+    background:var(--panel);
+    border-radius:14px;
+    box-shadow:var(--glow);
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    min-height: 640px;
+  }
+
+  .titleRow{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+  .ttl{font-weight:800; font-size:12px; letter-spacing:.6px; text-transform:uppercase; opacity:.9}
+  .pill{display:inline-flex; align-items:center; gap:8px; padding:5px 9px;
+        border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
+        font-size:11px; white-space:nowrap; color:#fff;}
+
+  .chart{height:240px; border-radius:12px; background:var(--panel-2); margin-bottom:8px}
+  .gaugeRow{display:flex; align-items:center; gap:10px; margin:4px 0}
+  .gauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.14); flex:1}
+  .gLbl{font-size:12px; opacity:.9}
+  .gLbl.buy{color:var(--up)} .gLbl.sell{color:var(--down)}
+  .needle{position:relative; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}
+  .needleWrap{position:relative}
+  .needleAbs{position:absolute; top:0; left:0}
+
+  .vol{height:170px; border-radius:12px; background:var(--panel-2); margin-top:6px}
+  .pillRow{display:flex; align-items:center; gap:8px; margin:6px 2px 0}
+  .spacer{flex:1}
+
+  .tops{flex:1; border-radius:12px; background:var(--panel-2); margin-top:8px; padding:8px}
+  .topsGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; height:100%}
+  .topsCol{overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:6px}
+  .topsCol.buy{background:color-mix(in oklab, var(--up) 12%, transparent)}
+  .topsCol.sell{background:color-mix(in oklab, var(--down) 12%, transparent)}
+  .topsCol h4{margin:2px 2px 6px; font-size:11px; letter-spacing:.5px; text-transform:uppercase}
+  .item{display:flex; justify-content:space-between; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.18); margin:4px 0; font-variant-numeric:tabular-nums}
+  .usd{font-weight:800}
+  .btc,.tm{opacity:.85}
+
+  .conn{position:fixed; left:10px; bottom:10px; z-index:40}
+  canvas{display:block; width:100%; height:100%}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Coinbase Stalker — Desktop Multi-Range</h1>
-  <div class="grid" id="grid"></div>
-  <div class="pill conn" id="connPill">Connecting…</div>
-</div>
+  <div class="wrap">
+    <h1>Coinbase Stalker — Desktop Multi-Range</h1>
+
+    <div class="grid" id="grid">
+      <!-- Cards created by JS -->
+    </div>
+
+    <div class="pill conn" id="connPill">Live</div>
+  </div>
 
 <script>
-/* shared state */
-const ranges = [
-  {label:"10 min", ms:600000},
-  {label:"1 hr",  ms:3600000},
-  {label:"8 hr",  ms:28800000},
-  {label:"24 hr", ms:86400000}
-];
-let trades=[], series=[]; 
-let lastPrice=null, lastRaw=null;
-const connPill=document.getElementById('connPill');
-
-/* create 4 panels */
-const grid=document.getElementById('grid');
-for(const r of ranges){
-  const p=document.createElement('div'); p.className='panel'; 
-  p.innerHTML=`
-    <div class="title">${r.label}<span class="pill" id="max-${r.ms}">max ₿—</span></div>
-    <canvas class="priceCanvas" id="price-${r.ms}"></canvas>
-    <canvas class="gaugeCanvas" id="gauge-${r.ms}"></canvas>
-    <canvas class="volCanvas" id="vol-${r.ms}"></canvas>
-    <div class="tops">
-      <ul class="topList" id="buys-${r.ms}"></ul>
-      <ul class="topList" id="sells-${r.ms}"></ul>
-    </div>`;
-  grid.appendChild(p);
-}
-
-/* helpers */
+/* ========= Utilities ========= */
+const fmtUSD = (v,fd=0)=> new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
 function sizeCanvas(c){
-  const dpr=Math.min(3,window.devicePixelRatio||1);
-  c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr;
-  const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx;
+  const dpr = Math.min(3, window.devicePixelRatio||1);
+  c.width = Math.max(1, c.clientWidth*dpr);
+  c.height = Math.max(1, c.clientHeight*dpr);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return ctx;
 }
-const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
-function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.fill();}
-
-/* feed */
-let ws;
-function startWS(){
- try{ws&&ws.close();}catch{}
- ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
- ws.onopen=()=>{
-   ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-   connPill.textContent='Live';
- };
- ws.onmessage=e=>{
-   try{
-     const m=JSON.parse(e.data);
-     if(m.type==='match'&&m.product_id==='BTC-USD'){
-       const t=new Date(m.time).getTime();
-       const p=+m.price, s=+m.size, side=m.side;
-       series.push({t,p}); trades.push({t,p,s,side});
-       lastRaw=p;
-     }
-   }catch{}
- };
- ws.onclose=()=>{connPill.textContent='Reconnecting…';setTimeout(startWS,1000);}
- ws.onerror=()=>{try{ws.close()}catch{};}
+function roundRect(ctx,x,y,w,h,r,fill=true,stroke=false){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  if(fill) ctx.fill(); if(stroke) ctx.stroke();
 }
-startWS();
 
-/* drawing per window */
-function drawRange(r){
-  const now=Date.now(), start=now-r.ms;
-  const tr=trades.filter(t=>t.t>=start);
-  const sr=series.filter(s=>s.t>=start);
-  const priceCanvas=document.getElementById(`price-${r.ms}`);
-  const gaugeCanvas=document.getElementById(`gauge-${r.ms}`);
-  const volCanvas=document.getElementById(`vol-${r.ms}`);
-  const maxVolPill=document.getElementById(`max-${r.ms}`);
-  const buysUL=document.getElementById(`buys-${r.ms}`);
-  const sellsUL=document.getElementById(`sells-${r.ms}`);
+/* ========= Shared trade stream ========= */
+const MS = { M10:600000, H1:3600000, H8:8*3600000, D1:24*3600000 };
+let trades = []; // {t, price, size, side:'buy'|'sell'}
 
-  /* chart */
-  const ctx=sizeCanvas(priceCanvas);
-  const w=priceCanvas.clientWidth,h=priceCanvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
-  if(sr.length>2){
-    const min=Math.min(...sr.map(s=>s.p)),max=Math.max(...sr.map(s=>s.p));
-    const range=max-min||1;const pad=14;
-    ctx.strokeStyle='var(--up)';ctx.lineWidth=2;ctx.beginPath();
-    const usable=w-2*pad;
-    const pts=sr.map(s=>({x:pad+(s.t-start)/r.ms*usable,y:h-(s.p-min)/range*(h-2*pad)-pad}));
-    ctx.moveTo(pts[0].x,pts[0].y);
-    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);
-    ctx.stroke();
+/* ========= Panel class ========= */
+class RangePanel {
+  constructor(parent, label, spanMs){
+    this.label = label;
+    this.span = spanMs;
+
+    // DOM
+    this.el = document.createElement('section');
+    this.el.className = 'card';
+    this.el.innerHTML = `
+      <div class="titleRow">
+        <div class="ttl">${label}</div>
+        <div class="spacer"></div>
+        <div class="pill" data-role="max">max ₿—</div>
+      </div>
+      <div class="chart"><canvas></canvas></div>
+      <div class="gaugeRow">
+        <span class="gLbl buy">Buys</span>
+        <div class="needleWrap" style="flex:1">
+          <canvas class="gauge"></canvas>
+          <div class="needleAbs" style="width:100%; height:0">
+            <div class="needle" data-role="needle" style="left:50%"></div>
+          </div>
+        </div>
+        <span class="gLbl sell">Sells</span>
+      </div>
+      <div class="vol"><canvas></canvas></div>
+
+      <div class="tops">
+        <div class="topsGrid">
+          <div class="topsCol buy">
+            <h4>Top Buys</h4>
+            <div data-role="buys"></div>
+          </div>
+          <div class="topsCol sell">
+            <h4>Top Sells</h4>
+            <div data-role="sells"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    parent.appendChild(this.el);
+
+    // Refs
+    this.priceCanvas = this.el.querySelector('.chart canvas');
+    this.volCanvas = this.el.querySelector('.vol canvas');
+    this.gaugeCanvas = this.el.querySelector('.gauge');
+    this.maxPill = this.el.querySelector('[data-role="max]');
+    this.needle = this.el.querySelector('[data-role="needle"]');
+    this.buysBox = this.el.querySelector('[data-role="buys"]');
+    this.sellsBox = this.el.querySelector('[data-role="sells"]');
+
+    this._needlePos = 0.5; // eased 0..1
   }
 
-  /* gauge */
-  const g=sizeCanvas(gaugeCanvas),gw=gaugeCanvas.clientWidth,gh=gaugeCanvas.clientHeight;
-  let buy=0,sell=0;for(const t of tr){if(t.side==='buy')buy+=t.s;else sell+=t.s;}
-  const tot=buy+sell,pos=tot?buy/tot:.5;
-  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
-  const grad=g.createLinearGradient(0,0,gw,0);
-  grad.addColorStop(0,dn);grad.addColorStop(pos,up);grad.addColorStop(1,up);
-  g.fillStyle=grad;roundRect(g,0,0,gw,gh,gh/2);
-
-  /* volume */
-  const v=sizeCanvas(volCanvas),vw=volCanvas.clientWidth,vh=volCanvas.clientHeight;
-  const bins=60,binMs=r.ms/bins;
-  const arr=Array.from({length:bins},()=>({b:0,s:0}));
-  for(const t of tr){const i=Math.floor((t.t-start)/binMs);if(i>=0&&i<bins){if(t.side==='buy')arr[i].b+=t.s;else arr[i].s+=t.s;}}
-  const max=Math.max(0.01,...arr.map(x=>x.b+x.s));maxVolPill.textContent=`max ₿${max.toFixed(2)}`;
-  const barW=vw/bins;
-  for(let i=0;i<bins;i++){
-    const a=arr[i];const tot=a.b+a.s;const yB=vh-4;const hT=(tot/max)*(vh-20);
-    v.fillStyle=dn;v.fillRect(i*barW,yB-hT*(a.s/tot),barW-1,hT*(a.s/tot));
-    v.fillStyle=up;v.fillRect(i*barW,yB-hT,barW-1,hT*(a.b/tot));
+  windowTrades(){
+    const now = Date.now(), from = now - this.span;
+    return trades.filter(t=> t.t >= from);
   }
 
-  /* top trades */
-  const items=tr.map(t=>({...t,usd:t.p*t.s}));
-  const buys=items.filter(i=>i.side==='buy').sort((a,b)=>b.usd-a.usd).slice(0,10);
-  const sells=items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,10);
-  const li=t=>`<li class="topItem ${t.side}">${fmtUSD(t.usd,0)} (${t.s.toFixed(2)} BTC)</li>`;
-  buysUL.innerHTML=buys.map(li).join('')||'<li>—</li>';
-  sellsUL.innerHTML=sells.map(li).join('')||'<li>—</li>';
-}
-
-/* loop */
-function frame(){for(const r of ranges)drawRange(r);requestAnimationFrame(frame);}
-requestAnimationFrame(frame);
-</script>
-</body>
-</html>
+  drawPrice(){
+    const ctx = sizeCanvas(this.priceCanvas);
+    const w = this.priceCanvas.clientWidth, h = this.priceCanvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=getComputedStyle(document.document
