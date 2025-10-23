@@ -609,17 +609,32 @@ function startWS(){
   try{ ws && ws.close(); }catch{}
   ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
   ws.onopen = ()=>{
-    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
+    // Proper channel object format; include ticker as fallback stream
+    const sub = {
+      type: 'subscribe',
+      channels: [
+        { name: 'matches', product_ids: ['BTC-USD'] },
+        { name: 'ticker',  product_ids: ['BTC-USD'] }
+      ]
+    };
+    ws.send(JSON.stringify(sub));
   };
   ws.onmessage = (e)=>{
     try{
       const m = JSON.parse(e.data);
+
       if(m.type==='match' && m.product_id==='BTC-USD'){
-        onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
+        onTrade({price:+m.price, size:+m.size, side:m.side, time:m.time});
       }
-    }catch{}
+      // Fallback: ticker messages (no trade aggregation but keeps price/size flowing)
+      else if(m.type==='ticker' && m.product_id==='BTC-USD' && m.last_size){
+        onTrade({price:+m.price, size:+m.last_size, side:m.side||'buy', time:m.time});
+      }
+    }catch(err){
+      // swallow
+    }
   };
-  ws.onclose = ()=>{ recon=setTimeout(startWS,1200); };
+  ws.onclose = ()=>{ recon=setTimeout(startWS, 1500); };
   ws.onerror = ()=>{ try{ws.close()}catch{} };
 }
 startWS();
