@@ -326,7 +326,7 @@ function onTrade({price,size,side,time}){
     volBins.push({ts:lastTs+60000,buy:0,sell:0});
   }
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
-  (side==='sell'? volBins[i].sell : volBins[i].buy) += size;
+if (side === 'sell') volBins[i].sell += size; else volBins[i].buy += size;
 
   // header price color
   if(lastPrice!=null){
