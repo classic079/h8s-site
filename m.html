@@ -81,7 +81,7 @@
         <button id="gearBtn" class="gearBtn" title="Settings">
           <svg class="gearSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
-            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6Z"/>
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0  0 0 .9-.6Z"/>
           </svg>
         </button>
         <h1 id="bigPrice" class="bigPrice">$—</h1>
@@ -298,10 +298,12 @@ function drawPrice(){
   const firstTs = Math.min(...series.map(d=>d.t));
   const elapsed = now - firstTs;
 
+  // IMPORTANT: while <10m, span = elapsed (so it stretches across the width);
+  // once >=10m, use a fixed 10m rolling window.
   const growMode = elapsed < MS10;
-  const startT = growMode ? firstTs : (now - MS10);
-  const span   = MS10;
-  const endT   = growMode ? now : (startT + MS10);
+  const startT   = growMode ? firstTs : (now - MS10);
+  const span     = growMode ? Math.max(2000, elapsed + 1000) : MS10; // smooth early stretch
+  const endT     = growMode ? now : (startT + MS10);
 
   // collect samples (1s) within [startT, endT] using latest <= t
   const step = 1000, buckets=[];
@@ -335,7 +337,7 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels (strictly increasing X over fixed 10m)
+  // map to pixels (strictly increasing X over dynamic span when growing)
   const usableW=(w-2*padX), pts=[]; let lastX=-1;
   for(const d of buckets){
     const x=padX+((d.t - startT)/span)*usableW;
