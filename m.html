@@ -3,24 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>h8s — mobile (classic)</title>
+<title>h8s — mobile (classic + bias gauge)</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
     --text:#e9fef7; --muted:#c8d6cf;
-    --up:#14b8a6; --down:#fb923c;       /* default = Showgirl (teal / orange) */
+    --up:#2dd4bf; --down:#f59e0b;               /* theme-adjustable */
     --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
     --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
     --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
-
-    /* gauge colors */
-    --g-red:#ef4444;
-    --g-yellow:#f59e0b;
-    --g-lime:#84cc16;
-    --g-green:#22c55e;
-    --g-split:#00000033;
-    --g-needle:#e5e7eb;
-    --g-fill:#2dd4bf;
   }
   *{box-sizing:border-box}
   html,body{height:100%; margin:0; background:var(--bg); color:var(--text);
@@ -42,27 +33,18 @@
   .chartBox{padding:0 10px 6px}
   canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
   .volBox{height:210px}
-  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* balance gauge */
-  .balanceRow{display:flex; align-items:center; gap:10px; padding:8px 10px 2px}
-  .sideLbl{font-size:12px; opacity:.9}
-  .barWrap{position:relative; flex:1; height:18px; border-radius:999px;
-           background:linear-gradient(90deg,
-             var(--g-red) 0 25%,
-             var(--g-yellow) 25% 50%,
-             var(--g-lime) 50% 75%,
-             var(--g-green) 75% 100%);
-           box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);}
-  .split{position:absolute; top:0; bottom:0; width:1px; background:var(--g-split)}
-  .split.s25{left:25%} .split.s50{left:50%} .split.s75{left:75%}
-  .needle{position:absolute; left:50%; top:-9px; width:0; height:0; transform:translateX(-50%);
-          border-left:6px solid transparent; border-right:6px solid transparent;
-          border-top:10px solid var(--g-needle); filter:drop-shadow(0 1px 0 rgba(0,0,0,.3))}
-  .timeFill{position:absolute; left:0; top:0; bottom:0; width:0%;
-            background:linear-gradient(90deg, color-mix(in oklab, var(--g-fill) 50%, transparent), transparent);
-            border-radius:999px}
-  .maxPill{margin-left:auto}
+  /* gauge (between legend and vol) */
+  .gaugeRow{display:flex; align-items:center; gap:10px; padding:6px 10px 2px; position:relative}
+  .gLabel{font-size:12px; opacity:.9; user-select:none}
+  .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
+  #biasGauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
+  .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left 0.2s ease;}
+  .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
+  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
+  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
   /* settings sheet */
   .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
@@ -94,16 +76,21 @@
       <div class="chartBox">
         <canvas id="priceCanvas"></canvas>
 
-        <!-- BUY/SELL balance gauge -->
-        <div class="balanceRow">
-          <span class="sideLbl">Buys</span>
-          <div class="barWrap" aria-label="Buy/Sell balance (last 10m)">
-            <div class="timeFill" id="timeFill"></div>
-            <div class="split s25"></div><div class="split s50"></div><div class="split s75"></div>
-            <div class="needle" id="needle"></div>
+        <!-- Gauge row -->
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div style="position:relative; flex:1">
+            <canvas id="biasGauge"></canvas>
+            <div id="needle" class="needle" style="left:50%"></div>
+            <div id="needleValue" class="needleValue" style="left:50%">0%</div>
           </div>
-          <span class="sideLbl">Sells</span>
-          <span id="maxVolPill" class="pill maxPill">max ₿—</span>
+          <span class="gLabel sell">Sells</span>
+        </div>
+
+        <div class="legend" style="margin-top:2px">
+          <span class="dot up"></span><span class="muted">Buys</span>
+          <span class="dot down"></span><span class="muted">Sells</span>
+          <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
         </div>
 
         <canvas id="volCanvas" class="volBox"></canvas>
@@ -119,18 +106,10 @@
       <div class="row">
         <label for="themeSel">Theme</label>
         <select id="themeSel">
-          <option value="showgirl">Life of a Showgirl (default)</option>
-          <option value="reputation">reputation</option>
-          <option value="midnights">Midnights</option>
-          <option value="lover">Lover</option>
-          <option value="folklore">folklore</option>
-          <option value="evermore">evermore</option>
-          <option value="red">Red</option>
-          <option value="speaknow">Speak Now</option>
-          <option value="fearless">Fearless</option>
-          <option value="debut">Taylor Swift</option>
-          <option value="1989">1989</option>
-          <option value="ttpd">The Tortured Poets Dept.</option>
+          <option value="teal">Teal/Amber (default)</option>
+          <option value="emerald">Emerald/Orange</option>
+          <option value="violet">Violet/Gold</option>
+          <option value="showgirl">Life of a Showgirl (teal/orange)</option>
         </select>
       </div>
       <div class="row">
@@ -142,7 +121,7 @@
   </div>
 
 <script>
-/* els */
+/* ===== elements ===== */
 const priceEl = document.getElementById('bigPrice');
 const priceCanvas = document.getElementById('priceCanvas');
 const volCanvas = document.getElementById('volCanvas');
@@ -153,159 +132,274 @@ const gearBtn = document.getElementById('gearBtn');
 const themeSel = document.getElementById('themeSel');
 const scaleInp = document.getElementById('scaleInp');
 const closeSheet = document.getElementById('closeSheet');
+const biasGauge = document.getElementById('biasGauge');
 const needle = document.getElementById('needle');
-const timeFill = document.getElementById('timeFill');
+const needleValue = document.getElementById('needleValue');
 
-/* state */
-let lastPrice=null, rawLastPrice=null;
-let series=[];                // {t,p}
-let volBins=[];               // {ts,buy,sell}
-const MS10=600000;
-let VALUE_SCALE=+(localStorage.getItem('h8s_scale')||'1')||1;
+/* ===== state ===== */
+let lastPrice = null;
+let rawLastPrice = null;   // unscaled price for charts
+let series = [];           // {t, p}
+let volBins = [];          // {ts,buy,sell} x10 fixed
+const MS10 = 600000;
+let VALUE_SCALE = +(localStorage.getItem('h8s_scale')||'1') || 1;
 
-/* palettes */
-const PALETTES={
-  showgirl:{up:'#14b8a6',down:'#fb923c'},
-  debut:{up:'#4CAF50',down:'#8BC34A'},
-  fearless:{up:'#E6C200',down:'#B38F00'},
-  speaknow:{up:'#A78BFA',down:'#8B5CF6'},
-  red:{up:'#EF4444',down:'#F59E0B'},
-  '1989':{up:'#60A5FA',down:'#A7F3D0'},
-  reputation:{up:'#A3A3A3',down:'#3F3F46'},
-  lover:{up:'#F472B6',down:'#60A5FA'},
-  folklore:{up:'#C4B5A5',down:'#6B7280'},
-  evermore:{up:'#D97706',down:'#6B8E23'},
-  midnights:{up:'#8B9CF6',down:'#1F2937'},
-  ttpd:{up:'#E5E7EB',down:'#1F2937'}
-};
-const THEME=localStorage.getItem('h8s_theme')||'showgirl'; applyTheme(THEME);
-themeSel.value=THEME; scaleInp.value=VALUE_SCALE;
+/* theme handling (with Life of a Showgirl default if not set) */
+const SAVED_THEME = localStorage.getItem('h8s_theme') || 'showgirl';
+applyTheme(SAVED_THEME);
+themeSel.value = SAVED_THEME;
+scaleInp.value = VALUE_SCALE.toString();
 
-/* helpers */
-function sizeCanvas(c){const dpr=Math.min(3,devicePixelRatio||1); c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx;}
-const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
-function roundRect(ctx,x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);if(fill)ctx.fill();if(stroke)ctx.stroke();}
-function initBins(){const now=Date.now();const start=now-(now%60000)-9*60000;volBins=Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}))}initBins();
-function applyTheme(k){const p=PALETTES[k]||PALETTES.showgirl; const r=document.documentElement.style; r.setProperty('--up',p.up); r.setProperty('--down',p.down);}
-
-/* settings */
-gearBtn.onclick=()=>sheet.classList.add('open');
-closeSheet.onclick=()=>sheet.classList.remove('open');
-themeSel.onchange=e=>{applyTheme(e.target.value);localStorage.setItem('h8s_theme',e.target.value)};
-scaleInp.onchange=e=>{VALUE_SCALE=Math.max(0,+e.target.value||0);localStorage.setItem('h8s_scale',String(VALUE_SCALE)); if(rawLastPrice!=null) priceEl.textContent=fmtUSD(rawLastPrice*VALUE_SCALE,2)};
-
-/* trades */
-function onTrade({price,size,side,time}){
-  const ts=new Date(time).getTime();
-  rawLastPrice=price; const scaled=price*VALUE_SCALE;
-  (series.length && ts<series.at(-1).t) ? (series.splice(series.findIndex(s=>s.t>ts),0,{t:ts,p:price})) : series.push({t:ts,p:price});
-  const startAligned=ts-(ts%60000)-9*60000;
-  while(volBins[0].ts<startAligned) volBins.shift();
-  while(volBins.length<10){const lastTs=volBins.at(-1)?.ts??startAligned; volBins.push({ts:lastTs+60000,buy:0,sell:0})}
-  const i=Math.min(9,Math.max(0,Math.floor((ts-volBins[0].ts)/60000)));
-  if(side==='buy') volBins[i].buy+=size; else volBins[i].sell+=size;
-
-  if(lastPrice!=null){priceEl.classList.remove('up','down'); if(scaled>lastPrice)priceEl.classList.add('up'); else if(scaled<lastPrice)priceEl.classList.add('down')}
-  lastPrice=scaled; priceEl.textContent=fmtUSD(scaled,2);
+/* ===== helpers ===== */
+function sizeCanvas(c){
+  const dpr = Math.min(3, window.devicePixelRatio||1);
+  c.width = Math.max(1, c.clientWidth*dpr);
+  c.height = Math.max(1, c.clientHeight*dpr);
+  c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  return c.getContext('2d');
 }
-function prune(){const now=Date.now(); series=series.filter(d=>d.t>=now-MS10)}
+const fmtUSD = (v,fd=0)=> new Intl.NumberFormat(
+  undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  if(fill) ctx.fill(); if(stroke) ctx.stroke();
+}
+function initBins(){
+  const now = Date.now();
+  const start = now - (now % 60000) - 9*60000;
+  volBins = Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
+}
+initBins();
 
-/* chart */
+/* ===== settings ===== */
+gearBtn.addEventListener('click', ()=>sheet.classList.add('open'));
+closeSheet.addEventListener('click', ()=>sheet.classList.remove('open'));
+themeSel.addEventListener('change', e=>{
+  applyTheme(e.target.value);
+  localStorage.setItem('h8s_theme', e.target.value);
+});
+scaleInp.addEventListener('change', e=>{
+  const v = Math.max(0, +e.target.value || 0);
+  VALUE_SCALE = v;
+  localStorage.setItem('h8s_scale', String(v));
+  if(rawLastPrice!=null){
+    const scaled = rawLastPrice * VALUE_SCALE;
+    priceEl.textContent = fmtUSD(scaled,2);
+  }
+});
+function applyTheme(t){
+  const r = document.documentElement.style;
+  if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
+  else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
+  else if(t==='showgirl'){ r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
+  else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
+}
+
+/* ===== trade intake ===== */
+function onTrade({price,size,side,time}){
+  const ts = new Date(time).getTime();
+  rawLastPrice = price;
+  const scaled = price * VALUE_SCALE;
+
+  series.push({t:ts,p:price}); // chart uses raw
+
+  const startAligned = ts - (ts % 60000) - 9*60000;
+  while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
+  while(volBins.length<10){
+    const lastTs = volBins.length?volBins[volBins.length-1].ts:startAligned;
+    volBins.push({ts:lastTs+60000,buy:0,sell:0});
+  }
+  const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
+  if(side==='buy') volBins[i].buy += size; else volBins[i].sell += size;
+
+  if(lastPrice!=null){
+    priceEl.classList.remove('up','down');
+    if(scaled>lastPrice) priceEl.classList.add('up');
+    else if(scaled<lastPrice) priceEl.classList.add('down');
+  }
+  lastPrice = scaled;
+  priceEl.textContent = fmtUSD(scaled,2);
+}
+function prune(){
+  const now = Date.now();
+  series = series.filter(d=> d.t >= now-MS10);
+}
+
+/* ===== price chart (left→right stretch until 10m) ===== */
 function drawPrice(){
-  const ctx=sizeCanvas(priceCanvas); const w=priceCanvas.clientWidth,h=priceCanvas.clientHeight;
-  ctx.clearRect(0,0,w,h); ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2'); ctx.fillRect(0,0,w,h);
+  const ctx = sizeCanvas(priceCanvas);
+  const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
   if(series.length<2) return;
-  const now=Date.now(), firstTs=Math.min(series[0].t,...series.map(d=>d.t));
-  const span=Math.max(2000,Math.min(MS10,now-firstTs+1000)), startT=now-span;
-  const vis=series.filter(d=>d.t>=startT&&d.t<=now); if(vis.length<2) return;
-  let min=Infinity,max=-Infinity,sum=0; for(const d of vis){if(d.p<min)min=d.p; if(d.p>max)max=d.p; sum+=d.p}
-  const rng=(max-min)||1, avg=sum/vis.length; const padX=14,padY=20;
 
-  ctx.strokeStyle='var(--grid)'; for(let i=1;i<=3;i++){const y=padY+(h-2*padY)*(i/4*(4/3)); ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();}
-  const yAvg=padY+(h-2*padY)*(1-(avg-min)/rng); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke(); ctx.setLineDash([]);
+  const now = Date.now();
+  const firstTs = Math.min(...series.map(d=>d.t));
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
+  const startT = now - windowSpan;
 
-  const usableW=w-2*padX; const pts=[]; let lastX=-1e9, EPS=.5;
-  for(const d of vis){const x=padX+((d.t-startT)/span)*usableW; const y=padY+(h-2*padY)*(1-(d.p-min)/rng); if(x<=lastX+EPS) continue; lastX=x; pts.push({x,y,p:d.p})}
+  const step = 1000, buckets=[];
+  for(let t = startT; t <= now; t += step){
+    let last=null;
+    for(let i=series.length-1;i>=0;i--){
+      const s=series[i]; if(s.t < t) break;
+      if(s.t>=t && s.t<t+step){ last=s; break; }
+    }
+    if(last) buckets.push(last);
+  }
+  if(buckets.length<2) return;
+
+  let min=Infinity,max=-Infinity,sum=0;
+  for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
+  const range=(max-min)||1, avg=sum/buckets.length;
+
+  const padX=14, padY=20;
+
+  ctx.strokeStyle='var(--grid)';
+  for(let i=1;i<=3;i++){ const y=padY+(h-2*padY)*(i/4*(4/3)); ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke(); }
+
+  const yAvg=padY+(h-2*padY)*(1-(avg-min)/range);
+  ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke(); ctx.setLineDash([]);
+
+  const usableW=(w-2*padX); const pts=[]; let lastX=-1;
+  for(const d of buckets){
+    const x=padX+((d.t-startT)/windowSpan)*usableW;
+    const y=padY+(h-2*padY)*(1-(d.p-min)/range);
+    const xi=Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
+  }
   if(pts.length<2) return;
-  const MAXJ=(max-min)*.5, clean=[pts[0]]; for(let i=1;i<pts.length;i++){ if(Math.abs(pts[i].p-pts[i-1].p)<=MAXJ) clean.push(pts[i]) }
-  if(clean.length<2) return;
 
-  const cr2bz=(p0,p1,p2,p3,t=.5)=>{const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t; return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}]};
-  ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--up'); ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(clean[0].x,clean[0].y);
-  for(let i=0;i<clean.length-1;i++){const p0=clean[i-1]||clean[i],p1=clean[i],p2=clean[i+1],p3=clean[i+2]||p2; const [c1,c2]=cr2bz(p0,p1,p2,p3,.5); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y)}
+  const cr2bz=(p0,p1,p2,p3,t=0.5)=>{const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t;
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];};
+  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.strokeStyle=up; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+  for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2; const [c1,c2]=cr2bz(p0,p1,p2,p3,.5); ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);}
   ctx.stroke();
 
   ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-  ctx.fillText(fmtUSD(max,0),padX,padY+4); ctx.fillText(fmtUSD(avg,0),padX,Math.max(padY+12,Math.min(h-padY-12,yAvg))); ctx.fillText(fmtUSD(min,0),padX,h-padY-4);
+  ctx.fillText(fmtUSD(max,0), padX, padY+4);
+  ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
+  ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
 
-  const last=clean.at(-1), label=fmtUSD(rawLastPrice||0,0), tw=ctx.measureText(label).width+18,th=22;
-  const bx=Math.min(w-tw-8,Math.max(8,last.x-tw/2)), by=Math.max(8,last.y-th-8);
-  ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)'; roundRect(ctx,bx,by,tw,th,10,true,true);
-  ctx.fillStyle='#fff'; ctx.fillText(label,bx+9,by+th/2);
+  const last=pts[pts.length-1]; const label=fmtUSD(rawLastPrice||0,0);
+  const tw=ctx.measureText(label).width+18, th=22;
+  const bx=Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by=Math.max(8, last.y - th - 8);
+  ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+  roundRect(ctx,bx,by,tw,th,10,true,true); ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
 }
 
-/* balance gauge + volume */
-const MAX_BAR_RATIO=.78;
-
-function drawGauge(){
-  // ratio based on USD flow in the last 10 minutes
-  let buyUSD=0, sellUSD=0, now=Date.now();
-  for(const b of volBins){ if(b.ts<=now && now-b.ts<=MS10){ buyUSD+=b.buy; sellUSD+=b.sell; } }
-  // convert BTC to USD using last raw price (fallback 0)
-  const px = rawLastPrice || 0;
-  const totalUSD = (buyUSD+sellUSD)*px;
-  const ratio = totalUSD ? (buyUSD*px)/totalUSD : 0.5; // 0..1
-  needle.style.left = (ratio*100)+'%';
-
-  // time-fill = how far we are through this 10m window
-  const spanFilled = Math.min(1, (now - volBins[0].ts) / MS10);
-  timeFill.style.width = (spanFilled*100)+'%';
-}
-
+/* ===== volume (stacked) + max pill) ===== */
 function drawVol(){
-  const ctx=sizeCanvas(volCanvas); const w=volCanvas.clientWidth,h=volCanvas.clientHeight;
-  ctx.clearRect(0,0,w,h); ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2'); ctx.fillRect(0,0,w,h);
+  const ctx = sizeCanvas(volCanvas);
+  const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
 
-  const max=Math.max(0.01,...volBins.map(b=>b.buy+b.sell)); maxVolPill.textContent=`max ₿${max.toFixed(2)}`;
-  const padX=16,padTop=14,padBottom=26, chartH=h-padTop-padBottom, step=(w-padX*2)/volBins.length, barW=step*.62;
-  const up=getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  const dn=getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
+  const max = Math.max(0.01, ...volBins.map(b=>b.buy+b.sell));
+  maxVolPill.textContent = `max ₿${max.toFixed(2)}`;
 
-  ctx.strokeStyle='var(--grid-2)'; for(let i=1;i<=2;i++){const y=padTop+chartH*(i/3*(3/2)); ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();}
+  const padX=16, padTop=14, padBottom=26;
+  const chartH = h - padTop - padBottom;
+  const step = (w - padX*2) / volBins.length;
+  const barW = step*0.62;
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  ctx.strokeStyle='var(--grid-2)';
+  for(let i=1;i<=2;i++){ const y=padTop+chartH*(i/3*(3/2)); ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke(); }
+
   ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
-  for(let i=0;i<volBins.length;i+=2){const xC=padX+i*step+step/2; const t=new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'}); ctx.fillText(':'+t,xC-8,h-18)}
+  for(let i=0;i<volBins.length;i+=2){ const xC=padX+i*step+step/2; const t=new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'}); ctx.fillText(':'+t, xC-8, h-18); }
 
   for(let i=0;i<volBins.length;i++){
-    const b=volBins[i], xC=padX+i*step+step/2, tot=b.buy+b.sell;
-    const uncl=(tot/max)*chartH, hT=Math.max(4,Math.min(chartH*MAX_BAR_RATIO,uncl)), yB=padTop+chartH;
-    const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
-    ctx.fillStyle=dn; ctx.fillRect(xC-barW/2,yB-hSell,barW,hSell);
-    ctx.fillStyle=up; ctx.fillRect(xC-barW/2,yB-hSell-hBuy,barW,hBuy);
-
-    if(hT>26){const diff=b.buy-b.sell, txt=`${diff>=0?'+':''}${diff.toFixed(2)}`, tw=ctx.measureText(txt).width+16, th=20, bx=xC-tw/2, by=yB-hT-th-6;
-      ctx.fillStyle='rgba(0,0,0,.88)'; ctx.strokeStyle='rgba(255,255,255,.25)'; roundRect(ctx,bx,by,tw,th,10,true,true);
-      ctx.fillStyle=diff>=0?up:dn; ctx.fillText(txt,bx+8,by+th/2);}
+    const b=volBins[i]; const xC=padX+i*step+step/2; const tot=b.buy+b.sell;
+    const hT=Math.max(4,(tot/max)*chartH); const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy; const yB=padTop+chartH;
+    ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
+    ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
   }
 }
 
-/* loop */
-function frame(){ prune(); drawPrice(); drawGauge(); drawVol(); requestAnimationFrame(frame) }
+/* ===== bias gauge (dynamic tint, eased needle, value pill) ===== */
+let needlePos = 0.5;       // 0..1 (0 = sells, 1 = buys)
+function drawGauge(){
+  const ctx = sizeCanvas(biasGauge);
+  const w = biasGauge.clientWidth, h = biasGauge.clientHeight;
+  ctx.clearRect(0,0,w,h);
 
-/* feed */
-let ws,recon;
+  // totals for last 10m
+  let buy=0, sell=0;
+  for(const b of volBins){ buy+=b.buy; sell+=b.sell; }
+  const tot = buy + sell;
+  const target = tot ? (buy/tot) : 0.5;     // 0..1
+  // ease toward target (200ms feel)
+  needlePos += (target - needlePos) * 0.25;
+
+  // tinting: gradient leans toward dominant side
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const g = ctx.createLinearGradient(0,0,w,0);
+  // center split biased slightly toward needlePos
+  const split = needlePos;
+  g.addColorStop(0, dn);
+  g.addColorStop(Math.max(0, split-0.001), dn);
+  g.addColorStop(Math.min(1, split+0.001), up);
+  g.addColorStop(1, up);
+
+  // base bar
+  const r = h/2;
+  ctx.fillStyle = g;
+  roundRect(ctx, 1, 1, w-2, h-2, r-1, true, false);
+
+  // subtle dominance overlay
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = (needlePos>=0.5)? up : dn;
+  const domW = (needlePos>=0.5) ? (w*needlePos) : (w*(1-needlePos));
+  const domX = (needlePos>=0.5) ? 0 : (w*needlePos);
+  roundRect(ctx, domX, 1, domW, h-2, r-1, true, false);
+  ctx.globalAlpha = 1;
+
+  // place needle & value pill
+  const leftPx = Math.round( (biasGauge.getBoundingClientRect().width) * needlePos );
+  needle.style.left = `${leftPx}px`;
+  const biasPct = tot ? ((buy - sell)/tot)*100 : 0;
+  needleValue.textContent = `${biasPct>=0?'+':''}${biasPct.toFixed(0)}%`;
+  needleValue.style.left = `${leftPx}px`;
+}
+
+/* ===== loop ===== */
+function frame(){ prune(); drawPrice(); drawVol(); drawGauge(); requestAnimationFrame(frame); }
+
+/* ===== feed ===== */
+let ws, recon;
 function startWS(){
-  try{ws&&ws.close()}catch{}
-  ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-  ws.onopen=()=>{ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']})); connPill.textContent='Live'};
-  ws.onmessage=e=>{try{const m=JSON.parse(e.data); if(m.type==='match'&&m.product_id==='BTC-USD'){onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time})}}catch{}};
-  ws.onclose=()=>{connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000)};
-  ws.onerror=()=>{try{ws.close()}catch{}};
+  try{ ws && ws.close(); }catch{}
+  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  ws.onopen = ()=>{
+    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
+    connPill.textContent='Live';
+  };
+  ws.onmessage = (e)=>{
+    try{
+      const m = JSON.parse(e.data);
+      if(m.type==='match' && m.product_id==='BTC-USD'){
+        onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
+      }
+    }catch{}
+  };
+  ws.onclose = ()=>{ connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000); };
+  ws.onerror = ()=>{ try{ws.close()}catch{} };
 }
 startWS();
 
-/* layout */
-new ResizeObserver(()=>{ frame() }).observe(document.body);
+/* ===== layout ===== */
+new ResizeObserver(()=>{ drawPrice(); drawVol(); drawGauge(); }).observe(document.body);
 requestAnimationFrame(frame);
 </script>
 </body>
