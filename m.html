@@ -285,7 +285,7 @@ function prune(){
   win10 = win10.filter(t=> t.t >= now-MS10);
 }
 
-/* ===== price chart (grow LEFT→RIGHT until 10m, then roll) ===== */
+/* ===== price chart (LEFT→RIGHT grow until 10m, then roll) — classic style ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
