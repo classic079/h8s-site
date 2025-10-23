@@ -33,24 +33,22 @@
   .chartBox{padding:0 10px 6px}
   canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
   .volBox{height:210px}
+  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
+  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* gauge (between legend and vol) */
+  /* gauge */
   .gaugeRow{display:flex; align-items:center; gap:10px; padding:6px 10px 2px; position:relative}
   .gLabel{font-size:12px; opacity:.9; user-select:none}
   .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
   #biasGauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
   .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left 0.2s ease;}
   .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
-  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px}
-  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
-  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
-  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* Tops (mirrored pole bars) */
-  .tops{margin-top:12px; padding:10px}
-  .tops h3{margin:2px 2px 10px; font-size:13px; opacity:.9}
-  #topsCanvas{height:320px; background:transparent; border-radius:12px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.10);}
-  
+  /* mirrored tops (outside → center) */
+  #topsCanvas{height:360px; margin-top:10px}
+
   /* settings sheet */
   .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
          box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
@@ -79,6 +77,7 @@
       </div>
 
       <div class="chartBox">
+        <!-- PRICE CHART (CLASSIC) -->
         <canvas id="priceCanvas"></canvas>
 
         <!-- Gauge row -->
@@ -92,19 +91,18 @@
           <span class="gLabel sell">Sells</span>
         </div>
 
+        <!-- Legend + max pill -->
         <div class="legend" style="margin-top:2px">
           <span class="dot up"></span><span class="muted">Buys</span>
           <span class="dot down"></span><span class="muted">Sells</span>
           <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
         </div>
 
+        <!-- Volume -->
         <canvas id="volCanvas" class="volBox"></canvas>
 
-        <!-- Mirrored tops -->
-        <div class="tops">
-          <h3>Top trades (10m)</h3>
-          <canvas id="topsCanvas"></canvas>
-        </div>
+        <!-- Mirrored Tops (canvas) -->
+        <canvas id="topsCanvas"></canvas>
       </div>
     </section>
 
@@ -205,13 +203,14 @@ scaleInp.addEventListener('change', e=>{
   VALUE_SCALE = v;
   localStorage.setItem('h8s_scale', String(v));
   if(rawLastPrice!=null){
-    priceEl.textContent = fmtUSD(rawLastPrice * VALUE_SCALE,2);
+    const scaled = rawLastPrice * VALUE_SCALE;
+    priceEl.textContent = fmtUSD(scaled,2);
   }
 });
 topNInp.addEventListener('change', e=>{
   TOP_N = Math.min(40, Math.max(5, Math.floor(+e.target.value || 20)));
   localStorage.setItem('h8s_topN', String(TOP_N));
-  resizeTopsCanvas();
+  resizeTopsHeight();
 });
 function applyTheme(t){
   const r = document.documentElement.style;
@@ -240,7 +239,6 @@ function onTrade({price,size,side,time}){
   const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
   if(side==='sell') volBins[i].sell += size; else volBins[i].buy += size;
 
-  // price color only on number
   if(lastPrice!=null){
     priceEl.classList.remove('up','down');
     if(scaled>lastPrice) priceEl.classList.add('up');
@@ -255,7 +253,7 @@ function prune(){
   win10 = win10.filter(t=> t.t >= now-MS10);
 }
 
-/* ===== price chart (LEFT→RIGHT grow until 10m, then roll) ===== */
+/* ===== PRICE CHART — CLASSIC: left→right stretch until 10m, then roll ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -266,24 +264,26 @@ function drawPrice(){
 
   const now = Date.now();
   const firstTs = Math.min(...series.map(d=>d.t));
-  const elapsed = now - firstTs;
-  const growMode = elapsed < MS10;
-  const startT   = growMode ? firstTs : (now - MS10);
-  const span     = growMode ? Math.max(2000, elapsed + 1000) : MS10;
-  const endT     = growMode ? now : (startT + MS10);
+  // dynamic span grows from 0 → 10m, then stays at 10m
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
+  const startT = now - windowSpan;
+  const span   = windowSpan;              // <<< use dynamic span (so it stretches)
 
-  // collect samples (1s) using latest <= t
-  const step = 1000, buckets=[];
-  for(let t = startT; t <= endT; t += step){
-    let last=null;
-    for(let i=series.length-1;i>=0;i--){
-      const s=series[i];
-      if(s.t <= t){ last = s; break; }
+  // 1s buckets within [startT, now], pick latest sample in [t, t+step)
+  const step = 1000;
+  const buckets = [];
+  for(let t = startT; t <= now; t += step){
+    let chosen = null;
+    for(let i=series.length-1; i>=0; i--){
+      const s = series[i];
+      if(s.t < t) break;
+      if(s.t >= t && s.t < t + step){ chosen = s; break; }
     }
-    if(last) buckets.push(last);
+    if(chosen) buckets.push(chosen);
   }
   if(buckets.length<2) return;
 
+  // stats
   let min=Infinity,max=-Infinity,sum=0;
   for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
   const range=(max-min)||1, avg=sum/buckets.length;
@@ -291,7 +291,8 @@ function drawPrice(){
   const padX=14, padY=20;
 
   // grid
-  ctx.strokeStyle='var(--grid)';
+  const grid='var(--grid)';
+  ctx.strokeStyle=grid;
   for(let i=1;i<=3;i++){
     const y=padY+(h-2*padY)*(i/4*(4/3));
     ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
@@ -303,7 +304,7 @@ function drawPrice(){
   ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
   ctx.setLineDash([]);
 
-  // map to pixels (strictly increasing X over dynamic span)
+  // map to pixels across dynamic span
   const usableW=(w-2*padX), pts=[]; let lastX=-1;
   for(const d of buckets){
     const x=padX+((d.t - startT)/span)*usableW;
@@ -387,83 +388,6 @@ function drawVol(){
   }
 }
 
-/* ===== mirrored tops: pole bars from outside → center ===== */
-function resizeTopsCanvas(){
-  // Each row ~24px with small gaps; height for max(TOP_N buys, sells) rows
-  const rows = TOP_N; 
-  const rowH = 24, padding = 14, gap = 6;
-  const h = padding*2 + rows*rowH + (rows-1)*gap;
-  topsCanvas.style.height = `${h}px`;
-}
-resizeTopsCanvas();
-
-function drawTops(){
-  const ctx = sizeCanvas(topsCanvas);
-  const w = topsCanvas.clientWidth, h = topsCanvas.clientHeight;
-  ctx.clearRect(0,0,w,h);
-
-  // Gather top N by USD
-  const items = win10.map(t=>({...t, usd: t.price*t.size }));
-  const buys = items.filter(i=>i.side==='buy').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
-  const sells= items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
-
-  const rows = Math.max(buys.length, sells.length);
-  const padX = 10, padY = 14, gap = 6, rowH = 24;
-  const midX = Math.floor(w/2);
-  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
-  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
-
-  // axis line at center
-  ctx.strokeStyle='rgba(255,255,255,.18)';
-  ctx.beginPath(); ctx.moveTo(midX+.5, padY-8); ctx.lineTo(midX+.5, h-padY+8); ctx.stroke();
-
-  // scale by global max USD among visible bars
-  const maxUSD = Math.max(1, ...buys.map(b=>b.usd), ...sells.map(s=>s.usd));
-  const leftMaxW  = midX - padX - 10;      // max bar width on left half
-  const rightMaxW = w - midX - padX - 10;  // max bar width on right half
-
-  ctx.font = '12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
-  ctx.textBaseline = 'middle';
-
-  for(let i=0;i<rows;i++){
-    const y = padY + i*(rowH+gap) + rowH/2;
-
-    // SELL (left → center)
-    const s = sells[i];
-    if(s){
-      const frac = Math.min(1, s.usd / maxUSD);
-      const barW = Math.max(4, frac * leftMaxW);
-      const x0 = midX - barW; // grow toward center
-      ctx.fillStyle = dn;
-      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
-
-      // label inside near inner edge
-      ctx.fillStyle = 'rgba(0,0,0,.92)';
-      const txt = `${fmtUSD(s.usd,0)}  (${s.size.toFixed(2)} BTC)`;
-      const tx = x0 + barW - 8;
-      ctx.textAlign = 'right';
-      ctx.fillText(txt, tx, y);
-    }
-
-    // BUY (right → center)
-    const b = buys[i];
-    if(b){
-      const frac = Math.min(1, b.usd / maxUSD);
-      const barW = Math.max(4, frac * rightMaxW);
-      const x0 = midX; // start at center and extend to the right
-      ctx.fillStyle = up;
-      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
-
-      // label inside near inner edge
-      ctx.fillStyle = 'rgba(0,0,0,.92)';
-      const txt = `${fmtUSD(b.usd,0)}  (${b.size.toFixed(2)} BTC)`;
-      const tx = x0 + 8;
-      ctx.textAlign = 'left';
-      ctx.fillText(txt, tx, y);
-    }
-  }
-}
-
 /* ===== bias gauge (eased needle + value pill) ===== */
 let needlePos = 0.5;  // 0..1
 function drawGauge(){
@@ -510,8 +434,92 @@ function drawGauge(){
   needleValue.style.left = `${leftPx}px`;
 }
 
+/* ===== mirrored tops: outside → center bars with translucent label backgrounds ===== */
+function resizeTopsHeight(){
+  const rows = Math.max(
+    Math.min(TOP_N, win10.filter(t=>t.side==='buy').length),
+    Math.min(TOP_N, win10.filter(t=>t.side==='sell').length)
+  );
+  const padY=14, gap=6, rowH=24;
+  const px = padY*2 + Math.max(1, rows)*(rowH+gap);
+  topsCanvas.style.height = Math.max(140, px) + 'px';
+}
+function drawTops(){
+  resizeTopsHeight();
+  const ctx = sizeCanvas(topsCanvas);
+  const w = topsCanvas.clientWidth, h = topsCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const items = win10.map(t=>({...t, usd: t.price*t.size }));
+  const buys = items.filter(i=>i.side==='buy').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+  const sells= items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+
+  const rows = Math.max(buys.length, sells.length);
+  const padX = 10, padY = 14, gap = 6, rowH = 24, midX = Math.floor(w/2);
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // center divider
+  ctx.strokeStyle='rgba(255,255,255,.18)';
+  ctx.beginPath(); ctx.moveTo(midX+.5, padY-8); ctx.lineTo(midX+.5, h-padY+8); ctx.stroke();
+
+  const maxUSD = Math.max(1, ...buys.map(b=>b.usd), ...sells.map(s=>s.usd));
+  const leftMaxW  = midX - padX - 10;
+  const rightMaxW = w - midX - padX - 10;
+
+  ctx.font = '12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  ctx.textBaseline = 'middle';
+
+  for(let i=0;i<rows;i++){
+    const y = padY + i*(rowH+gap) + rowH/2;
+
+    // SELL (left → center)
+    const s = sells[i];
+    if(s){
+      const frac = Math.min(1, s.usd / maxUSD);
+      const barW = Math.max(4, frac * leftMaxW);
+      const x0 = midX - barW;
+      ctx.fillStyle = dn;
+      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
+
+      // translucent label bg anchored near center
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(midX - labelW, y-rowH/2, labelW, rowH);
+
+      ctx.fillStyle = '#fff';
+      const txt = `${fmtUSD(s.usd,0)}  (${s.size.toFixed(2)} BTC)`;
+      ctx.textAlign = 'right';
+      ctx.fillText(txt, midX - 8, y);
+    }
+
+    // BUY (right → center)
+    const b = buys[i];
+    if(b){
+      const frac = Math.min(1, b.usd / maxUSD);
+      const barW = Math.max(4, frac * rightMaxW);
+      const x0 = midX;
+      ctx.fillStyle = up;
+      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
+
+      // translucent label bg anchored near center
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(midX, y-rowH/2, labelW, rowH);
+
+      ctx.fillStyle = '#fff';
+      const txt = `${fmtUSD(b.usd,0)}  (${b.size.toFixed(2)} BTC)`;
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, midX + 8, y);
+    }
+  }
+}
+
 /* ===== loop ===== */
-function frame(){ prune(); drawPrice(); drawVol(); drawTops(); drawGauge(); requestAnimationFrame(frame); }
+function frame(){ prune(); drawPrice(); drawVol(); drawGauge(); drawTops(); requestAnimationFrame(frame); }
 
 /* ===== feed ===== */
 let ws, recon;
@@ -536,10 +544,7 @@ function startWS(){
 startWS();
 
 /* ===== layout ===== */
-new ResizeObserver(()=>{
-  resizeTopsCanvas();
-  drawPrice(); drawVol(); drawTops(); drawGauge();
-}).observe(document.body);
+new ResizeObserver(()=>{ drawPrice(); drawVol(); drawGauge(); drawTops(); }).observe(document.body);
 requestAnimationFrame(frame);
 </script>
 </body>
