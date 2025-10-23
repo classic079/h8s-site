@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>h8s — desktop (4-up, classic 10m + Coinbase preload)</title>
+<title>h8s — desktop (4-up, classic 10m + headroom & smoothing)</title>
 <style>
   :root{
     --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -67,22 +67,23 @@ function roundRect(ctx,x,y,w,h,r,fill,stroke){
 }
 
 /* ===== time consts ===== */
-const MS={ M1:60000,M2:120000,M5:300000,M10:600000,M20:1200000,M30:1800000,H1:3600000,H8:28800000,D1:86400000 };
+const MS={ M1:60000,M2:120000,M5:300000,M10:600000,M20:1200000,M30:1800000,
+           H1:3600000,H8:28800000,D1:86400000 };
 
 /* ===== global trades buffer ===== */
 let trades=[]; // {t, price, size, side}
 
 /* ===== panel specs =====
-  10m  : classic fill-left→right then roll, 2m bins (5 bars)
-  1h   : preload candles (1m granularity), 5m bins (12 bars)
-  8h   : preload candles (5m granularity), 20m bins (24 bars), sqrt vol scaling
-  24h  : preload candles (15m granularity), 60m bins (24 bars), sqrt vol scaling
+  10m  : classic left→right stretch, 2m bins (5 bars)
+  1h   : smoothed (time-normalized), 5m bins (12 bars)
+  8h   : smoothed, 12 bars total => 40m bins, sqrt vol scaling
+  24h  : smoothed, 12 bars total => 2h bins, sqrt vol scaling
 */
 const PANEL_SPECS=[
-  { label:'10 MIN', span:MS.M10, binMs:MS.M2,  volScale:'linear', topN:10, classic:true,  preload:false, granSec:60 },
-  { label:'1 HOUR', span:MS.H1,  binMs:MS.M5,  volScale:'linear', topN:12, classic:false, preload:true,  granSec:60 },
-  { label:'8 HOURS',span:MS.H8,  binMs:MS.M20, volScale:'sqrt',   topN:10, classic:false, preload:true,  granSec:300 },
-  { label:'24 HOURS',span:MS.D1, binMs:MS.M30, volScale:'sqrt',   topN:10, classic:false, preload:true,  granSec:900 },
+  { label:'10 MIN', span:MS.M10, binMs:MS.M2,         volScale:'linear', topN:10, classic:true,  preload:false, granSec:60 },
+  { label:'1 HOUR', span:MS.H1,  binMs:MS.M5,         volScale:'linear', topN:12, classic:false, preload:true,  granSec:60 },
+  { label:'8 HOURS',span:MS.H8,  binMs:MS.H8/12,      volScale:'sqrt',   topN:10, classic:false, preload:true,  granSec:300 },
+  { label:'24 HOURS',span:MS.D1, binMs:MS.D1/12,      volScale:'sqrt',   topN:10, classic:false, preload:true,  granSec:900 },
 ];
 
 /* ===== Coinbase candle preload (neutral buy/sell split) ===== */
@@ -94,30 +95,19 @@ async function preloadCandles(spanMs, granSec){
     const res = await fetch(url, {headers:{'Accept':'application/json'}});
     if(!res.ok) throw new Error(res.status+' '+res.statusText);
     const arr = await res.json(); // [[time, low, high, open, close, volume], ...] newest first
-    // convert to trades: split volume ~ evenly to avoid biasing gauge
     const synth=[];
     for(const c of arr){
       const [ts, low, high, open, close, vol]=c;
-      const t = ts*1000;
-      if(!isFinite(close)||!isFinite(vol)) continue;
-      const half = Math.max(0, vol/2);
-      if(half>0){
-        synth.push({t, price:close, size:half, side:'buy'});
-        synth.push({t, price:close, size:half, side:'sell'});
-      }else{
-        synth.push({t, price:close, size:0, side:'buy'});
-      }
+      const t=ts*1000; if(!isFinite(close)||!isFinite(vol)) continue;
+      const half=Math.max(0,vol/2);
+      if(half>0){ synth.push({t,price:close,size:half,side:'buy'}); synth.push({t,price:close,size:half,side:'sell'}); }
+      else{ synth.push({t,price:close,size:0,side:'buy'}); }
     }
-    // candles are newest-first; make chronological
     synth.sort((a,b)=>a.t-b.t);
-    // merge into global trades without duplicating existing newer ticks
     const cutoff = Date.now() - spanMs - MS.M10;
-    // keep only preload range if older than current trades start
     trades = trades.filter(tr=>tr.t > cutoff);
     trades = [...synth, ...trades];
-  }catch(e){
-    console.warn('Preload failed', e);
-  }
+  }catch(e){ console.warn('Preload failed', e); }
 }
 
 /* ===== RangePanel ===== */
@@ -168,6 +158,35 @@ class RangePanel{
     }
   }
 
+  /* time-normalized sampling for all charts (classic uses dynamic span) */
+  _samplePoints(now){
+    let startT,endT,span;
+    if(this.spec.classic){
+      if(trades.length<2) return null;
+      const firstTs = trades[0].t;
+      const elapsed = now - firstTs;
+      const windowSpan = Math.max(2000, Math.min(this.spec.span, elapsed+1000));
+      span = windowSpan; startT = now - windowSpan; endT = now;
+    }else{
+      span = this.spec.span; startT = now - span; endT = now;
+    }
+
+    // step based on span & canvas width (~<=600 samples)
+    const w = this.priceCanvas.clientWidth || 800;
+    const stepMs = Math.max(1000, Math.floor(span / Math.min(600, w)));
+    const buckets=[];
+    for(let t=startT;t<=endT;t+=stepMs){
+      // pick latest trade <= t
+      let chosen=null;
+      for(let i=trades.length-1;i>=0;i--){
+        const s=trades[i]; if(s.t<=t){ chosen=s; break; }
+      }
+      if(chosen) buckets.push({t:Math.max(chosen.t,startT), p:chosen.price});
+    }
+    if(buckets.length<2) return null;
+    return {startT,endT,points:buckets};
+  }
+
   drawPrice(now){
     const ctx=sizeCanvas(this.priceCanvas);
     const w=this.priceCanvas.clientWidth, h=this.priceCanvas.clientHeight;
@@ -175,33 +194,17 @@ class RangePanel{
     ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
     ctx.fillRect(0,0,w,h);
 
-    // classic 10m uses dynamic start (left→right growing), others use fixed span
-    let startT, endT;
-    if(this.spec.classic){
-      const pointsAll = trades.map(t=>({t:t.t,p:t.price}));
-      if(pointsAll.length<2) return;
-      const firstTs = pointsAll[0].t;
-      const elapsed = now - firstTs;
-      const windowSpan = Math.max(2000, Math.min(this.spec.span, elapsed+1000));
-      startT = now - windowSpan;
-      endT   = now;
-    }else{
-      startT = now - this.spec.span;
-      endT   = now;
-    }
+    const samp=this._samplePoints(now);
+    if(!samp) return;
+    const {startT,endT,points:buckets}=samp;
 
-    // gather points in range
-    const ptsRaw = trades.filter(t=>t.t>=startT && t.t<=endT).map(t=>({t:t.t,p:t.price}));
-    if(ptsRaw.length<2) return;
-
-    // downsample to ~pixel
     const padX=14,padY=18, usableW=w-2*padX;
-    const min=Math.min(...ptsRaw.map(p=>p.p));
-    const max=Math.max(...ptsRaw.map(p=>p.p));
+    const min=Math.min(...buckets.map(p=>p.p));
+    const max=Math.max(...buckets.map(p=>p.p));
     const range=(max-min)||1;
 
     const pts=[]; let lastX=-1;
-    for(const d of ptsRaw){
+    for(const d of buckets){
       const x=padX+((d.t-startT)/(endT-startT))*usableW;
       const y=padY+(h-2*padY)*(1-(d.p-min)/range);
       const xi=Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y,p:d.p});
@@ -216,7 +219,7 @@ class RangePanel{
     }
 
     // avg line
-    const avg = ptsRaw.reduce((a,d)=>a+d.p,0)/ptsRaw.length;
+    const avg = buckets.reduce((a,d)=>a+d.p,0)/buckets.length;
     const yAvg = padY + (h-2*padY)*(1-(avg-min)/range);
     ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
     ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke(); ctx.setLineDash([]);
@@ -284,8 +287,11 @@ class RangePanel{
     const sorted=[...totals].sort((a,b)=>a-b);
     const p95=sorted.length?sorted[Math.floor(.95*(sorted.length-1))]:0.01;
     const robust=(this.spec.volScale==='sqrt');
-    const max=Math.max(0.01, robust ? p95 : Math.max(...totals,0.01));
-    this.maxPillEl.textContent=`max ₿${max.toFixed(2)}`;
+    // headroom so the top pill never collides (leave ~16% vertical space)
+    const headroom=0.84;
+    const baseMax = robust ? p95 : Math.max(...totals,0.01);
+    const max = Math.max(0.01, baseMax / headroom);
+    this.maxPillEl.textContent=`max ₿${baseMax.toFixed(2)}`;
 
     const padX=16, padTop=12, padBottom=26;
     const chartH=h-padTop-padBottom;
@@ -314,7 +320,8 @@ class RangePanel{
     for(let i=0;i<this.bins.length;i++){
       const b=this.bins[i], xC=padX+i*step+step/2, tot=b.buy+b.sell;
       const frac=Math.min(1, tot/max);
-      const hT=Math.max(4,(robust?Math.sqrt(frac):frac)*chartH);
+      const scaledFrac = robust ? Math.sqrt(frac) : frac;
+      const hT=Math.max(4, scaledFrac * chartH * headroom);
       const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
       const yB=padTop+chartH;
 
@@ -322,7 +329,7 @@ class RangePanel{
       ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
       ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
 
-      // TOTAL pill
+      // TOTAL pill (only if > 0)
       if(tot>0){
         const txt=`₿${tot.toFixed(2)}`;
         const tw=ctx.measureText(txt).width+14, th=18;
@@ -440,7 +447,7 @@ function startWS(){
       const m=JSON.parse(e.data);
       if(m.type==='match' && m.product_id==='BTC-USD'){
         trades.push({t:new Date(m.time).getTime(), price:+m.price, size:+m.size, side:(m.side==='sell'?'sell':'buy')});
-        // keep about a day + headroom
+        // keep roughly a day
         const cutoff=Date.now()-MS.D1-MS.M10;
         if(trades.length>60000 || (trades[0]?.t<cutoff)){
           trades=trades.filter(t=>t.t>=cutoff);
