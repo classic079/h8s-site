@@ -13,62 +13,48 @@
     --pill-bg:rgba(0,0,0,.80); --pill-bd:rgba(255,255,255,.25);
     --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
   }
-
   *{box-sizing:border-box}
   html,body{
-    height:100%; margin:0;
-    background:var(--bg); color:var(--text);
+    height:100%; margin:0; background:var(--bg); color:var(--text);
     font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-
-  .wrap{padding:8px 10px 40px; max-width:100%; margin:0 auto;}
+  .wrap{padding:10px 12px 40px; max-width:100%; margin:0 auto;}
   h1{margin:6px 4px 12px; font-size:22px; letter-spacing:.3px; opacity:.95}
 
   .grid{
     display:grid;
-    grid-template-columns:repeat(4, minmax(280px, 1fr));
-    gap:10px;
+    grid-template-columns:repeat(4,minmax(320px,1fr));
+    gap:12px;
   }
-
   .card{
-    background:var(--panel);
-    border-radius:14px;
-    box-shadow:var(--glow);
-    padding:10px;
-    display:flex;
-    flex-direction:column;
-    min-height:640px;
+    background:var(--panel); border-radius:14px; box-shadow:var(--glow);
+    padding:10px; display:flex; flex-direction:column; min-height:740px;
   }
-
-  .titleRow{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+  .titleRow{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
   .ttl{font-weight:800; font-size:12px; letter-spacing:.6px; text-transform:uppercase; opacity:.9}
   .pill{display:inline-flex; align-items:center; gap:8px; padding:5px 9px;
         border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
         font-size:11px; white-space:nowrap; color:#fff;}
-
-  .chart{height:240px; border-radius:12px; background:var(--panel-2); margin-bottom:8px}
-  .gaugeRow{display:flex; align-items:center; gap:10px; margin:4px 0}
-  .gauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.14); flex:1}
-  .gLbl{font-size:12px; opacity:.9}
-  .gLbl.buy{color:var(--up)} .gLbl.sell{color:var(--down)}
-  .needle{position:absolute; top:3px; width:0; height:0;
-    border-left:7px solid transparent; border-right:7px solid transparent;
-    border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}
-  .needleWrap{position:relative; flex:1}
-
-  .vol{height:170px; border-radius:12px; background:var(--panel-2); margin-top:6px}
-  .tops{flex:1; border-radius:12px; background:var(--panel-2); margin-top:8px; padding:8px}
+  .panelBlock{border-radius:12px; background:var(--panel-2); overflow:hidden; position:relative}
+  .chart{height:260px}
+  .gaugeRow{display:flex; align-items:center; gap:10px; margin:6px 0}
+  .gLbl{font-size:12px; opacity:.9} .gLbl.buy{color:var(--up)} .gLbl.sell{color:var(--down)}
+  .gaugeWrap{position:relative; flex:1}
+  .gauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+  .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}
+  .needleValue{position:absolute; top:-16px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
+  .vol{height:180px; margin-top:6px}
+  .tops{flex:1; margin-top:8px; padding:8px}
   .topsGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px; height:100%}
   .topsCol{overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:6px}
-  .topsCol.buy{background:color-mix(in oklab, var(--up) 12%, transparent)}
-  .topsCol.sell{background:color-mix(in oklab, var(--down) 12%, transparent)}
+  .topsCol.buy{background:color-mix(in oklab, var(--up) 10%, transparent)}
+  .topsCol.sell{background:color-mix(in oklab, var(--down) 10%, transparent)}
   .topsCol h4{margin:2px 2px 6px; font-size:11px; letter-spacing:.5px; text-transform:uppercase}
   .item{display:flex; justify-content:space-between; gap:8px; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.18); margin:4px 0; font-variant-numeric:tabular-nums}
   .usd{font-weight:800}
   .btc,.tm{opacity:.85}
-
-  .conn{position:fixed; left:10px; bottom:10px; z-index:40}
+  .conn{position:fixed; left:12px; bottom:12px; z-index:40}
   canvas{display:block; width:100%; height:100%}
 </style>
 </head>
@@ -80,6 +66,7 @@
   </div>
 
 <script>
+/* ========= utilities ========= */
 const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
 function sizeCanvas(c){
   const dpr=Math.min(3,window.devicePixelRatio||1);
@@ -93,26 +80,289 @@ function roundRect(ctx,x,y,w,h,r,fill=true,stroke=false){
   if(fill)ctx.fill();if(stroke)ctx.stroke();
 }
 
-/* shared trade state */
-const MS={M10:600000,H1:3600000,H8:8*3600000,D1:24*3600000};
-let trades=[];
+/* ========= global trade cache (24h) ========= */
+const SPAN={M10:600000, H1:3600000, H8:8*3600000, D1:24*3600000};
+let TRADES=[];
 
-/* range panel class (omitted here for brevity — same as above) */
-class RangePanel {
-  constructor(parent,label,span){ /* ... same as above ... */ }
-  /* all draw methods same as previous message */
+/* ========= RangePanel ========= */
+class RangePanel{
+  constructor(parent,label,span){
+    this.span=span;
+    this.el=document.createElement('section'); this.el.className='card';
+    this.el.innerHTML=`
+      <div class="titleRow">
+        <div class="ttl">${label}</div>
+        <div class="pill" id="maxPill">max ₿—</div>
+      </div>
+      <div class="panelBlock chart"><canvas></canvas></div>
+      <div class="gaugeRow">
+        <span class="gLbl buy">Buys</span>
+        <div class="gaugeWrap">
+          <canvas class="gauge"></canvas>
+          <div class="needle" style="left:50%"></div>
+          <div class="needleValue" style="left:50%">0%</div>
+        </div>
+        <span class="gLbl sell">Sells</span>
+      </div>
+      <div class="panelBlock vol"><canvas></canvas></div>
+      <div class="panelBlock tops">
+        <div class="topsGrid">
+          <div class="topsCol buy"><h4>Top Buys</h4><div class="list buy"></div></div>
+          <div class="topsCol sell"><h4>Top Sells</h4><div class="list sell"></div></div>
+        </div>
+      </div>`;
+    parent.appendChild(this.el);
+
+    const [chartBlock] = this.el.getElementsByClassName('chart');
+    const [gaugeCan]  = this.el.getElementsByClassName('gauge');
+    const [volBlock]  = this.el.getElementsByClassName('vol');
+    this.priceCanvas  = chartBlock.querySelector('canvas');
+    this.gaugeCanvas  = gaugeCan;
+    this.volCanvas    = volBlock.querySelector('canvas');
+    this.maxPill      = this.el.querySelector('#maxPill');
+    this.needle       = this.el.querySelector('.needle');
+    this.needleVal    = this.el.querySelector('.needleValue');
+    this.listBuys     = this.el.querySelector('.list.buy');
+    this.listSells    = this.el.querySelector('.list.sell');
+    this.needlePos    = 0.5; // 0..1
+
+    // prebuild minute bins for span (rounded to minutes)
+    this.initBins();
+  }
+
+  initBins(){
+    const now=Date.now();
+    const minutes=Math.ceil(this.span/60000);
+    const start = now - (now%60000) - (minutes-1)*60000;
+    this.bins = Array.from({length:minutes},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
+  }
+
+  /* ---- data assembly for this span ---- */
+  sliceTrades(){
+    const now=Date.now(), from=now-this.span;
+    return TRADES.filter(t=>t.t>=from);
+  }
+  rebuildBins(trades){
+    const minutes=this.bins.length;
+    const start=this.bins[0].ts;
+    // roll bins window forward
+    while(this.bins.length && this.bins[0].ts < (Date.now() - (minutes-1)*60000 - (Date.now()%60000)))
+      this.bins.shift();
+    while(this.bins.length<minutes){
+      const lastTs=this.bins.length?this.bins[this.bins.length-1].ts:start+(this.bins.length-1)*60000;
+      this.bins.push({ts:lastTs+60000,buy:0,sell:0});
+    }
+    // zero out
+    for(const b of this.bins){ b.buy=0; b.sell=0; }
+    // fill
+    for(const t of trades){
+      const i=Math.min(minutes-1, Math.max(0, Math.floor((t.t-this.bins[0].ts)/60000)));
+      if(t.side==='sell') this.bins[i].sell += t.size; else this.bins[i].buy += t.size;
+    }
+  }
+
+  /* ---- drawing: price ---- */
+  drawPrice(trades){
+    const ctx=sizeCanvas(this.priceCanvas);
+    const w=this.priceCanvas.clientWidth, h=this.priceCanvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2'); ctx.fillRect(0,0,w,h);
+    if(trades.length<2) return;
+
+    const now=Date.now();
+    const firstTs=Math.min(...trades.map(d=>d.t));
+    const span=Math.min(this.span, now-firstTs+1000);
+    const startT=now-span;
+
+    // 1s buckets, choose latest <= t
+    const step=1000, buckets=[];
+    for(let t=startT; t<=now; t+=step){
+      let chosen=null;
+      for(let i=trades.length-1;i>=0;i--){
+        const s=trades[i]; if(s.t<=t){ chosen=s; break; }
+      }
+      if(chosen) buckets.push(chosen);
+    }
+    if(buckets.length<2) return;
+
+    let min=Infinity,max=-Infinity,sum=0;
+    for(const b of buckets){ if(b.price<min)min=b.price; if(b.price>max)max=b.price; sum+=b.price; }
+    const range=(max-min)||1, avg=sum/buckets.length;
+
+    const padX=14, padY=22;
+
+    // grid lines
+    ctx.strokeStyle='var(--grid)';
+    for(let i=1;i<=3;i++){
+      const y=padY+(h-2*padY)*(i/4*(4/3));
+      ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+    }
+    // average dashed
+    const yAvg=padY+(h-2*padY)*(1-(avg-min)/range);
+    ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke(); ctx.setLineDash([]);
+
+    // map to pixels
+    const usableW=w-2*padX; const pts=[]; let lastX=-1;
+    for(const d of buckets){
+      const x=padX+((d.t-startT)/span)*usableW;
+      const y=padY+(h-2*padY)*(1-(d.price-min)/range);
+      const xi=Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
+    }
+    if(pts.length<2) return;
+
+    // Catmull–Rom → Bezier
+    const cr2bz=(p0,p1,p2,p3,t=0.5)=>{
+      const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
+      const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
+      return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
+    };
+    const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+    ctx.strokeStyle=up; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+      const [c1,c2]=cr2bz(p0,p1,p2,p3,.5);
+      ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
+    }
+    ctx.stroke();
+
+    // labels
+    ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
+    ctx.fillText(fmtUSD(max,0), padX, padY+4);
+    ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
+    ctx.fillText(fmtUSD(min,0), padX, h-padY-4);
+
+    // last price pill
+    const last=pts[pts.length-1];
+    const label=fmtUSD(trades[trades.length-1].price,0);
+    const tw=ctx.measureText(label).width+18, th=22;
+    const bx=Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by=Math.max(8, last.y - th - 8);
+    ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+    roundRect(ctx,bx,by,tw,th,10,true,true);
+    ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
+  }
+
+  /* ---- drawing: gauge ---- */
+  drawGauge(){
+    const ctx=sizeCanvas(this.gaugeCanvas);
+    const w=this.gaugeCanvas.clientWidth, h=this.gaugeCanvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    // totals
+    let buy=0,sell=0;
+    for(const b of this.bins){ buy+=b.buy; sell+=b.sell; }
+    const tot=buy+sell;
+    const target = tot ? (buy/tot) : 0.5;
+    this.needlePos += (target - this.needlePos) * 0.25;
+
+    const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+    const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+    const g=ctx.createLinearGradient(0,0,w,0);
+    const split=this.needlePos;
+    g.addColorStop(0,dn); g.addColorStop(Math.max(0,split-0.001),dn);
+    g.addColorStop(Math.min(1,split+0.001),up); g.addColorStop(1,up);
+
+    const r=h/2;
+    ctx.fillStyle=g; roundRect(ctx,1,1,w-2,h-2,r-1,true,false);
+
+    // gentle dominance tint
+    ctx.globalAlpha=.18; ctx.fillStyle=(this.needlePos>=0.5)?up:dn;
+    const domW=(this.needlePos>=0.5)?(w*this.needlePos):(w*(1-this.needlePos));
+    const domX=(this.needlePos>=0.5)?0:(w*this.needlePos);
+    roundRect(ctx,domX,1,domW,h-2,r-1,true,false);
+    ctx.globalAlpha=1;
+
+    // needle + value
+    const leftPx=Math.round(w*this.needlePos);
+    this.needle.style.left = `${leftPx}px`;
+    const biasPct = tot ? ((buy-sell)/tot)*100 : 0;
+    this.needleVal.textContent = `${biasPct>=0?'+':''}${biasPct.toFixed(0)}%`;
+    this.needleVal.style.left = `${leftPx}px`;
+  }
+
+  /* ---- drawing: volume ---- */
+  drawVol(){
+    const ctx=sizeCanvas(this.volCanvas);
+    const w=this.volCanvas.clientWidth, h=this.volCanvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel-2'); ctx.fillRect(0,0,w,h);
+
+    const max = Math.max(0.01, ...this.bins.map(b=>b.buy+b.sell));
+    this.maxPill.textContent = `max ₿${max.toFixed(2)}`;
+
+    const padX=16, padTop=14, padBottom=26;
+    const chartH = h - padTop - padBottom;
+    const step = (w - padX*2) / this.bins.length;
+    const barW = step*0.62;
+
+    const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+    const dn=getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+    // faint grid
+    ctx.strokeStyle='var(--grid-2)';
+    for(let i=1;i<=2;i++){
+      const y=padTop+chartH*(i/3*(3/2)); ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
+    }
+    // time labels (every 4th bin)
+    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
+    for(let i=0;i<this.bins.length;i+=4){
+      const xC=padX+i*step+step/2;
+      const t=new Date(this.bins[i].ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      const label=t.replace(' ',''); ctx.fillText(label, xC-18, h-18);
+    }
+
+    // bars
+    for(let i=0;i<this.bins.length;i++){
+      const b=this.bins[i]; const xC=padX+i*step+step/2; const tot=b.buy+b.sell;
+      const hT=Math.max(4,(tot/max)*chartH);
+      const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
+      const yB=padTop+chartH;
+
+      ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
+      ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+    }
+  }
+
+  /* ---- tops lists ---- */
+  drawTops(trades){
+    const items = trades.map(t=>({ ...t, usd:t.price*t.size }));
+    const buys = items.filter(i=>i.side!=='sell').sort((a,b)=>b.usd-a.usd).slice(0,12);
+    const sells= items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,12);
+
+    const toHTML = t => {
+      const tm = new Date(t.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      return `<div class="item"><div class="usd">${fmtUSD(t.usd,0)}</div>
+              <div class="btc">(${t.size.toFixed(2)} BTC)</div><div class="tm">${tm}</div></div>`;
+    };
+    this.listBuys.innerHTML  = buys.length ? buys.map(toHTML).join('')  : `<div class="item" style="opacity:.7">—</div>`;
+    this.listSells.innerHTML = sells.length ? sells.map(toHTML).join('') : `<div class="item" style="opacity:.7">—</div>`;
+  }
+
+  /* ---- public: draw all ---- */
+  drawAll(){
+    // slice & prep
+    const trades=this.sliceTrades();
+    this.rebuildBins(trades);
+    // draw
+    this.drawPrice(trades);
+    this.drawGauge();
+    this.drawVol();
+    this.drawTops(trades);
+  }
 }
 
-/* build panels */
+/* ========= build 4 panels ========= */
 const grid=document.getElementById('grid');
-const panels=[
-  new RangePanel(grid,'10 MIN',MS.M10),
-  new RangePanel(grid,'1 HR',MS.H1),
-  new RangePanel(grid,'8 HR',MS.H8),
-  new RangePanel(grid,'24 HR',MS.D1)
+const PANELS=[
+  new RangePanel(grid,'10 MIN',SPAN.M10),
+  new RangePanel(grid,'1 HR',SPAN.H1),
+  new RangePanel(grid,'8 HR',SPAN.H8),
+  new RangePanel(grid,'24 HR',SPAN.D1)
 ];
 
-/* websocket feed */
+/* ========= websocket ========= */
 const connPill=document.getElementById('connPill');
 let ws,recon;
 function startWS(){
@@ -120,43 +370,35 @@ function startWS(){
   ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
   ws.onopen=()=>{
     ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-    connPill.textContent='Live';
-    connPill.style.background='rgba(0,128,0,.6)';
+    connPill.textContent='Live'; connPill.style.background='rgba(0,128,0,.55)';
   };
   ws.onmessage=(e)=>{
     try{
       const m=JSON.parse(e.data);
       if(m.type==='match' && m.product_id==='BTC-USD'){
-        trades.push({
-          t:new Date(m.time).getTime(),
-          price:+m.price,
-          size:+m.size,
-          side:m.side
-        });
+        TRADES.push({t:new Date(m.time).getTime(), price:+m.price, size:+m.size, side:m.side});
       }
     }catch{}
   };
   ws.onclose=()=>{
-    connPill.textContent='Reconnecting…';
-    connPill.style.background='rgba(128,0,0,.5)';
-    clearTimeout(recon);
-    recon=setTimeout(startWS,2000);
+    connPill.textContent='Reconnecting…'; connPill.style.background='rgba(128,0,0,.5)';
+    clearTimeout(recon); recon=setTimeout(startWS,1500);
   };
   ws.onerror=()=>{ try{ws.close();}catch{} };
 }
 startWS();
 
-/* frame loop */
+/* ========= frame & housekeeping ========= */
 function prune(){
-  const cutoff=Date.now()-MS.D1;
-  trades=trades.filter(t=>t.t>=cutoff);
+  const cutoff=Date.now()-SPAN.D1;
+  TRADES=TRADES.filter(t=>t.t>=cutoff);
 }
 function frame(){
   prune();
-  for(const p of panels)p.drawAll();
+  for(const p of PANELS) p.drawAll();
   requestAnimationFrame(frame);
 }
-new ResizeObserver(()=>panels.forEach(p=>p.drawAll())).observe(document.body);
+new ResizeObserver(()=>PANELS.forEach(p=>p.drawAll())).observe(document.body);
 requestAnimationFrame(frame);
 </script>
 </body>
