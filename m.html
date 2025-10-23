@@ -38,7 +38,7 @@
   .dot.up{background:var(--up)} .dot.down{background:var(--down)}
   .conn{position:fixed; left:14px; bottom:14px; z-index:30}
 
-  /* gauge (between legend and vol) */
+  /* gauge */
   .gaugeRow{display:flex; align-items:center; gap:10px; padding:6px 10px 2px; position:relative}
   .gLabel{font-size:12px; opacity:.9; user-select:none}
   .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
@@ -46,9 +46,9 @@
   .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left 0.2s ease;}
   .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
 
-  /* mirrored tops canvas lives after vol */
+  /* mirrored tops */
   #topsCanvas{height:360px; margin-top:10px}
-  
+
   /* settings sheet */
   .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
          box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
@@ -77,7 +77,7 @@
       </div>
 
       <div class="chartBox">
-        <!-- Price -->
+        <!-- Price (UNCHANGED classic) -->
         <canvas id="priceCanvas"></canvas>
 
         <!-- Gauge row -->
@@ -210,7 +210,6 @@ scaleInp.addEventListener('change', e=>{
 topNInp.addEventListener('change', e=>{
   TOP_N = Math.min(40, Math.max(5, Math.floor(+e.target.value || 20)));
   localStorage.setItem('h8s_topN', String(TOP_N));
-  // also resize tops canvas height to fit rows
   resizeTopsHeight();
 });
 
@@ -226,13 +225,10 @@ function applyTheme(t){
 /* ===== trade intake ===== */
 function onTrade({price,size,side,time}){
   const ts = new Date(time).getTime();
-  rawLastPrice = price;                 // keep unscaled for chart labels
-  const scaled = price * VALUE_SCALE;   // header shows scaled value
+  rawLastPrice = price;
+  const scaled = price * VALUE_SCALE;
 
-  // append series point (raw)
   series.push({t:ts,p:price});
-
-  // add to last-10m window raw trades
   win10.push({t:ts, price, size, side: (side==='sell'?'sell':'buy')});
 
   // volume minute bins (scroll left->right)
@@ -260,7 +256,7 @@ function prune(){
   win10 = win10.filter(t=> t.t >= now-MS10);
 }
 
-/* ===== price chart (LEFT→RIGHT grow until 10m, then roll) — classic style ===== */
+/* ===== price chart (LEFT→RIGHT grow until 10m, then roll) — UNCHANGED ===== */
 function drawPrice(){
   const ctx = sizeCanvas(priceCanvas);
   const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
@@ -440,7 +436,7 @@ function drawGauge(){
   needleValue.style.left = `${leftPx}px`;
 }
 
-/* ===== mirrored tops: pole bars from outside → center (with translucent label backgrounds) ===== */
+/* ===== mirrored tops: pole bars from outside → center (translucent text backgrounds) ===== */
 function resizeTopsHeight(){
   const rows = Math.max(
     Math.min(TOP_N, win10.filter(t=>t.side==='buy').length),
@@ -451,7 +447,7 @@ function resizeTopsHeight(){
   topsCanvas.style.height = Math.max(140, px) + 'px';
 }
 function drawTops(){
-  resizeTopsHeight(); // ensure CSS height matches content before sizing
+  resizeTopsHeight();
   const ctx = sizeCanvas(topsCanvas);
   const w = topsCanvas.clientWidth, h = topsCanvas.clientHeight;
   ctx.clearRect(0,0,w,h);
