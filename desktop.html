@@ -80,6 +80,7 @@ const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(undefined,{style:'currency',currenc
 function sizeCanvas(c){ const dpr=Math.min(3,window.devicePixelRatio||1); c.width=Math.max(1,c.clientWidth*dpr); c.height=Math.max(1,c.clientHeight*dpr); const x=c.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0); return x; }
 function rr(ctx,x,y,w,h,r,fill=true,stroke=false){ ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r); if(fill)ctx.fill(); if(stroke)ctx.stroke(); }
 function cr2bz(p0,p1,p2,p3,t=0.5){const d1x=(p2.x-p0.x)*t,d1y=(p2.y-p0.y)*t,d2x=(p3.x-p1.x)*t,d2y=(p3.y-p1.y)*t; return[{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];}
+const MS_MIN=60000, MS10=10*MS_MIN;
 
 /* ===== panel class ===== */
 class Panel{
@@ -97,7 +98,7 @@ class Panel{
   drawPrice(){
     const ctx=sizeCanvas(this.cPrice), w=this.cPrice.clientWidth, h=this.cPrice.clientHeight;
     ctx.clearRect(0,0,w,h); ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel2'); ctx.fillRect(0,0,w,h);
-    const data=this.priceBars.slice(-this.barsWanted);
+    const data=this.priceBars.slice(-Math.max(this.barsWanted, 30)); // plenty of points
     if(data.length<2) return;
     const padX=14,padY=14;
     const min=Math.min(...data.map(d=>d.close)), max=Math.max(...data.map(d=>d.close)), range=(max-min)||1;
@@ -187,7 +188,6 @@ const p480  = new Panel(document.getElementById('p480'),  12);
 const p1440 = new Panel(document.getElementById('p1440'), 12);
 
 /* ===== 10m live (minute-locked) ===== */
-const MS_MIN=60000, MS10=10*MS_MIN;
 function lockMinute(ts, price, size, side){
   if(!p10._mins) p10._mins=[];
   const mStart=ts-(ts%MS_MIN);
@@ -215,32 +215,56 @@ function connectWS(){
 }
 connectWS();
 
-/* ===== Prefill (robust) ===== */
-async function fetchCandles(granSec,bars){
+/* ===== Robust prefill with multi-granularity & resample ===== */
+async function fetchCandles(granSec, needCount){
   const url=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${granSec}`;
   const r=await fetch(url,{headers:{accept:'application/json'}});
   if(!r.ok) throw new Error('candles');
   const arr=await r.json();
-  const rows=(Array.isArray(arr)?arr:[]).slice(0,Math.max(bars,2)).reverse();
+  const rows=(Array.isArray(arr)?arr:[]).slice(0,Math.max(needCount,2)).reverse();
   return rows.map(d=>({t:d[0]*1000, low:d[1], high:d[2], open:d[3], close:d[4], vol:d[5]}));
 }
-async function prefill(panel, primGran, fallbackGran){
-  try{
-    let data=await fetchCandles(primGran, 14);
-    if(data.length<2 && fallbackGran){ data=await fetchCandles(fallbackGran, 14); }
-    if(data.length<2) return; // nothing we can do
-    panel.priceBars=data.map(x=>({t:x.t, close:x.close}));
-    // split volume half/half to show stacked bars (no per-side from candles)
-    panel.volBars=data.map((x,i)=>({buy:x.vol*0.5, sell:x.vol*0.5, label:new Date(x.t).toLocaleTimeString([],{hour:'2-digit',minute: primGran>=3600?'2-digit':'2-digit'})}));
-    // build tops mirroring buy/sell so both columns render
-    const tops=data.map((x,i)=>({usd:x.close*(x.vol*0.5), size:x.vol*0.5, side: (i%2? 'buy':'sell')}));
-    panel.tops=tops;
-    panel.draw();
-  }catch(e){ panel.priceBars=[]; panel.volBars=[]; panel.tops=[]; panel.draw(); }
+function resampleToBins(candles, windowMs, bins){
+  const now=Date.now(), start=now-windowMs;
+  const slot=windowMs/bins;
+  const out=new Array(bins).fill(0).map((_,i)=>({t:Math.floor(start+i*slot), close:null, vol:0, label:''}));
+  for(const c of candles){
+    if(c.t<start||c.t>now) continue;
+    const idx=Math.min(bins-1, Math.max(0, Math.floor((c.t-start)/slot)));
+    out[idx].close=c.close; out[idx].vol+=c.vol;
+  }
+  // carry-forward close for gaps
+  let last=null; for(let i=0;i<bins;i++){ if(out[i].close==null) out[i].close=last??(candles.length?candles[0].close:0); last=out[i].close; }
+  for(let i=0;i<bins;i++){ out[i].label=new Date(start+i*slot).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+  return out;
 }
-prefill(p60,   300,  60);   // 5m prim, 1m fallback
-prefill(p480, 1800, 900);   // **30m** prim for 8h, fallback 15m
-prefill(p1440,3600,1800);   // **1h** prim for 24h, fallback 30m
+async function prefillRange(panel, windowMinutes, targetBins){
+  const windowMs=windowMinutes*60000;
+  const order=[1800,900,300,60]; // 30m → 15m → 5m → 1m
+  let got=[];
+  for(const g of order){
+    try{
+      const need=Math.ceil(windowMs/1000/g)+2;
+      const rows=await fetchCandles(g, need);
+      if(rows.length>=2){ got=rows; break; }
+    }catch(_){}
+  }
+  if(got.length<2){ panel.priceBars=[]; panel.volBars=[]; panel.tops=[]; panel.draw(); return; }
+  // price points (use all for smoother line)
+  panel.priceBars=got.map(x=>({t:x.t, close:x.close}));
+  // resample to fixed bars
+  const bins=resampleToBins(got, windowMs, targetBins);
+  panel.volBars=bins.map(b=>({buy:b.vol*0.5, sell:b.vol*0.5, label:b.label}));
+  // lightweight tops mirror so both sides show something
+  panel.tops=bins.map(b=>({usd:(b.close*b.vol*0.5)||0, size:(b.vol*0.5)||0, side:Math.random()<0.5?'buy':'sell'}))
+                 .sort((a,b)=>b.usd-a.usd).slice(0,24);
+  panel.draw();
+}
+
+/* ===== kick off prefill ===== */
+prefillRange(p60,   60,  12);
+prefillRange(p480,  480, 12);   // 8 hr — now robust
+prefillRange(p1440, 1440,12);   // 24 hr — robust
 
 /* ===== render loop + resize ===== */
 function frame(){ p10.draw(); p60.draw(); p480.draw(); p1440.draw(); requestAnimationFrame(frame); }
