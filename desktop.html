@@ -1,359 +1,473 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Coinbase Stalker — Desktop Multi-Range</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BTC Dashboard — 10m / 1h / 8h / 24h</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <style>
-  :root{
-    --bg:#0b0c0e; --panel:#101215; --panel2:#0d0f12;
-    --text:#e8f7f2; --muted:#a9b6b1;
-    --up:#2dd4bf; --down:#f59e0b;
-    --grid:rgba(255,255,255,.08); --grid2:rgba(255,255,255,.06);
-    --pill-bg:rgba(0,0,0,.78); --pill-bd:rgba(255,255,255,.22);
-    --glow:0 0 0 1px rgba(255,255,255,.05), 0 16px 40px rgba(0,0,0,.45);
+  :root {
+    --bg: #0e0f13;
+    --panel: #151823;
+    --panel-2: #10131b;
+    --text: #e5e7eb;
+    --muted: #9aa3b2;
+    --accent: #4da3ff;
+    --up: #16c784;
+    --down: #ff4d4d;
+    --grid-gap: 16px;
+    --radius: 16px;
   }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
-    font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  .wrap{max-width:1680px;margin:0 auto;padding:16px}
-  h1{margin:0 0 14px;font-size:26px;letter-spacing:.2px}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  .card{background:var(--panel);border-radius:14px;box-shadow:var(--glow);padding:10px;position:relative}
-  .titleRow{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  .title{font-weight:800;opacity:.95;text-transform:uppercase;letter-spacing:.3px;font-size:12px}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:5px 9px;border-radius:999px;background:var(--pill-bg);border:1px solid var(--pill-bd);font-size:12px;white-space:nowrap}
-  canvas{display:block;width:100%;background:var(--panel2);border-radius:12px}
-  .c-price{height:180px}
-  .c-gauge{height:22px;margin-top:6px}
-  .c-vol{height:150px;margin-top:8px}
-  .c-tops{height:220px;margin-top:10px}
-  .legend{position:absolute;right:12px;top:8px}
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 50% -50%, #1a2031 0%, var(--bg) 55%) fixed;
+    color: var(--text);
+    font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  .wrap {
+    max-width: 1720px;
+    margin: 20px auto 40px;
+    padding: 0 16px;
+  }
+
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  header h1 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: .2px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--grid-gap);
+  }
+
+  .col {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border-radius: var(--radius);
+    padding: 12px 12px 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.02);
+    display: grid;
+    grid-template-rows: auto 10px auto 10px auto 1fr; /* title, gap, price chart, gap, gauge, volume, spacer */
+    min-height: 560px;
+  }
+
+  .title {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+  .title .tf {
+    font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: 12px; color: var(--muted);
+  }
+  .title .price {
+    font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .2px;
+  }
+
+  .chartCard {
+    position: relative; height: 190px;
+    background: rgba(255,255,255,.02);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .gaugeCard {
+    height: 130px;
+    display: grid; place-items: center;
+  }
+
+  .volumeCard {
+    height: 130px;
+    background: rgba(255,255,255,.02);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .spacer {
+    min-height: 40px; /* reserved space for future Top Buy/Sell block per column */
+  }
+
+  /* Gauge */
+  .gauge {
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 2 / 1;
+    display: block;
+  }
+  .gauge text { fill: var(--muted); font-weight: 600; }
+  .needle {
+    transform-origin: 50% 100%;
+    transition: transform 220ms ease-out;
+  }
+  .gauge .scaleGood { stop-color: var(--up); }
+  .gauge .scaleBad { stop-color: var(--down); }
+
+  /* Tiny legend line color dots */
+  .legend { display: flex; gap: 8px; align-items: center; padding: 6px 2px 0; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--accent); }
+  .dot.vol { background: #b9c2d0; }
+
+  /* Mobile safety: still desktop-first, but don’t break completely */
+  @media (max-width: 1280px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 740px) {
+    .grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Coinbase Stalker — Desktop Multi-Range</h1>
+  <div class="wrap">
+    <header>
+      <h1>BTC Overview</h1>
+      <div class="sub">4 columns · Chart (top), Bias (middle), Volume (bottom) · Space reserved for Top Buy/Sell</div>
+    </header>
 
-  <div class="grid">
-    <section class="card" id="p10">
-      <div class="titleRow"><span class="title">10 minutes (locked)</span><span class="pill" id="p10Live">Live</span></div>
-      <canvas class="c-price"></canvas>
-      <canvas class="c-gauge"></canvas>
-      <canvas class="c-vol"></canvas>
-      <canvas class="c-tops"></canvas>
-      <span class="pill legend" id="p10Max">max ₿—</span>
-    </section>
-
-    <section class="card" id="p60">
-      <div class="titleRow"><span class="title">1 hour</span><span class="pill">Prefilled</span></div>
-      <canvas class="c-price"></canvas>
-      <canvas class="c-gauge"></canvas>
-      <canvas class="c-vol"></canvas>
-      <canvas class="c-tops"></canvas>
-      <span class="pill legend" id="p60Max">max ₿—</span>
-    </section>
-
-    <section class="card" id="p480">
-      <div class="titleRow"><span class="title">8 hours</span><span class="pill">Prefilled</span></div>
-      <canvas class="c-price"></canvas>
-      <canvas class="c-gauge"></canvas>
-      <canvas class="c-vol"></canvas>
-      <canvas class="c-tops"></canvas>
-      <span class="pill legend" id="p480Max">max ₿—</span>
-    </section>
-
-    <section class="card" id="p1440">
-      <div class="titleRow"><span class="title">24 hours</span><span class="pill">Prefilled</span></div>
-      <canvas class="c-price"></canvas>
-      <canvas class="c-gauge"></canvas>
-      <canvas class="c-vol"></canvas>
-      <canvas class="c-tops"></canvas>
-      <span class="pill legend" id="p1440Max">max ₿—</span>
+    <section class="grid" id="dashboard">
+      <!-- Columns will be injected by JS -->
     </section>
   </div>
-</div>
 
-<script>
-/* ---------- utils ---------- */
-const fmtUSD=(v,fd=0)=>new Intl.NumberFormat(
-  undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
-function sizeCanvas(c){
-  const dpr=Math.min(3,window.devicePixelRatio||1);
-  c.width=Math.max(1,c.clientWidth*dpr);
-  c.height=Math.max(1,c.clientHeight*dpr);
-  const ctx=c.getContext('2d');
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  return ctx;
-}
-function rr(ctx,x,y,w,h,r,fill=true,stroke=false){
-  ctx.beginPath();ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);
-  if(fill)ctx.fill(); if(stroke)ctx.stroke();
-}
+  <!-- Chart.js for fast, accurate lines & bars (with straight segments; no rounding) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" integrity="sha384-v2dU6O2Yx3mR9r5v6k8Xz1GQzYbTgH+oB7C0y9nD8Nw0w2Y6dGv+q6KqNQbF1m9G" crossorigin="anonymous"></script>
 
-/* ---------- panel class ---------- */
-class Panel{
-  constructor(root,barsWanted){
-    const cs=getComputedStyle(document.body);
-    this.colors={
-      up:cs.getPropertyValue('--up').trim(),
-      down:cs.getPropertyValue('--down').trim(),
-      grid:cs.getPropertyValue('--grid').trim(),
-      grid2:cs.getPropertyValue('--grid2').trim()
+  <script>
+  /***********************
+   * CONFIG
+   ***********************/
+  const USE_MOCK_DATA = true;  // set to false to connect to Coinbase Exchange ticker (BTC-USD)
+  const PRODUCT_ID = "BTC-USD";
+
+  // Timeframes in milliseconds
+  const TIMEFRAMES = [
+    { key: '10m',  label: '10 MIN', windowMs: 10 * 60 * 1000,  sampleEveryMs: 2000 },   // update chart every 2s in mock
+    { key: '1h',   label: '1 HOUR', windowMs: 60 * 60 * 1000,  sampleEveryMs: 5000 },
+    { key: '8h',   label: '8 HOURS', windowMs: 8 * 60 * 60 * 1000, sampleEveryMs: 15000 },
+    { key: '24h',  label: '24 HOURS', windowMs: 24 * 60 * 60 * 1000, sampleEveryMs: 30000 }
+  ];
+
+  // Styling prefs for “accurate, less rounded” lines (no bezier smoothing)
+  const CHART_LINE_OPTIONS = {
+    segment: { borderWidth: 2 },
+    cubicInterpolationMode: 'default',
+    tension: 0,                   // straight segments
+    pointRadius: 0,               // no dots
+  };
+
+  /***********************
+   * DOM BUILD
+   ***********************/
+  const dashEl = document.getElementById('dashboard');
+
+  function gaugeSVG(idSuffix) {
+    // Semi-circle from 180° (left) to 0° (right). Needle rotates around bottom center.
+    return `
+    <svg viewBox="0 0 200 100" class="gauge" aria-label="bias gauge">
+      <defs>
+        <linearGradient id="grad-${idSuffix}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" class="scaleBad"/>
+          <stop offset="50%" stop-color="#d6dbe5"/>
+          <stop offset="100%" class="scaleGood"/>
+        </linearGradient>
+      </defs>
+      <path d="M10,100 A90,90 0 0,1 190,100" fill="none" stroke="url(#grad-${idSuffix})" stroke-width="14" />
+      <!-- ticks -->
+      ${Array.from({length: 11}).map((_,i)=>{
+        const t = i/10; // 0..1
+        const angle = Math.PI - t*Math.PI; // PI..0
+        const r1=86, r2=96, cx=100, cy=100;
+        const x1=cx+r1*Math.cos(angle), y1=cy+r1*Math.sin(angle);
+        const x2=cx+r2*Math.cos(angle), y2=cy+r2*Math.sin(angle);
+        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#2b3242" stroke-width="${i%5===0?2:1}" />`
+      }).join('')}
+      <!-- needle -->
+      <g id="needle-${idSuffix}" class="needle" transform="translate(100,100) rotate(0)">
+        <polygon points="-2,0 2,0 0,-78" fill="#fff"/>
+        <circle cx="0" cy="0" r="4" fill="#fff"/>
+      </g>
+      <text x="100" y="96" text-anchor="middle" font-size="10">Bias</text>
+    </svg>`;
+  }
+
+  function columnTemplate(tf) {
+    const id = tf.key;
+    return `
+      <div class="col" id="col-${id}">
+        <div class="title">
+          <div class="tf">${tf.label}</div>
+          <div class="price" id="price-${id}">$—</div>
+        </div>
+
+        <div class="chartCard">
+          <canvas id="priceChart-${id}" aria-label="${tf.label} price chart"></canvas>
+        </div>
+        <div class="legend"><span class="dot"></span> Price</div>
+
+        <div class="gaugeCard">
+          ${gaugeSVG(id)}
+        </div>
+
+        <div class="volumeCard">
+          <canvas id="volChart-${id}" aria-label="${tf.label} volume chart"></canvas>
+        </div>
+        <div class="legend"><span class="dot vol"></span> Volume</div>
+
+        <div class="spacer"></div>
+      </div>
+    `;
+  }
+
+  dashEl.innerHTML = TIMEFRAMES.map(columnTemplate).join('');
+
+  /***********************
+   * STATE
+   ***********************/
+  const state = {};
+  let lastPrice = 65000; // seed for mock
+  let lastVolume = 1.0;
+
+  // Per timeframe series: arrays of { t, price, vol }
+  TIMEFRAMES.forEach(tf=>{
+    state[tf.key] = {
+      series: [],
+      lastSampleTs: 0,
+      priceChart: null,
+      volChart: null,
     };
-    [this.cPrice,this.cGauge,this.cVol,this.cTops]=root.querySelectorAll('canvas');
-    this.maxPill=root.querySelector('.legend');
-    this.barsWanted=barsWanted;
+  });
 
-    // data
-    this.priceBars=[];      // [{t,close}]
-    this.volBars=[];        // [{buy,sell,label}]
-    this.tops=[];           // [{usd,size,side}]
-  }
-
-  drawAll(){ this.drawPrice(); this.drawGauge(); this.drawVol(); this.drawTops(); }
-
-  /* ----- price: straight segments, above/below avg tint ----- */
-  drawPrice(){
-    const ctx=sizeCanvas(this.cPrice),w=this.cPrice.clientWidth,h=this.cPrice.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel2');ctx.fillRect(0,0,w,h);
-
-    const data=this.priceBars.slice(-this.barsWanted);
-    if(data.length<2) return;
-
-    const padX=14,padY=14;
-    const min=Math.min(...data.map(d=>d.close));
-    const max=Math.max(...data.map(d=>d.close));
-    const range=(max-min)||1;
-    const avg=data.reduce((a,d)=>a+d.close,0)/data.length;
-
-    // grid
-    ctx.strokeStyle=this.colors.grid;
-    for(let i=1;i<=3;i++){
-      const y=padY+(h-2*padY)*(i/4*(4/3));
-      ctx.beginPath();ctx.moveTo(padX,y);ctx.lineTo(w-padX,y);ctx.stroke();
-    }
-
-    // avg dashed
-    const yAvg=padY+(h-2*padY)*(1-(avg-min)/range);
-    ctx.setLineDash([6,6]);ctx.strokeStyle='rgba(255,255,255,.35)';
-    ctx.beginPath();ctx.moveTo(padX,yAvg);ctx.lineTo(w-padX,yAvg);ctx.stroke();ctx.setLineDash([]);
-
-    // map points evenly across width
-    const usableW=w-2*padX, dx=usableW/(data.length-1);
-    const pts=data.map((d,i)=>({x:padX+i*dx, y:padY+(h-2*padY)*(1-(d.close-min)/range)}));
-
-    // single polyline, then clipped color for below-average
-    ctx.lineWidth=2.25;ctx.lineJoin='round';ctx.lineCap='round';
-
-    // full line in UP color
-    ctx.strokeStyle=this.colors.up;
-    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
-    ctx.stroke();
-
-    // re-stroke the portion below avg in DOWN color via clip
-    ctx.save();
-    ctx.beginPath();ctx.rect(padX,yAvg,w-2*padX,h-yAvg-padY);ctx.clip();
-    ctx.strokeStyle=this.colors.down;
-    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
-    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x,pts[i].y);
-    ctx.stroke();
-    ctx.restore();
-
-    // last price pill
-    const last=data[data.length-1].close, label=fmtUSD(last,0);
-    ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
-    const tw=ctx.measureText(label).width+16, th=20, p=pts[pts.length-1];
-    const bx=Math.min(w-tw-8,Math.max(8,p.x-tw/2)), by=Math.max(8,p.y-th-6);
-    ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
-    rr(ctx,bx,by,tw,th,10,true,true); ctx.fillStyle='#fff'; ctx.fillText(label,bx+8,by+th/2);
-  }
-
-  /* ----- gauge: sells→buys gradient with needle ----- */
-  drawGauge(){
-    const ctx=sizeCanvas(this.cGauge),w=this.cGauge.clientWidth,h=this.cGauge.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    const buy=this.volBars.reduce((a,b)=>a+(+b.buy||0),0);
-    const sell=this.volBars.reduce((a,b)=>a+(+b.sell||0),0);
-    const tot=buy+sell;
-    const pos=tot ? (buy/tot) : 0.5;
-    const g=ctx.createLinearGradient(0,0,w,0);
-    g.addColorStop(0,this.colors.down); g.addColorStop(pos,this.colors.down);
-    g.addColorStop(pos,this.colors.up); g.addColorStop(1,this.colors.up);
-    ctx.fillStyle=g; rr(ctx,1,1,w-2,h-2,(h-2)/2,true,false);
-    // needle
-    const x=Math.round(w*pos); ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x-6,h); ctx.lineTo(x+6,h); ctx.closePath(); ctx.fill();
-  }
-
-  /* ----- volume bars (stacked) with safe max and 85% headroom ----- */
-  drawVol(){
-    const ctx=sizeCanvas(this.cVol),w=this.cVol.clientWidth,h=this.cVol.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel2');ctx.fillRect(0,0,w,h);
-
-    const bins=this.volBars.slice(-this.barsWanted);
-    if(!bins.length){ this.maxPill.textContent='max ₿—'; return; }
-
-    const padX=14,padTop=10,padBottom=26, chartH=h-padTop-padBottom;
-    const step=(w-2*padX)/bins.length, barW=step*0.62;
-
-    ctx.strokeStyle=this.colors.grid2;
-    for(let i=1;i<=2;i++){
-      const y=padTop+chartH*(i/3*(3/2)); ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke();
-    }
-
-    const totals=bins.map(b=>(+b.buy||0)+(+b.sell||0));
-    const max=Math.max(0.01, ...totals);
-    this.maxPill.textContent=`max ₿${max.toFixed(2)}`;
-
-    const up=this.colors.up, dn=this.colors.down;
-    for(let i=0;i<bins.length;i++){
-      const b=bins[i], tot=totals[i];
-      const hT=(tot/max)*(chartH*0.85);            // leave headroom so labels never collide
-      const yB=padTop+chartH, xC=padX+i*step+step/2;
-      const buyH=tot?(b.buy/tot)*hT:0, sellH=hT-buyH;
-
-      ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-sellH, barW, sellH);
-      ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-sellH-buyH, barW, buyH);
-    }
-  }
-
-  /* ----- mirrored tops (compact) ----- */
-  drawTops(){
-    const ctx=sizeCanvas(this.cTops),w=this.cTops.clientWidth,h=this.cTops.clientHeight;
-    ctx.clearRect(0,0,w,h);
-    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--panel2');ctx.fillRect(0,0,w,h);
-
-    const buys=this.tops.filter(t=>t.side==='buy').slice(0,10);
-    const sells=this.tops.filter(t=>t.side==='sell').slice(0,10);
-    const rows=Math.max(buys.length,sells.length);
-    if(!rows) return;
-
-    const padX=10,padY=10,gap=6,rowH=18, mid=Math.floor(w/2);
-    const maxUSD=Math.max(1, ...buys.map(b=>b.usd), ...sells.map(s=>s.usd));
-    const leftMax=mid-padX-8, rightMax=w-mid-padX-8;
-
-    ctx.strokeStyle='rgba(255,255,255,.16)';
-    ctx.beginPath(); ctx.moveTo(mid+.5,padY); ctx.lineTo(mid+.5,h-padY); ctx.stroke();
-
-    ctx.font='11px system-ui'; ctx.textBaseline='middle';
-    for(let i=0;i<rows;i++){
-      const y=padY+i*(rowH+gap)+rowH/2;
-      const s=sells[i], b=buys[i];
-
-      if(s){
-        const f=Math.min(1, s.usd/maxUSD), bw=Math.max(4, f*leftMax);
-        ctx.fillStyle=this.colors.down; rr(ctx, mid-bw, y-rowH/2, bw, rowH, 6,true,false);
-      }
-      if(b){
-        const f=Math.min(1, b.usd/maxUSD), bw=Math.max(4, f*rightMax);
-        ctx.fillStyle=this.colors.up; rr(ctx, mid, y-rowH/2, bw, rowH, 6,true,false);
-      }
-    }
-  }
-}
-
-/* ---------- instantiate panels ---------- */
-const p10  = new Panel(document.getElementById('p10'),   10); // 10 minute: 10 bars
-const p60  = new Panel(document.getElementById('p60'),   12); // 1 hour: 12 bars
-const p480 = new Panel(document.getElementById('p480'),  12); // 8 hours: 12 bars
-const p1440= new Panel(document.getElementById('p1440'), 12); // 24 hours: 12 bars
-
-/* ---------- REST prefill for 1h/8h/24h ---------- */
-async function fetchCandles(gran){
-  const url=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${gran}`;
-  const r=await fetch(url,{headers:{'accept':'application/json'}});
-  const a=await r.json();
-  if(!Array.isArray(a)) return [];
-  // API returns [time,low,high,open,close,volume]; newest first
-  return a.slice(0,48).reverse().map(d=>({t:d[0]*1000, close:+d[4], vol:+d[5]}));
-}
-async function prefill(panel, gran){
-  try{
-    const arr=await fetchCandles(gran);
-    if(!arr.length) return;
-    panel.priceBars=arr.map(x=>({t:x.t, close:x.close}));
-    // split volume half/half only for gauge/stacked look (no side in candle endpoint)
-    panel.volBars  =arr.map(x=>({buy:x.vol/2, sell:x.vol/2, label:''}));
-    // simple tops (fake split)
-    panel.tops     =arr.slice(-20).map(x=>{
-      const half=x.vol/2;
-      return [
-        {usd:x.close*half, size:half, side:'buy'},
-        {usd:x.close*half, size:half, side:'sell'}
-      ];
-    }).flat().sort((a,b)=>b.usd-a.usd).slice(0,20);
-  }catch(e){ console.error('prefill error', e); }
-}
-prefill(p60, 300);     // 5-minute candles ≈ 1hr window
-prefill(p480,1800);    // 30-minute candles ≈ 8hr window
-prefill(p1440,3600);   // 1-hour candles ≈ 24hr window
-
-/* ---------- 10-minute live via websocket; minutes are locked once closed ---------- */
-(function startLive10(){
-  const pill=document.getElementById('p10Live');
-  let ws, recon;
-
-  function lockMinuteBucket(ts){ /* nothing to do: we never mutate older buckets */ }
-
-  function onTrade(price,size,side,timeISO){
-    const ts=new Date(timeISO).getTime();
-    const mStart=ts - (ts % 60000);
-
-    // keep only last 10 minutes worth of buckets
-    if(!p10._mins) p10._mins=[];
-    let b=p10._mins.find(x=>x.t===mStart);
-    if(!b){
-      p10._mins=p10._mins.filter(x=>x.t>=mStart-9*60000);
-      b={t:mStart, close:price, buy:0, sell:0};
-      p10._mins.push(b); p10._mins.sort((a,b)=>a.t-b.t);
-      lockMinuteBucket(mStart-60000); // previous minute becomes immutable
-    }
-    // write ONLY current bucket; older buckets never change again
-    b.close=price;
-    if(side==='sell') b.sell+=size; else b.buy+=size;
-
-    p10.priceBars=p10._mins.map(x=>({t:x.t, close:x.close}));
-    p10.volBars  =p10._mins.map(x=>({buy:x.buy, sell:x.sell, label:new Date(x.t).toLocaleTimeString([],{minute:'2-digit'})}));
-    // quick tops from current window
-    p10.tops = p10._mins.map(x=>[
-      {usd:x.close*x.buy,  size:x.buy,  side:'buy'},
-      {usd:x.close*x.sell, size:x.sell, side:'sell'}
-    ]).flat().sort((a,b)=>b.usd-a.usd).slice(0,20);
-  }
-
-  function connect(){
-    try{ ws && ws.close(); }catch{}
-    ws=new WebSocket('wss://ws-feed.exchange.coinbase.com');
-    ws.onopen=()=>{
-      ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
-      pill.textContent='Live';
-    };
-    ws.onmessage=(e)=>{
-      try{
-        const m=JSON.parse(e.data);
-        if(m.type==='match' && m.product_id==='BTC-USD'){
-          onTrade(+m.price, +m.size, m.side, m.time);
+  /***********************
+   * CHART BOOTSTRAP
+   ***********************/
+  function makeLineChart(canvas, label) {
+    const ctx = canvas.getContext('2d');
+    return new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [{
+        label,
+        data: [],
+        borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4da3ff',
+        borderWidth: 2,
+        fill: false,
+        ...CHART_LINE_OPTIONS
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 0 },
+        plugins: {
+          legend: { display: false },
+          tooltip: { intersect: false, mode: 'index', displayColors: false, callbacks: {
+            label: ctx => `$${Number(ctx.formattedValue).toLocaleString()}`,
+          }},
+        },
+        scales: {
+          x: { ticks: { display: false }, grid: { display: false }, border: { display: false }},
+          y: { ticks: { display: true, color: '#7f8796', callback: v=>'$'+Number(v).toLocaleString() },
+               grid: { color: 'rgba(255,255,255,.06)' }, border: { display: false } },
         }
-      }catch{}
-    };
-    ws.onclose=()=>{ pill.textContent='Reconnecting…'; recon=setTimeout(connect,1000); };
-    ws.onerror =()=>{ try{ws.close()}catch{} };
+      }
+    });
   }
-  connect();
-})();
 
-/* ---------- animation loop ---------- */
-function frame(){
-  p10.drawAll(); p60.drawAll(); p480.drawAll(); p1440.drawAll();
-  requestAnimationFrame(frame);
-}
-frame();
-</script>
+  function makeBarChart(canvas, label) {
+    const ctx = canvas.getContext('2d');
+    return new Chart(ctx, {
+      type: 'bar',
+      data: { labels: [], datasets: [{
+        label,
+        data: [],
+        borderWidth: 0
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 0 },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c=>`Vol: ${Number(c.raw).toLocaleString()}` } } },
+        scales: {
+          x: { ticks: { display: false }, grid: { display: false }, border: { display: false }},
+          y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,.06)' }, border: { display: false } }
+        }
+      }
+    });
+  }
+
+  TIMEFRAMES.forEach(tf=>{
+    const line = makeLineChart(document.getElementById(`priceChart-${tf.key}`), 'Price');
+    const vol  = makeBarChart(document.getElementById(`volChart-${tf.key}`), 'Volume');
+    state[tf.key].priceChart = line;
+    state[tf.key].volChart = vol;
+  });
+
+  /***********************
+   * HELPERS
+   ***********************/
+  function prune(tfKey) {
+    const tf = TIMEFRAMES.find(t=>t.key===tfKey);
+    const cutoff = Date.now() - tf.windowMs;
+    const bucket = state[tfKey];
+    bucket.series = bucket.series.filter(p => p.t >= cutoff);
+  }
+
+  function resampleIfNeeded(tfKey, price, volume) {
+    const tf = TIMEFRAMES.find(t=>t.key===tfKey);
+    const bucket = state[tfKey];
+    const now = Date.now();
+    if (now - bucket.lastSampleTs >= tf.sampleEveryMs) {
+      bucket.series.push({ t: now, price, vol: volume });
+      bucket.lastSampleTs = now;
+    }
+  }
+
+  function updateCharts(tfKey) {
+    const bucket = state[tfKey];
+    const line = bucket.priceChart;
+    const bar = bucket.volChart;
+    const labels = bucket.series.map(p => new Date(p.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const prices = bucket.series.map(p => p.price);
+    const vols   = bucket.series.map(p => p.vol);
+
+    line.data.labels = labels;
+    line.data.datasets[0].data = prices;
+    line.update('none');
+
+    bar.data.labels = labels;
+    bar.data.datasets[0].data = vols;
+    // volume color by direction vs previous
+    const bgs = vols.map((_,i)=>{
+      if (i===0) return '#b9c2d0';
+      const up = prices[i] >= prices[i-1];
+      return up ? getCSS('--up') : getCSS('--down');
+    });
+    bar.data.datasets[0].backgroundColor = bgs;
+    bar.update('none');
+  }
+
+  function getCSS(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  // bias ∈ [-100, 100] based on % change between oldest and newest in window,
+  // compressed via tanh for stability.
+  function computeBias(tfKey) {
+    const ser = state[tfKey].series;
+    if (ser.length < 2) return 0;
+    const first = ser[0].price;
+    const last = ser[ser.length - 1].price;
+    const pct = (last - first) / first; // e.g., 0.012
+    // scale 5% => ±100, squashed a bit
+    const scaled = Math.tanh((pct / 0.05) * 1.2) * 100;
+    return Math.max(-100, Math.min(100, scaled));
+  }
+
+  function setGauge(tfKey, bias) {
+    const id = `needle-${tfKey}`;
+    const needle = document.getElementById(id);
+    // map [-100,100] to [ -90deg, +90deg ]
+    const deg = (bias / 100) * 90;
+    needle.style.transform = `translate(100px,100px) rotate(${deg}deg)`;
+  }
+
+  function setPriceBadge(tfKey, price, prev) {
+    const el = document.getElementById(`price-${tfKey}`);
+    const diff = price - prev;
+    const color = diff >= 0 ? getCSS('--up') : getCSS('--down');
+    el.style.color = color || 'inherit';
+    el.textContent = '$' + Number(price).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  /***********************
+   * DATA: MOCK OR LIVE
+   ***********************/
+  function startMock() {
+    // Random walk; tick ~ every 750ms
+    setInterval(()=>{
+      const drift = 0.0;
+      const shock = (Math.random() - 0.5) * 40; // up to ±$20 per tick
+      const meanRevert = (65000 - lastPrice) * 0.002;
+      const next = Math.max(1000, lastPrice + drift + shock + meanRevert);
+
+      // volume ~ log-normal-ish
+      const vol = Math.max(0.1, (Math.random() * 2.0) ** 2);
+
+      onQuote(next, vol);
+    }, 750);
+  }
+
+  // Coinbase Exchange public WS (ticker): wss://ws-feed.exchange.coinbase.com
+  // Docs: https://docs.cloud.coinbase.com/exchange/docs/websocket-overview
+  function startCoinbase() {
+    const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'subscribe',
+        product_ids: [PRODUCT_ID],
+        channels: ['ticker']
+      }));
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'ticker' && msg.price && msg.product_id === PRODUCT_ID) {
+          const price = parseFloat(msg.price);
+          const volume = msg.last_size ? parseFloat(msg.last_size) : (parseFloat(msg.best_bid_size || 0) + parseFloat(msg.best_ask_size || 0))/2 || 0.2;
+          onQuote(price, volume);
+        }
+      } catch(e) { /* ignore */ }
+    };
+    ws.onclose = () => {
+      // optional: attempt simple reconnect
+      setTimeout(startCoinbase, 2000);
+    };
+  }
+
+  function onQuote(price, volume) {
+    const prev = lastPrice;
+    lastPrice = price;
+    lastVolume = volume;
+
+    // For each timeframe, keep series inside window, resample, update charts & gauges
+    TIMEFRAMES.forEach(tf=>{
+      prune(tf.key);
+      resampleIfNeeded(tf.key, price, volume);
+      updateCharts(tf.key);
+      const bias = computeBias(tf.key);
+      setGauge(tf.key, bias);
+      setPriceBadge(tf.key, price, prev);
+    });
+  }
+
+  // Bootstrap seed: fill each series with a short history so charts don’t start empty
+  (function seedInitialHistory(){
+    const now = Date.now();
+    TIMEFRAMES.forEach(tf=>{
+      const step = Math.max(2000, Math.floor(tf.windowMs / 60)); // ~60 samples per timeframe
+      const arr = [];
+      let p = lastPrice;
+      for (let t = now - tf.windowMs; t <= now; t += step) {
+        p += (Math.random()-0.5)*15;
+        arr.push({ t, price: p, vol: Math.random()*2 });
+      }
+      state[tf.key].series = arr;
+      state[tf.key].lastSampleTs = now;
+      updateCharts(tf.key);
+      setGauge(tf.key, computeBias(tf.key));
+      setPriceBadge(tf.key, p, p);
+    });
+  })();
+
+  // Start feed
+  if (USE_MOCK_DATA) {
+    startMock();
+  } else {
+    startCoinbase();
+  }
+
+  </script>
 </body>
 </html>
