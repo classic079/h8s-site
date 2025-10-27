@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.1</title>
+<title>BTC Overview — v1.2</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
-  :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;
-        --accent:#4da3ff;--up:#16c784;--down:#ff4d4d;--gap:16px;--radius:16px;}
+  :root{
+    --bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;
+    --accent:#4da3ff;--up:#16c784;--down:#ff4d4d;--gap:16px;--radius:16px;
+  }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui}
   .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
@@ -33,7 +35,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.1</span>
+      <span class="chip" id="ver">v1.2</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
@@ -44,15 +46,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 /* ========== CONFIG ========= */
-const APP_VERSION='v1.1';
+const APP_VERSION='v1.2';
 console.log('BTC Dashboard', APP_VERSION);
 
-// 24h · 8h · 1h · 10m
 const TF=[
   {key:'24h',label:'24 HOURS',win:24*60*60e3,sample:3e4, granEX:3600, bin:12, bitstampStep:3600},
   {key:'8h', label:'8 HOURS', win: 8*60*60e3,sample:15e3, granEX: 900, bin:12, bitstampStep: 900},
   {key:'1h', label:'1 HOUR',  win: 1*60*60e3,sample: 5e3, granEX:  60, bin:12, bitstampStep:  60},
-  {key:'10m',label:'10 MIN',  win:10*60e3,   sample: 2e3, granEX:  60, bin:12, bitstampStep:  60},
+  {key:'10m',label:'10 MIN',  win:10*60e3,   sample: 2e3, granEX:  60, bin:12, bitstampStep:  60}, // special styling
 ];
 
 // Build columns
@@ -71,35 +72,99 @@ dash.innerHTML=html;
 // Charts + state
 const cssVar=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const state={};
+
+function makeLineChart(ctx, tfKey){
+  // 10m uses filled area; others are plain line
+  const is10 = tfKey==='10m';
+  return new Chart(ctx,{
+    type:'line',
+    data:{labels:[],datasets:[{
+      data:[],
+      borderColor:cssVar('--accent')||'#4da3ff',
+      borderWidth:2,
+      pointRadius:0,
+      tension:is10?0.25:0,     // softer for 10m
+      fill:is10,               // area fill only for 10m
+      backgroundColor:(ctx)=>{ // gradient for 10m
+        if(!is10) return 'transparent';
+        const {chart} = ctx;
+        const {ctx: c, chartArea} = chart;
+        if(!chartArea) return 'transparent';
+        const col = (state[tfKey]?.trendColor)||cssVar('--accent');
+        const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        g.addColorStop(0, hexOrVarToRGBA(col, 0.25));
+        g.addColorStop(1, hexOrVarToRGBA(col, 0.02));
+        return g;
+      }
+    }]}
+    ,
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false}},
+      scales:{x:{ticks:{display:false},grid:{display:false}},
+              y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}
+  });
+}
+
+function makeBarChart(ctx){
+  return new Chart(ctx,{
+    type:'bar',
+    data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
+  });
+}
+
+function hexOrVarToRGBA(color, a){
+  // accepts css var value or hex; defaults to accent
+  let c=color.trim();
+  if(c.startsWith('var')){ // var(--up)
+    const m=c.match(/var\(([^)]+)\)/); if(m){ c=getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim(); }
+  }
+  if(/^#?[0-9a-f]{6}$/i.test(c)){
+    if(c[0]!=='#') c='#'+c;
+    const r=parseInt(c.substr(1,2),16), g=parseInt(c.substr(3,2),16), b=parseInt(c.substr(5,2),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  // fallback to accent
+  return hexOrVarToRGBA(cssVar('--accent')||'#4da3ff', a);
+}
+
 TF.forEach(t=>{
-  state[t.key]={arr:[],tLast:0,
-    pc:new Chart(document.getElementById('c-'+t.key).getContext('2d'),{
-      type:'line',
-      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent')||'#4da3ff',borderWidth:2,fill:false,tension:0,pointRadius:0}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
-        plugins:{legend:{display:false}},scales:{x:{ticks:{display:false},grid:{display:false}},
-        y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}}
-    }),
-    vc:new Chart(document.getElementById('v-'+t.key).getContext('2d'),{
-      type:'bar',
-      data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},
-        scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
-    })
+  state[t.key]={arr:[],tLast:0,trendColor:cssVar('--accent'),
+    pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'), t.key),
+    vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
   };
 });
 
 let lastPrice=65000,lastVol=1;
 
 /* ========== RENDER ========= */
+function computeTrendColor(tfKey){
+  const data=state[tfKey].arr;
+  if(data.length<2) return cssVar('--accent')||'#4da3ff';
+  const first=data[0].price, last=data[data.length-1].price;
+  return (last>=first)? cssVar('--up') : cssVar('--down');
+}
+
 function redraw(tfKey){
   const t=TF.find(x=>x.key===tfKey), b=state[tfKey], now=Date.now();
-  // prune to window
+  // prune
   b.arr=b.arr.filter(pt=>pt.t>=now-t.win);
+  // dynamic trend color
+  b.trendColor = computeTrendColor(tfKey);
+
   // price
-  b.pc.data.labels = b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-  b.pc.data.datasets[0].data = b.arr.map(pt=>pt.price);
-  b.pc.update('none');
+  const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+  const prices=b.arr.map(pt=>pt.price);
+  const pc=b.pc;
+  pc.data.labels=labels;
+  pc.data.datasets[0].data=prices;
+  pc.data.datasets[0].borderColor=b.trendColor;   // line gets up/down color
+  // for 10m, backgroundColor function will use updated trendColor automatically
+  pc.update('none');
+
   // volume (12 bins)
   const bins=t.bin, start=now-t.win, w=t.win/bins;
   const ag=Array.from({length:bins},(_,i)=>({start:start+i*w, vol:0, first:null, last:null}));
@@ -113,6 +178,7 @@ function redraw(tfKey){
   vc.data.datasets[0].backgroundColor = ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
   vc.update('none');
 }
+
 function setBadges(p){
   TF.forEach(t=>{
     const el=document.getElementById('p-'+t.key);
@@ -124,25 +190,22 @@ function setBadges(p){
 /* ========== LIVE ========= */
 async function pollLive(){
   const liveEl=document.getElementById('liveStatus');
-  // Coinbase
   try{
     const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
     if(r.ok){const j=await r.json();const p=parseFloat(j.price||j.last||j.bid||j.ask);if(Number.isFinite(p)){onQuote(p,parseFloat(j.size||j.volume||0.1)||0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return;}}
   }catch{}
-  // Bitstamp
   try{
     const r=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
     if(r.ok){const j=await r.json();const p=parseFloat(j.last);if(Number.isFinite(p)){onQuote(p,parseFloat(j.volume||0.1)||0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return;}}
   }catch{}
-  // CoinCap
   try{
     const r=await fetch('https://api.coincap.io/v2/assets/bitcoin');
     if(r.ok){const j=await r.json();const p=parseFloat(j?.data?.priceUsd);if(Number.isFinite(p)){onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return;}}
   }catch{}
-  // mock tick
   onQuote(lastPrice+(Math.random()-0.5)*20,Math.random()*2);
   liveEl.textContent='Live: mock · '+APP_VERSION;
 }
+
 function onQuote(p,v){
   lastPrice=p; lastVol=v||lastVol;
   const n=Date.now();
@@ -154,8 +217,7 @@ function onQuote(p,v){
   setBadges(p);
 }
 
-/* ========== HISTORY (multi-source) ========= */
-// 1) CoinGecko (range): very CORS-friendly
+/* ========== HISTORY (CoinGecko → Bitstamp → Coinbase EX → mock) ========= */
 async function fetchCoinGecko(tf){
   const to=Math.floor(Date.now()/1000);
   const from=to - Math.ceil(tf.win/1000);
@@ -163,22 +225,15 @@ async function fetchCoinGecko(tf){
   const r=await fetch(url,{headers:{Accept:'application/json'}});
   if(!r.ok) throw 0;
   const j=await r.json();
-  const P=j?.prices;          // [ [ts, price], ... ]
-  const V=j?.total_volumes;   // [ [ts, vol], ... ]
+  const P=j?.prices, V=j?.total_volumes;
   if(!Array.isArray(P)||!Array.isArray(V)) throw 0;
-
-  // Merge price & volume (nearest timestamp)
   const volMap=new Map(V.map(([ts,v])=>[Math.round(ts), Number(v)||0]));
   const arr=P.map(([ts,price])=>{
-    const k=Math.round(ts);
-    return { t:k, price:Number(price), vol:volMap.get(k)||0 };
+    const k=Math.round(ts); const ms = k<1e12 ? k*1000 : k;
+    return {t:ms, price:Number(price), vol:volMap.get(k)||0};
   }).sort((a,b)=>a.t-b.t);
-  // coerce ms timestamps
-  arr.forEach(x=>{ if(x.t<1e12) x.t*=1000; });
   return {source:'CoinGecko', arr};
 }
-
-// 2) Bitstamp OHLC
 async function fetchBitstamp(tf){
   const step=tf.bitstampStep; const limit=Math.min(1000,Math.ceil(tf.win/(step*1000))+2);
   const url=`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`;
@@ -189,8 +244,6 @@ async function fetchBitstamp(tf){
   const arr=rows.map(c=>({t:Number(c.timestamp)*1000+step*1000,price:Number(c.close),vol:Number(c.volume)||0})).sort((a,b)=>a.t-b.t);
   return {source:'Bitstamp', arr};
 }
-
-// 3) Coinbase EX candles
 async function fetchCoinbaseEX(tf){
   const end=Math.floor(Date.now()/1000), start=end-Math.ceil(tf.win/1000);
   const url=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${tf.granEX}&start=${start}&end=${end}`;
@@ -205,7 +258,7 @@ async function fetchCoinbaseEX(tf){
 
 async function preload(){
   const histEl=document.getElementById('histStatus');
-  let source='mock';
+  let src='mock';
   for(const tf of TF){
     let res=null;
     try{ res=await fetchCoinGecko(tf); }
@@ -213,27 +266,22 @@ async function preload(){
            catch{ try{ res=await fetchCoinbaseEX(tf); }
                   catch{ res=null; } } }
     if(res && res.arr.length){
-      const b=state[tf.key];
-      b.arr=res.arr;
-      b.tLast=b.arr[b.arr.length-1].t||0;
-      redraw(tf.key);
-      source=res.source;
+      const b=state[tf.key]; b.arr=res.arr; b.tLast=b.arr[b.arr.length-1].t||0; redraw(tf.key); src=res.source;
     }else{
-      // seed mock for this tf
+      // seed mock
       const now=Date.now(); const b=state[tf.key]; let p=lastPrice; b.arr=[];
       for(let t=now-tf.win;t<=now;t+=Math.max(2000, Math.floor(tf.win/60))){
         p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});
       }
-      b.tLast=now; redraw(tf.key);
-      source='mock';
+      b.tLast=now; redraw(tf.key); src='mock';
     }
   }
-  histEl.textContent='History: '+source+' · '+APP_VERSION;
+  histEl.textContent='History: '+src+' · '+APP_VERSION;
 }
 
 /* ========== BOOT ========= */
 (async function(){
-  // fail-safe: if preload hangs, force mock after 5s
+  // fail-safe in case history hangs
   const fs=setTimeout(()=>{
     const histEl=document.getElementById('histStatus');
     TF.forEach(tf=>{
@@ -244,10 +292,9 @@ async function preload(){
       b.tLast=now; redraw(tf.key);
     });
     histEl.textContent='History: timeout/mock · '+APP_VERSION;
-  }, 5000);
+  },5000);
 
   try{ await preload(); } finally { clearTimeout(fs); }
-
   await pollLive();
   setInterval(pollLive, 2000);
 })();
