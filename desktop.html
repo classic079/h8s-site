@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.3</title>
+<title>BTC Overview — v1.4</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
   :root{
@@ -35,7 +35,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.3</span>
+      <span class="chip" id="ver">v1.4</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
@@ -46,15 +46,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 /* ================== VERSION ================== */
-const APP_VERSION = 'v1.3';
+const APP_VERSION = 'v1.4';
 console.log('BTC Dashboard', APP_VERSION);
 
-/* ================== CONFIG ================== */
+/* ================== CONFIG (unchanged) ================== */
 const TF = [
   { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
   { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
   { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // area style
+  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style
 ];
 
 const dash = document.getElementById('dashboard');
@@ -84,9 +84,10 @@ function makeLineChart(ctx, tfKey){
     data: { labels: [], datasets: [{
       data: [],
       borderColor: cssVar('--accent') || '#4da3ff',
-      borderWidth: 2,
+      borderWidth: is10 ? 3 : 2,
       pointRadius: 0,
-      tension: is10 ? 0.25 : 0,
+      tension: is10 ? 0 : 0,
+      stepped: is10 ? 'after' : false,
       fill: is10 ? true : false,
       backgroundColor: is10 ? 'transparent' : 'transparent' // gradient applied on redraw
     }]},
@@ -97,7 +98,10 @@ function makeLineChart(ctx, tfKey){
       plugins: { legend: { display: false }, tooltip: { mode:'index', intersect:false, displayColors:false } },
       scales: {
         x: { ticks: { display:false }, grid: { display:false } },
-        y: { ticks: { color:'#7f8796' }, grid: { color:'rgba(255,255,255,.05)' } }
+        y: {
+          ticks: { color:'#7f8796' },
+          grid: { color: tfKey==='10m' ? 'transparent' : 'rgba(255,255,255,.05)' }
+        }
       }
     }
   });
@@ -139,7 +143,7 @@ TF.forEach(function(t){
   };
 });
 
-/* ================== RENDER ================== */
+/* ================== RENDER (unchanged except 10m gradient) ================== */
 function computeTrendColor(tfKey){
   var arr = state[tfKey].arr;
   if (arr.length < 2) return cssVar('--accent') || '#4da3ff';
@@ -155,14 +159,9 @@ function applyAreaGradientIfNeeded(tfKey){
   if (!area) return; // not ready yet
   var ctx = chart.ctx;
   var color = b.trendColor || (cssVar('--accent') || '#4da3ff');
-  // convert CSS var to hex if needed
-  if (color.indexOf('#') !== 0){
-    // read computed color (rgb) and convert to rgba with alpha directly
-    // fallback: just use accent hex
-    color = (cssVar('--accent') || '#4da3ff');
-  }
+  if (color.indexOf('#') !== 0){ color = (cssVar('--accent') || '#4da3ff'); }
   var grad = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-  grad.addColorStop(0, toRGBA(color.replace('#',''), 0.25));
+  grad.addColorStop(0, toRGBA(color.replace('#',''), 0.24));
   grad.addColorStop(1, toRGBA(color.replace('#',''), 0.02));
   chart.data.datasets[0].backgroundColor = grad;
 }
@@ -175,7 +174,7 @@ function redraw(tfKey){
   // prune
   b.arr = b.arr.filter(function(pt){ return pt.t >= (now - t.win); });
 
-  // set trend color
+  // trend color
   b.trendColor = computeTrendColor(tfKey);
 
   // price
@@ -188,12 +187,9 @@ function redraw(tfKey){
   applyAreaGradientIfNeeded(tfKey);
   pc.update('none');
 
-  // volume (12 bins)
-  var bins = t.bin;
-  var start = now - t.win;
-  var w = t.win / bins;
-  var ag = [];
-  for (var i=0;i<bins;i++){ ag.push({start:start+i*w, vol:0, first:null, last:null}); }
+  // volume bins
+  var bins = t.bin, start = now - t.win, w = t.win / bins;
+  var ag = []; for (var i=0;i<bins;i++){ ag.push({start:start+i*w, vol:0, first:null, last:null}); }
   for (var k=0;k<b.arr.length;k++){
     var pt = b.arr[k];
     var idx = Math.min(bins-1, Math.max(0, Math.floor((pt.t - start)/w)));
@@ -220,11 +216,9 @@ function setBadges(p){
   });
 }
 
-/* ================== LIVE ================== */
+/* ================== LIVE (unchanged) ================== */
 async function pollLive(){
   var liveEl = document.getElementById('liveStatus');
-
-  // Coinbase
   try{
     var r1 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker', { headers: { Accept:'application/json' } });
     if (r1.ok){
@@ -233,8 +227,6 @@ async function pollLive(){
       if (!isNaN(p1)){ onQuote(p1, parseFloat(j1.size || j1.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Coinbase · ' + APP_VERSION; return; }
     }
   }catch(e){}
-
-  // Bitstamp
   try{
     var r2 = await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
     if (r2.ok){
@@ -243,8 +235,6 @@ async function pollLive(){
       if (!isNaN(p2)){ onQuote(p2, parseFloat(j2.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Bitstamp · ' + APP_VERSION; return; }
     }
   }catch(e){}
-
-  // CoinCap
   try{
     var r3 = await fetch('https://api.coincap.io/v2/assets/bitcoin');
     if (r3.ok){
@@ -253,8 +243,6 @@ async function pollLive(){
       if (!isNaN(p3)){ onQuote(p3, 0.1); liveEl.textContent = 'Live: CoinCap · ' + APP_VERSION; return; }
     }
   }catch(e){}
-
-  // Mock tick
   onQuote(lastPrice + (Math.random()-0.5)*20, Math.random()*2);
   liveEl.textContent = 'Live: mock · ' + APP_VERSION;
 }
@@ -274,7 +262,7 @@ function onQuote(p,v){
   setBadges(p);
 }
 
-/* ================== HISTORY (CoinGecko → Bitstamp → Coinbase EX → mock) ================== */
+/* ================== HISTORY (unchanged) ================== */
 async function fetchCoinGecko(tf){
   var to = Math.floor(Date.now()/1000);
   var from = to - Math.ceil(tf.win/1000);
@@ -282,21 +270,18 @@ async function fetchCoinGecko(tf){
   var r = await fetch(url, { headers:{ Accept:'application/json' } });
   if (!r.ok) throw 0;
   var j = await r.json();
-  var P = j && j.prices;
-  var V = j && j.total_volumes;
+  var P = j && j.prices, V = j && j.total_volumes;
   if (!(P && V)) throw 0;
-  var vmap = {};
-  for (var i=0;i<V.length;i++){ var k = Math.round(V[i][0]); vmap[k] = Number(V[i][1]) || 0; }
+  var vmap = {}; for (var i=0;i<V.length;i++){ var k = Math.round(V[i][0]); vmap[k] = Number(V[i][1]) || 0; }
   var arr = [];
-  for (var k2=0;k2<P.length;k2++){
-    var ts = Math.round(P[k2][0]);
+  for (var k=0;k<P.length;k++){
+    var ts = Math.round(P[k][0]);
     var ms = (ts < 1e12) ? ts*1000 : ts;
-    arr.push({ t:ms, price:Number(P[k2][1]), vol:vmap[ts] || 0 });
+    arr.push({ t:ms, price:Number(P[k][1]), vol:vmap[ts] || 0 });
   }
   arr.sort(function(a,b){ return a.t-b.t; });
   return { source:'CoinGecko', arr:arr };
 }
-
 async function fetchBitstamp(tf){
   var step = tf.bitstampStep;
   var limit = Math.min(1000, Math.ceil(tf.win/(step*1000)) + 2);
@@ -314,7 +299,6 @@ async function fetchBitstamp(tf){
   out.sort(function(a,b){ return a.t-b.t; });
   return { source:'Bitstamp', arr: out };
 }
-
 async function fetchCoinbaseEX(tf){
   var end = Math.floor(Date.now()/1000);
   var start = end - Math.ceil(tf.win/1000);
@@ -331,7 +315,6 @@ async function fetchCoinbaseEX(tf){
   }
   return { source:'Coinbase EX', arr: out };
 }
-
 async function preload(){
   var histEl = document.getElementById('histStatus');
   var source = 'mock';
@@ -349,19 +332,11 @@ async function preload(){
       redraw(tf.key);
       source = res.source;
     } else {
-      // seed mock
-      var now = Date.now();
-      var b2 = state[tf.key];
-      var p = lastPrice;
+      var now = Date.now(), b2 = state[tf.key], p = lastPrice;
       b2.arr = [];
       var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){
-        p += (Math.random()-0.5)*15;
-        b2.arr.push({ t:t, price:p, vol:Math.random()*2 });
-      }
-      b2.tLast = now;
-      redraw(tf.key);
-      source = 'mock';
+      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b2.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
+      b2.tLast = now; redraw(tf.key); source = 'mock';
     }
   }
   histEl.textContent = 'History: ' + source + ' · ' + APP_VERSION;
@@ -369,28 +344,20 @@ async function preload(){
 
 /* ================== BOOT ================== */
 (function(){
-  // 5s hard fallback so the page never stays blank
   var fs = setTimeout(function(){
     var histEl = document.getElementById('histStatus');
     var now = Date.now();
     for (var i=0;i<TF.length;i++){
-      var tf = TF[i];
-      var b = state[tf.key];
-      var p = lastPrice;
+      var tf = TF[i], b = state[tf.key], p = lastPrice;
       b.arr = [];
       var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){
-        p += (Math.random()-0.5)*15;
-        b.arr.push({ t:t, price:p, vol:Math.random()*2 });
-      }
-      b.tLast = now;
-      redraw(tf.key);
+      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
+      b.tLast = now; redraw(tf.key);
     }
     histEl.textContent = 'History: timeout/mock · ' + APP_VERSION;
   }, 5000);
 
-  preload().then(function(){ clearTimeout(fs); }).catch(function(){ /* already handled */ });
-
+  preload().then(function(){ clearTimeout(fs); }).catch(function(){});
   pollLive();
   setInterval(pollLive, 2000);
 })();
