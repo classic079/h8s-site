@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.6.1</title>
+<title>BTC Overview — v1.6.2</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -48,7 +48,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.6.1</span>
+      <span class="chip" id="ver">v1.6.2</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
       <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
@@ -68,12 +68,12 @@
 <script>
 (function safeBoot(){
   try{
-    const APP_VERSION = 'v1.6.1';
+    const APP_VERSION = 'v1.6.2';
     const TF = [
-      { key:'24h', label:'24 HOURS', tfChip:'24h', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
-      { key:'8h',  label:'8 HOURS',  tfChip:'8h',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
-      { key:'1h',  label:'1 HOUR',   tfChip:'1h',  win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-      { key:'10m', label:'10 MIN',   tfChip:'10m', win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 }
+      { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
+      { key:'8h',  label:'8  HOURS', win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
+      { key:'1h',  label:'1  HOUR',  win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
+      { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 }
     ];
 
     const dash = document.getElementById('dashboard');
@@ -82,7 +82,7 @@
     const liveEl = document.getElementById('liveStatus');
     document.getElementById('ver').textContent = APP_VERSION;
 
-    /* Build columns — topbar now: TF+Δ, H/L, Vol */
+    /* Build columns — topbar pills: Δ (no timeframe), H/L, Vol */
     let html='';
     for(const t of TF){
       html += `
@@ -90,7 +90,7 @@
         <div class="title">
           <div class="tf">${t.label}</div>
           <div class="topbar">
-            <span class="pill muted" id="tfc-${t.key}">${t.tfChip}</span>
+            <span class="pill muted" id="tfc-${t.key}">—</span>
             <span class="pill muted" id="hlc-${t.key}">H/L — / —</span>
             <span class="pill muted" id="volc-${t.key}">Vol —</span>
           </div>
@@ -104,7 +104,7 @@
     const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const state = {};
     let lastPriceGlobal = 65000;
-    let lastVolGlobal = 1;
+    let lastVolGlobal   = 1;
 
     /* ===== 10m average line plugin (null-safe) ===== */
     const avgLinePlugin = {
@@ -198,20 +198,16 @@
     function fmtUSD(n){ return '$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2}); }
     function fmtVOL(n){ return (n??0).toLocaleString(undefined,{maximumFractionDigits:3}); }
 
-    /* ===== NEW topbar updater ===== */
+    /* ===== condensed pill updater (arrow + delta only) ===== */
     function updateTopbar(key, prices, vols){
-      const tf     = TF.find(x=>x.key===key);
-      const tfPill = document.getElementById(`tfc-${key}`);
-      const hlPill = document.getElementById(`hlc-${key}`);
-      const volPill= document.getElementById(`volc-${key}`);
+      const tfPill  = document.getElementById(`tfc-${key}`);
+      const hlPill  = document.getElementById(`hlc-${key}`);
+      const volPill = document.getElementById(`volc-${key}`);
 
       if(!prices || prices.length===0){
-        tfPill.textContent = tf.tfChip;
-        tfPill.className = 'pill muted';
-        hlPill.textContent = 'H/L — / —';
-        hlPill.className = 'pill muted';
-        volPill.textContent = 'Vol —';
-        volPill.className = 'pill muted';
+        tfPill.textContent  = '—'; tfPill.className  = 'pill muted';
+        hlPill.textContent  = 'H/L — / —'; hlPill.className = 'pill muted';
+        volPill.textContent = 'Vol —'; volPill.className = 'pill muted';
         return;
       }
 
@@ -221,19 +217,20 @@
       const pct   = first ? (delta/first)*100 : 0;
       const arrow = delta >= 0 ? '▲' : '▼';
 
-      tfPill.textContent = `${tf.tfChip} ${arrow} ${fmtUSD(Math.abs(delta))} (${(Math.abs(pct)).toFixed(2)}%)`;
-      tfPill.className = 'pill ' + (delta>=0 ? 'up' : 'down');
+      // ONLY arrow + change (and %), no timeframe
+      tfPill.textContent = `${arrow} ${fmtUSD(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)`;
+      tfPill.className   = 'pill ' + (delta>=0 ? 'up' : 'down');
 
       // H/L
       let hi=-Infinity, lo=Infinity;
       for(const p of prices){ if(p>hi) hi=p; if(p<lo) lo=p; }
       hlPill.textContent = `H/L ${fmtUSD(hi)} / ${fmtUSD(lo)}`;
-      hlPill.className = 'pill muted';
+      hlPill.className   = 'pill muted';
 
       // Volume sum across period
       const volSum = (vols||[]).reduce((s,v)=>s+(+v||0),0);
       volPill.textContent = `Vol ${fmtVOL(volSum)}`;
-      volPill.className = 'pill muted';
+      volPill.className   = 'pill muted';
     }
 
     function redraw(key){
@@ -250,7 +247,7 @@
       pc.data.labels=labels; pc.data.datasets[0].data=prices; pc.data.datasets[0].borderColor=b.trendColor;
       applyAreaGradIf10(key); pc.update('none');
 
-      // top bar (TF+Δ, H/L, Vol)
+      // pills (Δ, H/L, Vol)
       updateTopbar(key, prices, vols);
 
       // volume (12 bins)
