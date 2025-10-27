@@ -2,402 +2,604 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.5</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>h8s — mobile (classic + gauge + mirrored tops)</title>
 <style>
   :root{
-    --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
-    --accent:#4da3ff; --up:#16c784; --down:#ff4d4d; --gap:16px; --radius:16px;
+    --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
+    --text:#e9fef7; --muted:#c8d6cf;
+    --up:#2dd4bf; --down:#f59e0b;               /* theme-adjustable */
+    --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
+    --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
+    --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui}
-  .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  header h1{margin:0;font-size:18px;font-weight:700}
-  .meta{display:flex;gap:10px;align-items:center}
-  .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
-  .badge{font-size:12px;color:var(--muted)}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
-  .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:var(--radius);
-       padding:12px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-  .title{display:flex;justify-content:space-between}
-  .tf{color:var(--muted);font-weight:700;font-size:12px}
-  .price{font-weight:700}
-  .chartCard{background:rgba(255,255,255,.02);border-radius:12px;height:200px;margin-top:8px}
-  .volumeCard{background:rgba(255,255,255,.02);border-radius:12px;height:110px;margin-top:6px}
-  @media (max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
-  @media (max-width:740px){.grid{grid-template-columns:1fr}}
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+  .wrap{padding:14px 14px 120px; max-width:900px; margin:0 auto;}
+  .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow); position:relative;}
+  .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+        border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
+        font-size:12px; white-space:nowrap; color:#fff;}
+
+  /* Header */
+  .header{position:relative; padding:12px 12px 6px;}
+  .tinyTitle{margin:0; text-align:center; font-size:11px; letter-spacing:.12em;
+             text-transform:uppercase; color:var(--muted); opacity:.85}
+  .bigPrice{margin:4px 0 0; text-align:center; font-weight:900;
+            font-size: clamp(24px,7.6vw,44px); letter-spacing:.5px}
+  .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
+
+  /* Gear (fixed look) */
+  .gearBtn{position:absolute; top:10px; right:12px;
+           width:32px; height:32px; border-radius:9px;
+           border:1px solid rgba(255,255,255,.18);
+           background:rgba(0,0,0,.45);
+           display:flex; align-items:center; justify-content:center;
+           cursor:pointer; transition:transform .12s ease, background .15s ease, border-color .15s ease;}
+  .gearBtn:active{transform:scale(.96)}
+  .gearBtn:hover{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.28)}
+  .gearSvg{width:18px;height:18px;opacity:.92; stroke:currentColor}
+
+  .chartBox{padding:0 10px 6px}
+  canvas{display:block; width:100%; height:240px; border-radius:12px; background:var(--panel-2)}
+  .volBox{height:210px}
+  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
+  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
+
+  /* gauge */
+  .gaugeRow{display:flex; align-items:center; gap:10px; padding:6px 10px 2px; position:relative}
+  .gLabel{font-size:12px; opacity:.9; user-select:none}
+  .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
+  #biasGauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
+  .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left 0.2s ease;}
+  .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
+
+  /* mirrored tops (outside → center) */
+  #topsCanvas{height:360px; margin-top:10px}
+
+  /* settings sheet */
+  .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
+         box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
+         border-top:1px solid rgba(255,255,255,.12); z-index:60}
+  .sheet.open{transform:translateY(0)}
+  .sheetInner{padding:14px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+  .row label{font-size:14px;opacity:.9}
+  .row input[type="number"]{width:120px;background:#181818;border:1px solid rgba(255,255,255,.15);
+    border-radius:8px;padding:6px 8px;color:#fff;}
+  .row select{background:#181818;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px;}
+  .sheetClose{display:block;margin:10px auto 0}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>BTC Overview</h1>
-    <div class="meta">
-      <span class="chip" id="ver">v1.5</span>
-      <span class="badge" id="histStatus">History: loading…</span>
-      <span class="badge" id="liveStatus">Live: starting…</span>
+  <main class="wrap">
+    <section class="card">
+      <div class="header">
+        <h2 class="tinyTitle">coinbase stalker</h2>
+        <h1 id="bigPrice" class="bigPrice">$—</h1>
+
+        <button id="gearBtn" class="gearBtn" title="Settings">
+          <svg class="gearSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="chartBox">
+        <!-- PRICE CHART (CLASSIC) -->
+        <canvas id="priceCanvas"></canvas>
+
+        <!-- Gauge row -->
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div style="position:relative; flex:1">
+            <canvas id="biasGauge"></canvas>
+            <div id="needle" class="needle" style="left:50%"></div>
+            <div id="needleValue" class="needleValue" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+
+        <!-- Legend + max pill -->
+        <div class="legend" style="margin-top:2px">
+          <span class="dot up"></span><span class="muted">Buys</span>
+          <span class="dot down"></span><span class="muted">Sells</span>
+          <span style="margin-left:auto" class="pill muted" id="maxVolPill">max ₿—</span>
+        </div>
+
+        <!-- Volume -->
+        <canvas id="volCanvas" class="volBox"></canvas>
+
+        <!-- Mirrored Tops (canvas) -->
+        <canvas id="topsCanvas"></canvas>
+      </div>
+    </section>
+
+    <div class="pill conn" id="connPill">Live</div>
+  </main>
+
+  <!-- Settings sheet -->
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheetInner">
+      <div class="row">
+        <label for="themeSel">Theme</label>
+        <select id="themeSel">
+          <option value="showgirl">Life of a Showgirl (teal/orange) — default</option>
+          <option value="classic">Classic (green/red)</option>
+          <option value="emerald">Emerald/Orange</option>
+          <option value="violet">Violet/Gold</option>
+          <option value="ocean">Ocean (cyan/blue)</option>
+          <option value="mono">Monochrome (light/dim)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="scaleInp">Value scale (BTC)</label>
+        <input id="scaleInp" type="number" step="0.0001" min="0" value="1.0" />
+      </div>
+      <div class="row">
+        <label for="topNInp">Top list size (rows/side)</label>
+        <input id="topNInp" type="number" step="1" min="5" max="40" value="20" />
+      </div>
+      <button id="closeSheet" class="pill sheetClose">Done</button>
     </div>
-  </header>
-  <section class="grid" id="dashboard"></section>
-</div>
+  </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-/* ================== VERSION ================== */
-const APP_VERSION = 'v1.5';
-console.log('BTC Dashboard', APP_VERSION);
+/* ===== elements ===== */
+const priceEl = document.getElementById('bigPrice');
+const priceCanvas = document.getElementById('priceCanvas');
+const volCanvas = document.getElementById('volCanvas');
+const topsCanvas = document.getElementById('topsCanvas');
+const maxVolPill = document.getElementById('maxVolPill');
+const connPill = document.getElementById('connPill');
+const sheet = document.getElementById('sheet');
+const gearBtn = document.getElementById('gearBtn');
+const themeSel = document.getElementById('themeSel');
+const scaleInp = document.getElementById('scaleInp');
+const topNInp = document.getElementById('topNInp');
+const closeSheet = document.getElementById('closeSheet');
+const biasGauge = document.getElementById('biasGauge');
+const needle = document.getElementById('needle');
+const needleValue = document.getElementById('needleValue');
 
-/* ================== CONFIG ================== */
-const TF = [
-  { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
-  { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
-  { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style look
-];
+/* ===== state ===== */
+let lastPrice = null;
+let rawLastPrice = null;   // unscaled price for charts
+let series = [];           // {t, p}
+let volBins = [];          // {ts,buy,sell} x10 fixed
+let win10 = [];            // raw trades (last 10 minutes)
+const MS10 = 600000;
+let VALUE_SCALE = +(localStorage.getItem('h8s_scale')||'1') || 1;
+let TOP_N = +(localStorage.getItem('h8s_topN')||'20') || 20;
 
-const dash = document.getElementById('dashboard');
-(function buildColumns(){
-  var html = '';
-  for (var i=0;i<TF.length;i++){
-    var t = TF[i];
-    html += ''
-      + '<div class="col">'
-      +   '<div class="title"><div class="tf">'+t.label+'</div><div class="price" id="p-'+t.key+'">$—</div></div>'
-      +   '<div class="chartCard"><canvas id="c-'+t.key+'"></canvas></div>'
-      +   '<div class="volumeCard"><canvas id="v-'+t.key+'"></canvas></div>'
-      + '</div>';
-  }
-  dash.innerHTML = html;
-})();
+/* theme handling (Showgirl default if not set) */
+const SAVED_THEME = localStorage.getItem('h8s_theme') || 'showgirl';
+applyTheme(SAVED_THEME);
+themeSel.value = SAVED_THEME;
+scaleInp.value = VALUE_SCALE.toString();
+topNInp.value = TOP_N.toString();
 
-const cssVar = function(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
-const state = {};
-var lastPrice = 65000, lastVol = 1;
-
-/* ================== AVG LINE PLUGIN (for 10m only) ================== */
-const avgLinePlugin = {
-  id: 'avgLine',
-  afterDatasetsDraw(chart, args, opts){
-    if(!opts || !opts.enabled) return;
-    const getData = opts.getData;
-    if(typeof getData !== 'function') return;
-    const arr = getData();
-    if(!arr || !arr.length) return;
-    const sum = arr.reduce((s,p)=>s+(+p||0),0);
-    const avg = sum / arr.length;
-    const y = chart.scales.y.getPixelForValue(avg);
-    const ca = chart.chartArea;
-    const ctx = chart.ctx;
-    ctx.save();
-    ctx.setLineDash([6,6]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath();
-    ctx.moveTo(ca.left, y);
-    ctx.lineTo(ca.right, y);
-    ctx.stroke();
-    ctx.restore();
-  }
-};
-
-/* ================== CHART FACTORIES ================== */
-function makeLineChart(ctx, tfKey){
-  const is10 = (tfKey === '10m');
-  return new Chart(ctx, {
-    type: 'line',
-    data: { labels: [], datasets: [{
-      data: [],
-      borderColor: cssVar('--accent') || '#4da3ff',
-      borderWidth: is10 ? 3 : 2,
-      pointRadius: 0,
-      tension: is10 ? 0.25 : 0,    // mobile smooth
-      stepped: false,
-      fill: is10 ? true : false,   // soft area only for 10m
-      backgroundColor: is10 ? 'transparent' : 'transparent'
-    }]},
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 0 },
-      plugins: {
-        legend: { display: false },
-        tooltip: { mode:'index', intersect:false, displayColors:false },
-        avgLine: is10 ? {
-          enabled: true,
-          getData: ()=> state['10m'].arr.map(p=>p.price)
-        } : { enabled:false }
-      },
-      scales: {
-        x: { ticks: { display:false }, grid: { display:false } },
-        y: {
-          ticks: { color:'#7f8796' },
-          grid: { color: tfKey==='10m' ? 'transparent' : 'rgba(255,255,255,.05)' }
-        }
-      }
-    },
-    plugins: is10 ? [avgLinePlugin] : []
-  });
+/* ===== helpers ===== */
+function sizeCanvas(c){
+  const dpr = Math.min(3, window.devicePixelRatio||1);
+  c.width = Math.max(1, c.clientWidth*dpr);
+  c.height = Math.max(1, c.clientHeight*dpr);
+  c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  return c.getContext('2d');
 }
-
-function makeBarChart(ctx){
-  return new Chart(ctx, {
-    type: 'bar',
-    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 0 },
-      plugins: { legend: { display:false } },
-      scales: {
-        x: { ticks: { color:'#7f8796' } },
-        y: { ticks: { display:false } }
-      }
-    }
-  });
+const fmtUSD = (v,fd=0)=> new Intl.NumberFormat(
+  undefined,{style:'currency',currency:'USD',maximumFractionDigits:fd}).format(v);
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  ctx.beginPath(); ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+  if(fill) ctx.fill(); if(stroke) ctx.stroke();
 }
-
-function toRGBA(hex6, a){
-  var h = (hex6 || '#4da3ff').replace('#','');
-  if (h.length !== 6) return 'rgba(77,163,255,'+a+')';
-  var r = parseInt(h.substring(0,2),16),
-      g = parseInt(h.substring(2,4),16),
-      b = parseInt(h.substring(4,6),16);
-  return 'rgba('+r+','+g+','+b+','+a+')';
+function initBins(){
+  const now = Date.now();
+  const start = now - (now % 60000) - 9*60000;
+  volBins = Array.from({length:10},(_,i)=>({ts:start+i*60000,buy:0,sell:0}));
 }
+initBins();
 
-TF.forEach(function(t){
-  state[t.key] = {
-    arr: [],
-    tLast: 0,
-    trendColor: cssVar('--accent') || '#4da3ff',
-    pc: makeLineChart(document.getElementById('c-'+t.key).getContext('2d'), t.key),
-    vc: makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
-  };
+/* ===== settings ===== */
+gearBtn.addEventListener('click', ()=>sheet.classList.add('open'));
+closeSheet.addEventListener('click', ()=>sheet.classList.remove('open'));
+themeSel.addEventListener('change', e=>{
+  applyTheme(e.target.value);
+  localStorage.setItem('h8s_theme', e.target.value);
 });
-
-/* ================== RENDER ================== */
-function computeTrendColor(tfKey){
-  var arr = state[tfKey].arr;
-  if (arr.length < 2) return cssVar('--accent') || '#4da3ff';
-  var first = arr[0].price, last = arr[arr.length-1].price;
-  return (last >= first) ? cssVar('--up') : cssVar('--down');
-}
-
-function applyAreaGradientIfNeeded(tfKey){
-  if (tfKey !== '10m') return;
-  var b = state[tfKey];
-  var chart = b.pc;
-  var area = chart.chartArea;
-  if (!area) return; // not ready yet
-  var ctx = chart.ctx;
-  var color = b.trendColor || (cssVar('--accent') || '#4da3ff');
-  if (color.indexOf('#') !== 0){ color = (cssVar('--accent') || '#4da3ff'); }
-  var grad = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-  grad.addColorStop(0, toRGBA(color.replace('#',''), 0.24));
-  grad.addColorStop(1, toRGBA(color.replace('#',''), 0.02));
-  chart.data.datasets[0].backgroundColor = grad;
-}
-
-function redraw(tfKey){
-  var t = TF.find(function(x){ return x.key===tfKey; });
-  var b = state[tfKey];
-  var now = Date.now();
-
-  // prune
-  b.arr = b.arr.filter(function(pt){ return pt.t >= (now - t.win); });
-
-  // trend color
-  b.trendColor = computeTrendColor(tfKey);
-
-  // price
-  var labels = b.arr.map(function(pt){ return new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); });
-  var prices = b.arr.map(function(pt){ return pt.price; });
-  var pc = b.pc;
-  pc.data.labels = labels;
-  pc.data.datasets[0].data = prices;
-  pc.data.datasets[0].borderColor = b.trendColor;
-  applyAreaGradientIfNeeded(tfKey);
-  pc.update('none');
-
-  // volume bins (12)
-  var bins = t.bin, start = now - t.win, w = t.win / bins;
-  var ag = []; for (var i=0;i<bins;i++){ ag.push({start:start+i*w, vol:0, first:null, last:null}); }
-  for (var k=0;k<b.arr.length;k++){
-    var pt = b.arr[k];
-    var idx = Math.min(bins-1, Math.max(0, Math.floor((pt.t - start)/w)));
-    var bin = ag[idx];
-    bin.vol += (pt.vol || 0);
-    if (bin.first === null) bin.first = pt.price;
-    bin.last = pt.price;
+scaleInp.addEventListener('change', e=>{
+  const v = Math.max(0, +e.target.value || 0);
+  VALUE_SCALE = v;
+  localStorage.setItem('h8s_scale', String(v));
+  if(rawLastPrice!=null){
+    const scaled = rawLastPrice * VALUE_SCALE;
+    priceEl.textContent = fmtUSD(scaled,2);
   }
-  var vc = b.vc;
-  vc.data.labels = ag.map(function(x){ return new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); });
-  vc.data.datasets[0].data = ag.map(function(x){ return x.vol; });
-  vc.data.datasets[0].backgroundColor = ag.map(function(x){
-    if (x.first === null) return '#b9c2d0';
-    return (x.last >= x.first) ? cssVar('--up') : cssVar('--down');
-  });
-  vc.update('none');
+});
+topNInp.addEventListener('change', e=>{
+  TOP_N = Math.min(40, Math.max(5, Math.floor(+e.target.value || 20)));
+  localStorage.setItem('h8s_topN', String(TOP_N));
+  resizeTopsHeight();
+});
+function applyTheme(t){
+  const r = document.documentElement.style;
+  if(t==='classic'){ r.setProperty('--up','#22c55e'); r.setProperty('--down','#ef4444'); }
+  else if(t==='emerald'){ r.setProperty('--up','#34d399'); r.setProperty('--down','#fb923c'); }
+  else if(t==='violet'){ r.setProperty('--up','#a78bfa'); r.setProperty('--down','#fbbf24'); }
+  else if(t==='ocean'){ r.setProperty('--up','#06b6d4'); r.setProperty('--down','#3b82f6'); }
+  else if(t==='mono'){ r.setProperty('--up','#e5e7eb'); r.setProperty('--down','#9ca3af'); }
+  else if(t==='showgirl'){ r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
+  else { r.setProperty('--up','#2dd4bf'); r.setProperty('--down','#f59e0b'); }
 }
 
-function setBadges(p){
-  TF.forEach(function(t){
-    var el = document.getElementById('p-'+t.key);
-    el.textContent = '$' + p.toLocaleString(undefined,{maximumFractionDigits:2});
-    el.style.color = (p >= lastPrice) ? cssVar('--up') : cssVar('--down');
-  });
-}
+/* ===== trade intake ===== */
+function onTrade({price,size,side,time}){
+  const ts = new Date(time).getTime();
+  rawLastPrice = price;
+  const scaled = price * VALUE_SCALE;
 
-/* ================== LIVE ================== */
-async function pollLive(){
-  var liveEl = document.getElementById('liveStatus');
+  series.push({t:ts,p:price});
+  win10.push({t:ts, price, size, side: (side==='sell'?'sell':'buy')});
 
-  try{
-    var r1 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker', { headers: { Accept:'application/json' } });
-    if (r1.ok){
-      var j1 = await r1.json();
-      var p1 = parseFloat(j1.price || j1.last || j1.bid || j1.ask);
-      if (!isNaN(p1)){ onQuote(p1, parseFloat(j1.size || j1.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Coinbase · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  try{
-    var r2 = await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
-    if (r2.ok){
-      var j2 = await r2.json();
-      var p2 = parseFloat(j2.last);
-      if (!isNaN(p2)){ onQuote(p2, parseFloat(j2.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Bitstamp · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  try{
-    var r3 = await fetch('https://api.coincap.io/v2/assets/bitcoin');
-    if (r3.ok){
-      var j3 = await r3.json();
-      var p3 = parseFloat((j3 && j3.data && j3.data.priceUsd) ? j3.data.priceUsd : 'NaN');
-      if (!isNaN(p3)){ onQuote(p3, 0.1); liveEl.textContent = 'Live: CoinCap · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  onQuote(lastPrice + (Math.random()-0.5)*20, Math.random()*2);
-  liveEl.textContent = 'Live: mock · ' + APP_VERSION;
-}
-
-function onQuote(p,v){
-  lastPrice = p;
-  lastVol = v || lastVol;
-  var n = Date.now();
-  TF.forEach(function(t){
-    var b = state[t.key];
-    if (n - b.tLast >= t.sample){
-      b.arr.push({ t:n, price:p, vol:v });
-      b.tLast = n;
-    }
-    redraw(t.key);
-  });
-  setBadges(p);
-}
-
-/* ================== HISTORY (CoinGecko → Bitstamp → Coinbase EX → mock) ================== */
-async function fetchCoinGecko(tf){
-  var to = Math.floor(Date.now()/1000);
-  var from = to - Math.ceil(tf.win/1000);
-  var url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from='+from+'&to='+to;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var j = await r.json();
-  var P = j && j.prices, V = j && j.total_volumes;
-  if (!(P && V)) throw 0;
-  var vmap = {}; for (var i=0;i<V.length;i++){ var k = Math.round(V[i][0]); vmap[k] = Number(V[i][1]) || 0; }
-  var arr = [];
-  for (var k=0;k<P.length;k++){
-    var ts = Math.round(P[k][0]);
-    var ms = (ts < 1e12) ? ts*1000 : ts;
-    arr.push({ t:ms, price:Number(P[k][1]), vol:vmap[ts] || 0 });
+  // volume minute bins (scroll left->right)
+  const startAligned = ts - (ts % 60000) - 9*60000;
+  while(volBins.length && volBins[0].ts < startAligned) volBins.shift();
+  while(volBins.length<10){
+    const lastTs = volBins.length?volBins[volBins.length-1].ts:startAligned;
+    volBins.push({ts:lastTs+60000,buy:0,sell:0});
   }
-  arr.sort(function(a,b){ return a.t-b.t; });
-  return { source:'CoinGecko', arr:arr };
-}
-async function fetchBitstamp(tf){
-  var step = tf.bitstampStep;
-  var limit = Math.min(1000, Math.ceil(tf.win/(step*1000)) + 2);
-  var url = 'https://www.bitstamp.net/api/v2/ohlc/btcusd/?step='+step+'&limit='+limit;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var j = await r.json();
-  var rows = j && j.data && j.data.ohlc;
-  if (!rows) throw 0;
-  var out = [];
-  for (var i=0;i<rows.length;i++){
-    var c = rows[i];
-    out.push({ t: Number(c.timestamp)*1000 + step*1000, price: Number(c.close), vol: Number(c.volume) || 0 });
+  const i = Math.min(9,Math.max(0,Math.floor((ts - volBins[0].ts)/60000)));
+  if(side==='sell') volBins[i].sell += size; else volBins[i].buy += size;
+
+  if(lastPrice!=null){
+    priceEl.classList.remove('up','down');
+    if(scaled>lastPrice) priceEl.classList.add('up');
+    else if(scaled<lastPrice) priceEl.classList.add('down');
   }
-  out.sort(function(a,b){ return a.t-b.t; });
-  return { source:'Bitstamp', arr: out };
+  lastPrice = scaled;
+  priceEl.textContent = fmtUSD(scaled,2);
 }
-async function fetchCoinbaseEX(tf){
-  var end = Math.floor(Date.now()/1000);
-  var start = end - Math.ceil(tf.win/1000);
-  var url = 'https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity='+tf.granEX+'&start='+start+'&end='+end;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var rows = await r.json();
-  if (!Array.isArray(rows)) throw 0;
-  rows.sort(function(a,b){ return a[0]-b[0]; });
-  var out = [];
-  for (var i=0;i<rows.length;i++){
-    var x = rows[i];
-    out.push({ t: x[0]*1000 + tf.granEX*1000, price: Number(x[4]), vol: Number(x[5]) || 0 });
-  }
-  return { source:'Coinbase EX', arr: out };
-}
-async function preload(){
-  var histEl = document.getElementById('histStatus');
-  var source = 'mock';
-  for (var i=0;i<TF.length;i++){
-    var tf = TF[i];
-    var res = null;
-    try{ res = await fetchCoinGecko(tf); }
-    catch(e1){ try{ res = await fetchBitstamp(tf); }
-               catch(e2){ try{ res = await fetchCoinbaseEX(tf); }
-                          catch(e3){ res = null; } } }
-    if (res && res.arr && res.arr.length){
-      var b = state[tf.key];
-      b.arr = res.arr;
-      b.tLast = b.arr[b.arr.length-1].t || 0;
-      redraw(tf.key);
-      source = res.source;
-    } else {
-      var now = Date.now(), b2 = state[tf.key], p = lastPrice;
-      b2.arr = [];
-      var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b2.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
-      b2.tLast = now; redraw(tf.key); source = 'mock';
-    }
-  }
-  histEl.textContent = 'History: ' + source + ' · ' + APP_VERSION;
+function prune(){
+  const now = Date.now();
+  series = series.filter(d=> d.t >= now-MS10);
+  win10 = win10.filter(t=> t.t >= now-MS10);
 }
 
-/* ================== BOOT ================== */
-(function(){
-  var fs = setTimeout(function(){
-    var histEl = document.getElementById('histStatus');
-    var now = Date.now();
-    for (var i=0;i<TF.length;i++){
-      var tf = TF[i], b = state[tf.key], p = lastPrice;
-      b.arr = [];
-      var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
-      b.tLast = now; redraw(tf.key);
-    }
-    histEl.textContent = 'History: timeout/mock · ' + APP_VERSION;
-  }, 5000);
+/* ===== PRICE CHART — CLASSIC with de-jittered Y (EMA smoothing) ===== */
+let yMinS = null, yMaxS = null; // smoothed min/max
+function drawPrice(){
+  const ctx = sizeCanvas(priceCanvas);
+  const w = priceCanvas.clientWidth, h = priceCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+  if(series.length<2) return;
 
-  preload().then(function(){ clearTimeout(fs); }).catch(function(){});
-  pollLive();
-  setInterval(pollLive, 2000);
-})();
+  const now = Date.now();
+  const firstTs = Math.min(...series.map(d=>d.t));
+  const windowSpan = Math.max(2000, Math.min(MS10, now - firstTs + 1000));
+  const startT = now - windowSpan;
+  const span   = windowSpan;
+
+  // carry-forward latest sample into 1s buckets
+  const step = 1000, buckets=[]; let lastSeen=null, si=0;
+  while(si < series.length && series[si].t < startT) si++;
+  for(let t = startT; t <= now; t += step){
+    for(; si<series.length && series[si].t <= t; si++) lastSeen = series[si];
+    if(lastSeen) buckets.push(lastSeen);
+  }
+  if(buckets.length<2) return;
+
+  // stats
+  let min=Infinity,max=-Infinity,sum=0;
+  for(const b of buckets){ if(b.p<min)min=b.p; if(b.p>max)max=b.p; sum+=b.p; }
+  const avg=sum/buckets.length;
+
+  // smooth min/max to limit vertical jitter
+  const alpha = 0.2;
+  if(yMinS==null || yMaxS==null){ yMinS=min; yMaxS=max; }
+  else {
+    yMinS += (min - yMinS) * alpha;
+    yMaxS += (max - yMaxS) * alpha;
+    if(yMaxS - yMinS < 1e-6){ yMaxS = yMinS + 1e-6; }
+  }
+  const padX=14, padY=20, rangeS=(yMaxS-yMinS);
+
+  // grid
+  const grid='var(--grid)';
+  ctx.strokeStyle=grid;
+  for(let i=1;i<=3;i++){
+    const y=padY+(h-2*padY)*(i/4*(4/3));
+    ctx.beginPath(); ctx.moveTo(padX,y); ctx.lineTo(w-padX,y); ctx.stroke();
+  }
+
+  // average dashed
+  const yAvg=padY+(h-2*padY)*(1-(avg - yMinS)/rangeS);
+  ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.moveTo(padX,yAvg); ctx.lineTo(w-padX,yAvg); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // map to pixels across dynamic span (left→right grow)
+  const usableW=(w-2*padX), pts=[]; let lastX=-1;
+  for(const d of buckets){
+    const x=padX+((d.t - startT)/span)*usableW;
+    const y=padY+(h-2*padY)*(1-(d.p - yMinS)/rangeS);
+    const xi=Math.round(x); if(xi<=lastX) continue; lastX=xi; pts.push({x:xi,y});
+  }
+  if(pts.length<2) return;
+
+  // Catmull–Rom → Bézier smoothing
+  const cr2bz=(p0,p1,p2,p3,t=0.5)=>{
+    const d1x=(p2.x-p0.x)*t, d1y=(p2.y-p0.y)*t;
+    const d2x=(p3.x-p1.x)*t, d2y=(p3.y-p1.y)*t;
+    return [{x:p1.x+d1x/3,y:p1.y+d1y/3},{x:p2.x-d2x/3,y:p2.y-d2y/3}];
+  };
+  const up=getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.strokeStyle=up; ctx.lineWidth=2.25; ctx.lineJoin='round'; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+    const [c1,c2]=cr2bz(p0,p1,p2,p3,.5);
+    ctx.bezierCurveTo(c1.x,c1.y,c2.x,c2.y,p2.x,p2.y);
+  }
+  ctx.stroke();
+
+  // labels
+  ctx.fillStyle='rgba(255,255,255,.9)';
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='middle';
+  ctx.fillText(fmtUSD(Math.max(...buckets.map(b=>b.p)),0), padX, padY+4);
+  ctx.fillText(fmtUSD(avg,0), padX, Math.max(padY+12, Math.min(h-padY-12, yAvg)));
+  ctx.fillText(fmtUSD(Math.min(...buckets.map(b=>b.p)),0), padX, h-padY-4);
+
+  // last price pill (raw)
+  const last=pts[pts.length-1];
+  const label=fmtUSD(rawLastPrice||0,0);
+  const tw=ctx.measureText(label).width+18, th=22;
+  const bx=Math.min(w-tw-8, Math.max(8, last.x - tw/2)), by=Math.max(8, last.y - th - 8);
+  ctx.fillStyle='rgba(0,0,0,.8)'; ctx.strokeStyle='rgba(255,255,255,.25)';
+  roundRect(ctx,bx,by,tw,th,10,true,true);
+  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.fillText(label, bx+9, by+th/2);
+}
+
+/* ===== volume (stacked) + max pill + total & diff pills ===== */
+function drawVol(){
+  const ctx = sizeCanvas(volCanvas);
+  const w = volCanvas.clientWidth, h = volCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const max = Math.max(0.01, ...volBins.map(b=>b.buy+b.sell));
+  maxVolPill.textContent = `max ₿${max.toFixed(2)}`;
+
+  const padX=16, padTop=14, padBottom=26;
+  const chartH = h - padTop - padBottom;
+  const step = (w - padX*2) / volBins.length;
+  const barW = step*0.62;
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // faint grid
+  ctx.strokeStyle='var(--grid-2)';
+  for(let i=1;i<=2;i++){ const y=padTop+chartH*(i/3*(3/2)); ctx.beginPath(); ctx.moveTo(padX-6,y); ctx.lineTo(w-padX+6,y); ctx.stroke(); }
+
+  // bottom time labels (every other minute)
+  ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='11px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.textBaseline='top';
+  for(let i=0;i<volBins.length;i+=2){
+    const xC=padX+i*step+step/2;
+    const t=new Date(volBins[i].ts).toLocaleTimeString([],{minute:'2-digit'});
+    ctx.fillText(':'+t, xC-8, h-18);
+  }
+
+  // bars + pills
+  ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  ctx.textBaseline='middle';
+  for(let i=0;i<volBins.length;i++){
+    const b=volBins[i]; 
+    const xC=padX+i*step+step/2; 
+    const tot=b.buy+b.sell;
+    const diff=b.buy-b.sell;
+
+    const hT=Math.max(4,(tot/max)*chartH);
+    const hBuy=tot?(b.buy/tot)*hT:0, hSell=hT-hBuy;
+    const yB=padTop+chartH;
+
+    // stacked bars
+    ctx.fillStyle=dn; ctx.fillRect(xC-barW/2, yB-hSell, barW, hSell);
+    ctx.fillStyle=up; ctx.fillRect(xC-barW/2, yB-hSell-hBuy, barW, hBuy);
+
+    // TOTAL pill on top (hide if zero)
+    if(tot>0){
+      const txt = `₿${tot.toFixed(2)}`;
+      const tw = ctx.measureText(txt).width + 14, th = 18;
+      const bx = Math.round(xC - tw/2);
+      const by = Math.max(4, Math.round(yB - hT - th - 4));
+      ctx.fillStyle='rgba(0,0,0,.88)';
+      ctx.strokeStyle='rgba(255,255,255,.25)';
+      roundRect(ctx,bx,by,tw,th,9,true,true);
+      ctx.fillStyle='#fff';
+      ctx.fillText(txt, bx+tw/2 - ctx.measureText(txt).width/2, by+th/2);
+    }
+
+    // +/- DIFF pill inside bar (only if bar is tall enough)
+    if(hT > 26 && Math.abs(diff) > 0.0001){
+      const dTxt = `${diff>=0?'+':''}${diff.toFixed(2)}`;
+      const dtw = ctx.measureText(dTxt).width + 14, dth = 18;
+      const dbx = Math.round(xC - dtw/2);
+      const dby = Math.max(padTop+2, Math.round(yB - hT + (hT - dth)/2));
+      ctx.fillStyle='rgba(0,0,0,.85)';
+      ctx.strokeStyle='rgba(255,255,255,.22)';
+      roundRect(ctx,dbx,dby,dtw,dth,9,true,true);
+      ctx.fillStyle = diff>=0 ? up : dn;
+      ctx.fillText(dTxt, dbx+dtw/2 - ctx.measureText(dTxt).width/2, dby+dth/2);
+    }
+  }
+}
+
+/* ===== bias gauge (eased needle + value pill) ===== */
+let needlePos = 0.5;  // 0..1
+function drawGauge(){
+  const ctx = sizeCanvas(biasGauge);
+  const w = biasGauge.clientWidth, h = biasGauge.clientHeight;
+  ctx.clearRect(0,0,w,h);
+
+  // totals for last 10m
+  let buy=0, sell=0;
+  for(const b of volBins){ buy+=b.buy; sell+=b.sell; }
+  const tot=buy+sell;
+  const target = tot ? (buy/tot) : 0.5;
+
+  // ease toward target
+  needlePos += (target - needlePos) * 0.25;
+
+  // Buys (left) → Sells (right)
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  const g = ctx.createLinearGradient(0,0,w,0);
+  const split=needlePos;
+  g.addColorStop(0, up);
+  g.addColorStop(Math.max(0, split-0.001), up);
+  g.addColorStop(Math.min(1, split+0.001), dn);
+  g.addColorStop(1, dn);
+
+  const r=h/2;
+  ctx.fillStyle=g;
+  roundRect(ctx,1,1,w-2,h-2,r-1,true,false);
+
+  // mild dominance overlay
+  ctx.globalAlpha=.18;
+  ctx.fillStyle=(needlePos>=0.5)?up:dn;
+  const domW=(needlePos>=0.5)?(w*needlePos):(w*(1-needlePos));
+  const domX=(needlePos>=0.5)?0:(w*needlePos);
+  roundRect(ctx,domX,1,domW,h-2,r-1,true,false);
+  ctx.globalAlpha=1;
+
+  // place needle + value pill
+  const leftPx = Math.round(biasGauge.getBoundingClientRect().width * needlePos);
+  needle.style.left = `${leftPx}px`;
+  const biasPct = tot ? ((buy - sell)/tot)*100 : 0;
+  needleValue.textContent = `${biasPct>=0?'+':''}${biasPct.toFixed(0)}%`;
+  needleValue.style.left = `${leftPx}px`;
+}
+
+/* ===== mirrored tops: outside → center bars with translucent label backgrounds ===== */
+function resizeTopsHeight(){
+  const rows = Math.max(
+    Math.min(TOP_N, win10.filter(t=>t.side==='buy').length),
+    Math.min(TOP_N, win10.filter(t=>t.side==='sell').length)
+  );
+  const padY=14, gap=6, rowH=24;
+  const px = padY*2 + Math.max(1, rows)*(rowH+gap);
+  topsCanvas.style.height = Math.max(140, px) + 'px';
+}
+function drawTops(){
+  resizeTopsHeight();
+  const ctx = sizeCanvas(topsCanvas);
+  const w = topsCanvas.clientWidth, h = topsCanvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--panel-2').trim();
+  ctx.fillRect(0,0,w,h);
+
+  const items = win10.map(t=>({...t, usd: t.price*t.size }));
+  const buys = items.filter(i=>i.side==='buy').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+  const sells= items.filter(i=>i.side==='sell').sort((a,b)=>b.usd-a.usd).slice(0,TOP_N);
+
+  const rows = Math.max(buys.length, sells.length);
+  const padX = 10, padY = 14, gap = 6, rowH = 24, midX = Math.floor(w/2);
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  // center divider
+  ctx.strokeStyle='rgba(255,255,255,.18)';
+  ctx.beginPath(); ctx.moveTo(midX+.5, padY-8); ctx.lineTo(midX+.5, h-padY+8); ctx.stroke();
+
+  const maxUSD = Math.max(1, ...buys.map(b=>b.usd), ...sells.map(s=>s.usd));
+  const leftMaxW  = midX - padX - 10;
+  const rightMaxW = w - midX - padX - 10;
+
+  ctx.font = '12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+  ctx.textBaseline = 'middle';
+
+  for(let i=0;i<rows;i++){
+    const y = padY + i*(rowH+gap) + rowH/2;
+
+    // SELL (left → center)
+    const s = sells[i];
+    if(s){
+      const frac = Math.min(1, s.usd / maxUSD);
+      const barW = Math.max(4, frac * leftMaxW);
+      const x0 = midX - barW;
+      ctx.fillStyle = dn;
+      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
+
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(midX - labelW, y-rowH/2, labelW, rowH);
+
+      ctx.fillStyle = '#fff';
+      const txt = `${fmtUSD(s.usd,0)}  (${s.size.toFixed(2)} BTC)`;
+      ctx.textAlign = 'right';
+      ctx.fillText(txt, midX - 8, y);
+    }
+
+    // BUY (right → center)
+    const b = buys[i];
+    if(b){
+      const frac = Math.min(1, b.usd / maxUSD);
+      const barW = Math.max(4, frac * rightMaxW);
+      const x0 = midX;
+      ctx.fillStyle = up;
+      roundRect(ctx, x0, y-rowH/2, barW, rowH, 6, true, false);
+
+      const labelW = Math.min(barW, 170);
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(midX, y-rowH/2, labelW, rowH);
+
+      ctx.fillStyle = '#fff';
+      const txt = `${fmtUSD(b.usd,0)}  (${b.size.toFixed(2)} BTC)`;
+      ctx.textAlign = 'left';
+      ctx.fillText(txt, midX + 8, y);
+    }
+  }
+}
+
+/* ===== loop ===== */
+function frame(){ prune(); drawPrice(); drawVol(); drawGauge(); drawTops(); requestAnimationFrame(frame); }
+
+/* ===== feed ===== */
+let ws, recon;
+function startWS(){
+  try{ ws && ws.close(); }catch{}
+  ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+  ws.onopen = ()=>{
+    ws.send(JSON.stringify({type:'subscribe',product_ids:['BTC-USD'],channels:['matches']}));
+    connPill.textContent='Live';
+  };
+  ws.onmessage = (e)=>{
+    try{
+      const m = JSON.parse(e.data);
+      if(m.type==='match' && m.product_id==='BTC-USD'){
+        onTrade({price:+m.price,size:+m.size,side:m.side,time:m.time});
+      }
+    }catch{}
+  };
+  ws.onclose = ()=>{ connPill.textContent='Reconnecting…'; recon=setTimeout(startWS,1000); };
+  ws.onerror = ()=>{ try{ws.close()}catch{} };
+}
+startWS();
+
+/* ===== layout ===== */
+new ResizeObserver(()=>{ drawPrice(); drawVol(); drawGauge(); drawTops(); }).observe(document.body);
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
