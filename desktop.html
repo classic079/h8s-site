@@ -3,13 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v0.8</title>
+<title>BTC Overview — v0.9</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
-  :root{
-    --bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;
-    --accent:#4da3ff;--up:#16c784;--down:#ff4d4d;--gap:16px;--radius:16px;
-  }
+  :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;
+        --accent:#4da3ff;--up:#16c784;--down:#ff4d4d;--gap:16px;--radius:16px;}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui}
   .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
@@ -35,7 +33,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="version" id="ver">v0.8</span>
+      <span class="version" id="ver">v0.9</span>
       <span class="badge" id="status">Loading history…</span>
     </div>
   </header>
@@ -44,81 +42,117 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-const APP_VERSION = 'v0.8';
-console.log(`BTC Dashboard ${APP_VERSION} — init`);
+/* ---------- VERSION ---------- */
+const APP_VERSION='v0.9';
+console.log('BTC Dashboard', APP_VERSION);
 
-const PRODUCT_ID = "BTC-USD";
-const EXCHANGE_TICKER = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
-
-const TF = [
-  { key:'24h', label:'24 HOURS', win:24*60*60e3, sample:3e4, granEX:3600,  bin:12 },
-  { key:'8h',  label:'8 HOURS',  win: 8*60*60e3, sample:15e3, granEX:900,   bin:12 },
-  { key:'1h',  label:'1 HOUR',   win: 1*60*60e3, sample:5e3,  granEX:60,   bin:12 },
-  { key:'10m', label:'10 MIN',   win:10*60e3,    sample:2e3,  granEX:60,   bin:12 },
+/* ---------- CONFIG ---------- */
+const TF=[
+  {key:'24h',label:'24 HOURS',win:24*60*60e3,sample:3e4,granEX:3600, bin:12, bitstampStep:3600},
+  {key:'8h', label:'8 HOURS', win: 8*60*60e3,sample:15e3,granEX: 900, bin:12, bitstampStep: 900},
+  {key:'1h', label:'1 HOUR',  win: 1*60*60e3,sample: 5e3,granEX:  60, bin:12, bitstampStep:  60},
+  {key:'10m',label:'10 MIN',  win:10*60e3,   sample: 2e3,granEX:  60, bin:12, bitstampStep:  60},
 ];
 
-const dash = document.getElementById('dashboard');
-dash.innerHTML = TF.map(t=>`
+// Build columns immediately
+const dash=document.getElementById('dashboard');
+dash.innerHTML=TF.map(t=>`
   <div class="col">
     <div class="title"><div class="tf">${t.label}</div><div class="price" id="p-${t.key}">$—</div></div>
     <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
     <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
   </div>`).join('');
 
-const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const state = {};
-TF.forEach(t => {
-  state[t.key] = {
-    arr: [], tLast: 0,
-    pc: new Chart(document.getElementById(`c-${t.key}`).getContext('2d'), {
+// Charts + state
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const state={};
+TF.forEach(t=>{
+  state[t.key]={arr:[],tLast:0,
+    pc:new Chart(document.getElementById(`c-${t.key}`).getContext('2d'),{
       type:'line',
-      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent'),borderWidth:2,fill:false,tension:0,pointRadius:0}]},
+      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent')||'#4da3ff',borderWidth:2,fill:false,tension:0,pointRadius:0}]},
       options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
         plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false}},
-        scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}}
+        scales:{x:{ticks:{display:false},grid:{display:false}},
+                y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}
     }),
-    vc: new Chart(document.getElementById(`v-${t.key}`).getContext('2d'), {
+    vc:new Chart(document.getElementById(`v-${t.key}`).getContext('2d'),{
       type:'bar',
       data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
-        plugins:{legend:{display:false}},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},
         scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
     })
   };
 });
 
-let lastPrice = 65000, lastVol = 1;
+let lastPrice=65000,lastVol=1;
 
+// Render helpers
 function redraw(tfKey){
-  const t = TF.find(x=>x.key===tfKey), b = state[tfKey], now = Date.now();
-  b.arr = b.arr.filter(pt => pt.t >= now - t.win);
-  const labels = b.arr.map(pt => new Date(pt.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-  const prices = b.arr.map(pt => pt.price);
-  b.pc.data.labels = labels; b.pc.data.datasets[0].data = prices; b.pc.update('none');
+  const t=TF.find(x=>x.key===tfKey), b=state[tfKey], now=Date.now();
+  b.arr=b.arr.filter(pt=>pt.t>=now-t.win);
+  const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+  const prices=b.arr.map(pt=>pt.price);
+  b.pc.data.labels=labels; b.pc.data.datasets[0].data=prices; b.pc.update('none');
 
-  const bins = t.bin, start = now - t.win, w = t.win / bins;
-  const ag = Array.from({length:bins}, (_,i)=>({start: start+i*w, vol:0, first:null, last:null}));
+  const bins=t.bin, start=now-t.win, w=t.win/bins;
+  const ag=Array.from({length:bins},(_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
   for(const pt of b.arr){
-    const i = Math.min(bins-1, Math.max(0, Math.floor((pt.t-start)/w)));
-    const bin = ag[i]; bin.vol += pt.vol||0; if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
+    const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));
+    const bin=ag[i]; bin.vol+=(pt.vol||0); if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
   }
-  b.vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-  b.vc.data.datasets[0].data = ag.map(x => x.vol);
-  b.vc.data.datasets[0].backgroundColor = ag.map(x => (x.first==null)?'#999':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
+  b.vc.data.labels=ag.map(x=>new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+  b.vc.data.datasets[0].data=ag.map(x=>x.vol);
+  b.vc.data.datasets[0].backgroundColor=ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
   b.vc.update('none');
 }
-
 function setBadges(p){
   TF.forEach(t=>{
-    const el = document.getElementById(`p-${t.key}`);
-    el.textContent = '$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
-    el.style.color = p>=lastPrice ? cssVar('--up') : cssVar('--down');
+    const el=document.getElementById(`p-${t.key}`);
+    el.textContent='$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
+    el.style.color=p>=lastPrice?cssVar('--up'):cssVar('--down');
   });
 }
 
+// Live ticks (try Coinbase → Bitstamp → CoinCap)
+async function pollLive(){
+  const status=document.getElementById('status');
+  // Coinbase Exchange ticker
+  try{
+    const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    const p=parseFloat(j.price||j.last||j.ask||j.bid);
+    const v=parseFloat(j.size||j.last_size||j.volume||0.1)||0.1;
+    if(Number.isFinite(p)){onQuote(p,v); status.textContent=`Live: Coinbase · ${APP_VERSION}`; return;}
+  }catch{}
+
+  // Bitstamp ticker
+  try{
+    const r=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    const p=parseFloat(j.last);
+    const v=parseFloat(j.volume)||0.1;
+    if(Number.isFinite(p)){onQuote(p,v); status.textContent=`Live: Bitstamp · ${APP_VERSION}`; return;}
+  }catch{}
+
+  // CoinCap fallback
+  try{
+    const r=await fetch('https://api.coincap.io/v2/assets/bitcoin');
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    const p=parseFloat(j?.data?.priceUsd);
+    if(Number.isFinite(p)){onQuote(p,0.1); status.textContent=`Live: CoinCap · ${APP_VERSION}`; return;}
+  }catch{}
+
+  status.textContent=`Live: mock · ${APP_VERSION}`;
+  // small random walk so UI still moves
+  const n=lastPrice+(Math.random()-0.5)*20; onQuote(n,Math.random()*2);
+}
 function onQuote(p,v){
-  lastPrice = p; lastVol = v||lastVol;
-  const n = Date.now();
+  lastPrice=p; lastVol=v||lastVol;
+  const n=Date.now();
   TF.forEach(t=>{
     const b=state[t.key];
     if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
@@ -127,77 +161,77 @@ function onQuote(p,v){
   setBadges(p);
 }
 
-async function pollOnce(){
-  try{
-    const r = await fetch(EXCHANGE_TICKER,{headers:{Accept:'application/json'}});
-    if(!r.ok) throw new Error();
-    const j = await r.json();
-    const p = parseFloat(j.price||j.last||j.ask||j.bid);
-    const v = parseFloat(j.size||j.volume||j.last_size||0.1);
-    if(Number.isFinite(p)) onQuote(p,v);
-  }catch(e){}
-}
+// History preload (Bitstamp → Coinbase EX → mock)
+function timeout(p,ms){return Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);}
 
-async function fetchBinance(tf){
-  const map={60:'1m',900:'15m',3600:'1h'};
-  const interval=map[tf.granEX]||'1m';
-  const per={'1m':60e3,'15m':9e5,'1h':36e5}[interval];
-  const limit=Math.min(500,Math.ceil(tf.win/per)+2);
-  const url=`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`;
-  const r=await fetch(url);
+async function fetchBitstamp(tf){
+  // /api/v2/ohlc/btcusd/?step=<sec>&limit=<n>
+  const step=tf.bitstampStep; // 60/900/3600
+  // how many candles to cover window
+  const limit=Math.min(1000, Math.ceil(tf.win/(step*1000))+2);
+  const url=`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`;
+  const r=await timeout(fetch(url,{headers:{Accept:'application/json'}}),7000);
+  if(!r.ok) throw new Error('bitstamp '+r.status);
+  const j=await r.json();
+  const rows=j?.data?.ohlc;
+  if(!Array.isArray(rows)) throw new Error('bitstamp payload');
+  const arr=rows.map(c=>({t:Number(c.timestamp)*1000+step*1000,price:Number(c.close),vol:Number(c.volume)||0}))
+               .sort((a,b)=>a.t-b.t);
+  return arr;
+}
+async function fetchCoinbaseEX(tf){
+  const end=Math.floor(Date.now()/1000), start=end-Math.ceil(tf.win/1000);
+  const url=`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${tf.granEX}&start=${start}&end=${end}`;
+  const r=await timeout(fetch(url,{headers:{Accept:'application/json'}}),7000);
+  if(!r.ok) throw new Error('cb ex '+r.status);
   const rows=await r.json();
-  const arr=rows.map(k=>({t:Number(k[6]),price:Number(k[4]),vol:Number(k[5])||0}));
+  if(!Array.isArray(rows)) throw new Error('cb ex payload');
+  rows.sort((a,b)=>a[0]-b[0]);
+  const arr=rows.map(([ts, , , , close, vol])=>({t:ts*1000+tf.granEX*1000,price:Number(close),vol:Number(vol)||0}));
   return arr;
 }
 
 async function preload(){
-  console.log('Preloading history…');
   const status=document.getElementById('status');
-  let loadedAny=false;
+  let any=false, source='mock';
   for(const tf of TF){
-    try{
-      const arr=await fetchBinance(tf);
-      if(arr?.length){
-        state[tf.key].arr=arr;
-        redraw(tf.key);
-        loadedAny=true;
-      }
-    }catch(e){console.warn('history fail',e);}
+    let arr=null;
+    try{ arr=await fetchBitstamp(tf); source='Bitstamp'; }
+    catch{ try{ arr=await fetchCoinbaseEX(tf); source='Coinbase EX'; }
+           catch{ arr=null; } }
+    if(arr && arr.length){
+      const b=state[tf.key]; b.arr=arr; b.tLast=b.arr[b.arr.length-1].t||0; redraw(tf.key); any=true;
+    }else{
+      // mock seed
+      const b=state[tf.key], now=Date.now(), step=Math.max(2000, Math.floor(tf.win/60));
+      let p=lastPrice; b.arr=[];
+      for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
+      b.tLast=now; redraw(tf.key); source='mock';
+    }
   }
-  if(loadedAny){
-    status.textContent=`History: Binance · ${APP_VERSION}`;
-  }else{
-    // fallback mock
-    const now=Date.now();
-    TF.forEach(tf=>{
-      const b=state[tf.key]; let p=lastPrice; b.arr=[];
-      for(let t=now-tf.win;t<=now;t+=Math.max(2000,tf.win/60)){
-        p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});
-      }
-      redraw(tf.key);
-    });
-    status.textContent=`History: mock · ${APP_VERSION}`;
-  }
+  status.textContent=`History: ${source} · ${APP_VERSION}`;
 }
 
+// Bootstrap
 (async function(){
-  const failSafe=setTimeout(()=>{
-    console.log('⚠️ Fallback to mock after timeout');
-    document.getElementById('status').textContent=`Timeout · mock data · ${APP_VERSION}`;
-    const now=Date.now();
+  // Hard fail-safe: ensure charts appear even if preloads hang
+  const timer=setTimeout(()=>{
+    console.warn('History timeout → mock seed');
+    const status=document.getElementById('status');
     TF.forEach(tf=>{
-      const b=state[tf.key]; let p=lastPrice; b.arr=[];
-      for(let t=now-tf.win;t<=now;t+=Math.max(2000,tf.win/60)){
-        p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});
-      }
-      redraw(tf.key);
+      const b=state[tf.key], now=Date.now(), step=Math.max(2000, Math.floor(tf.win/60));
+      let p=lastPrice; b.arr=[];
+      for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
+      b.tLast=now; redraw(tf.key);
     });
+    status.textContent=`History: mock · ${APP_VERSION}`;
   },5000);
 
-  await preload();
-  clearTimeout(failSafe);
-  await pollOnce();
-  setInterval(pollOnce,2000);
+  try{ await preload(); } finally{ clearTimeout(timer); }
+
+  // first tick, then loop
+  await pollLive();
+  setInterval(pollLive, 2000);
 })();
 </script>
 </body>
