@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.6.7</title>
+<title>BTC Overview — v1.6.9</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -11,64 +11,24 @@
     --gap:10px; --radius:8px;
   }
   *{box-sizing:border-box}
-  body{
-    margin:0;
-    background:var(--bg);
-    color:var(--text);
-    font:14px/1.45 Inter,ui-sans-serif,system-ui;
-    overflow-x:hidden;
-  }
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui;overflow-x:hidden}
+  .wrap{max-width:1900px;margin:16px auto 28px;padding:0 24px}
 
-  /* reduce outer margins to ~½ inch on typical monitor */
-  .wrap{
-    max-width:1900px;
-    margin:16px auto;
-    padding:0 24px;
-  }
-
-  header{
-    display:grid;
-    grid-template-columns:1fr minmax(320px,680px) 1fr;
-    align-items:center;
-    gap:8px;
-    margin-bottom:10px;
-  }
+  header{display:grid;grid-template-columns:1fr minmax(320px,680px) 1fr;align-items:center;gap:8px;margin-bottom:10px}
   .metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .metaRight{justify-self:end}
   .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
+  .chip.err{border-color:#e11d48;color:#fecaca}
   .badge{font-size:12px;color:var(--muted)}
-  .pane{
-    background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
-    border-radius:10px;
-    padding:6px 10px;
-    display:grid;
-    grid-template-columns:auto 1fr auto;
-    align-items:center;
-    box-shadow:0 3px 10px rgba(0,0,0,.24);
-  }
+  .pane{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:10px;padding:6px 10px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.24)}
   .pane label{color:#cbd5e1;font-weight:700;margin-right:10px}
   #headerPrice{justify-self:center;font-weight:900;font-size:clamp(20px,3.2vw,34px);letter-spacing:.2px;transition:color .18s,filter .18s}
   #headerPrice.up{color:var(--up);filter:drop-shadow(0 0 6px rgba(22,199,132,.22))}
   #headerPrice.down{color:var(--down);filter:drop-shadow(0 0 6px rgba(255,77,77,.22))}
   #headerClock{justify-self:end;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
 
-  /* grow cards 5% wider and center grid */
-  .grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(380px,1fr));
-    gap:var(--gap);
-    justify-content:center;
-    align-items:start;
-  }
-
-  .col{
-    background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
-    border-radius:var(--radius);
-    padding:8px;
-    display:flex;
-    flex-direction:column;
-    box-shadow:0 3px 12px rgba(0,0,0,.25);
-  }
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:var(--gap);justify-content:center;align-items:start}
+  .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:var(--radius);padding:8px;display:flex;flex-direction:column;box-shadow:0 3px 12px rgba(0,0,0,.25)}
   .title{display:flex;justify-content:space-between;align-items:center}
   .tf{color:var(--muted);font-weight:800;font-size:12px}
   .topbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -78,24 +38,241 @@
   .pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
   .chartCard{background:rgba(255,255,255,.02);border-radius:8px;height:200px;margin-top:6px}
   .volumeCard{background:rgba(255,255,255,.02);border-radius:8px;height:165px;margin-top:6px}
-
-  #errOverlay{position:fixed;inset:12px auto auto 12px;max-width:520px;z-index:9999;background:#1b1b1b;border:1px solid #e11d48;color:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;font:12px/1.4 ui-sans-serif,system-ui}
-  #errOverlay pre{white-space:pre-wrap;margin:6px 0 0;color:#fde68a}
-
-  @media (max-width:1080px){
-    header{grid-template-columns:1fr;grid-auto-rows:auto}
-    .metaRight{justify-content:flex-start}
-    .pane{grid-template-columns:auto 1fr auto}
-  }
 </style>
+<!-- Chart.js first, deferred -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<!-- App script deferred so DOM + Chart.js are ready -->
+<script defer>
+window.addEventListener('DOMContentLoaded', () => {
+  const APP_VERSION='v1.6.9';
+  const TF = [
+    { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12, ccInt:'m15', bsStep:900  },
+    { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12, ccInt:'m5',  bsStep:300  },
+    { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, bin:12, ccInt:'m1',  bsStep:60   },
+    { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, bin:12, ccInt:'m1',  bsStep:60   }
+  ];
+
+  // --- Elements ---
+  const dash = document.getElementById('dashboard');
+  const jsStatus = document.getElementById('jsStatus');
+  const histEl = document.getElementById('histStatus');
+  const liveEl = document.getElementById('liveStatus');
+  const headPrice = document.getElementById('headerPrice');
+  const headClock = document.getElementById('headerClock');
+  document.getElementById('ver').textContent = APP_VERSION;
+
+  // Build cards FIRST so UI never looks blank
+  dash.innerHTML = TF.map(t=>`
+    <div class="col">
+      <div class="title">
+        <div class="tf">${t.label}</div>
+        <div class="topbar">
+          <span class="pill muted" id="tfc-${t.key}">—</span>
+          <span class="pill muted" id="hlc-${t.key}">H/L — / —</span>
+          <span class="pill muted" id="volc-${t.key}">Vol —</span>
+        </div>
+      </div>
+      <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
+      <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
+    </div>
+  `).join('');
+
+  const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const state = {};
+  let lastPriceGlobal = 65000, lastVolGlobal = 0.1;
+  jsStatus.textContent = 'JS: loaded';
+
+  // Clock
+  const tickClock=()=>{ headClock.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); };
+  tickClock(); setInterval(tickClock,1000);
+
+  // Header price flash
+  let lastHeader=null;
+  function setHeaderPrice(p){
+    headPrice.classList.remove('up','down');
+    headPrice.textContent = '$' + (p??0).toLocaleString(undefined,{maximumFractionDigits:2});
+    if(lastHeader!=null){ if(p>lastHeader) headPrice.classList.add('up'); else if(p<lastHeader) headPrice.classList.add('down'); }
+    lastHeader=p;
+  }
+
+  // Charts
+  const avgLinePlugin = { id:'avgLine', afterDatasetsDraw(chart,_,opts){
+    if(!opts?.enabled) return;
+    const arr = opts.getData?.()||[];
+    if(!Array.isArray(arr)||arr.length<2) return;
+    const avg = arr.reduce((s,x)=>s+(+x||0),0)/arr.length;
+    if(!Number.isFinite(avg)) return;
+    const y = chart.scales.y.getPixelForValue(avg);
+    const ca=chart.chartArea; if(!ca) return;
+    const ctx=chart.ctx; ctx.save(); ctx.setLineDash([6,6]);
+    ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke(); ctx.restore();
+  }};
+  const toRGBA=(h,a)=>{h=(h||'#4da3ff').replace('#','');const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return `rgba(${r},${g},${b},${a})`;};
+
+  function makeLineChart(ctx,key){
+    const is10=key==='10m';
+    return new Chart(ctx,{
+      type:'line',
+      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent')||'#4da3ff',borderWidth:is10?3:2,pointRadius:0,tension:is10?0.25:0,stepped:false,fill:is10,backgroundColor:'transparent'}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false},avgLine:is10?{enabled:true,getData:()=>state['10m']?.arr?.map(p=>p.price)||[]}:{enabled:false}},
+        scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:key==='10m'?'transparent':'rgba(255,255,255,.05)'}}}},
+      plugins:is10?[avgLinePlugin]:[]
+    });
+  }
+  function makeBarChart(ctx){
+    return new Chart(ctx,{
+      type:'bar',
+      data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
+    });
+  }
+  function computeTrendColor(key){
+    const a=state[key].arr; if(a.length<2) return cssVar('--accent')||'#4da3ff';
+    return (a[a.length-1].price>=a[0].price)?cssVar('--up'):cssVar('--down');
+  }
+  function applyAreaGradIf10(key){
+    if(key!=='10m')return; const b=state[key],ch=b.pc,ca=ch.chartArea;if(!ca)return;
+    const col=b.trendColor||cssVar('--accent')||'#4da3ff';
+    const g=ch.ctx.createLinearGradient(0,ca.top,0,ca.bottom); g.addColorStop(0,toRGBA(col,0.24)); g.addColorStop(1,toRGBA(col,0.02)); ch.data.datasets[0].backgroundColor=g;
+  }
+  const fmtUSD=n=>'$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2});
+  const fmtVOL=n=>(n??0).toLocaleString(undefined,{maximumFractionDigits:3});
+
+  function updateTopbar(key,prices,vols){
+    const tfPill=document.getElementById(`tfc-${key}`),hlPill=document.getElementById(`hlc-${key}`),volPill=document.getElementById(`volc-${key}`);
+    if(!(prices&&prices.length)){tfPill.textContent='—';tfPill.className='pill muted';hlPill.textContent='H/L — / —';hlPill.className='pill muted';volPill.textContent='Vol —';volPill.className='pill muted';return;}
+    const first=prices[0],last=prices[prices.length-1],delta=last-first,pct=first?(delta/first)*100:0,arrow=delta>=0?'▲':'▼';
+    tfPill.textContent=`${arrow} ${fmtUSD(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)`; tfPill.className='pill '+(delta>=0?'up':'down');
+    const hi=Math.max(...prices),lo=Math.min(...prices); hlPill.textContent=`H/L ${fmtUSD(hi)} / ${fmtUSD(lo)}`;
+    const volSum=(vols||[]).reduce((s,v)=>s+(+v||0),0); volPill.textContent=`Vol ${fmtVOL(volSum)}`;
+  }
+
+  function redraw(key){
+    const tf=TF.find(x=>x.key===key),b=state[key],now=Date.now();
+    b.arr=b.arr.filter(pt=>pt.t>=now-tf.win);
+    b.trendColor=computeTrendColor(key);
+
+    const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    const prices=b.arr.map(pt=>pt.price),vols=b.arr.map(pt=>pt.vol||0);
+
+    const pc=b.pc; pc.data.labels=labels; pc.data.datasets[0].data=prices; pc.data.datasets[0].borderColor=b.trendColor; applyAreaGradIf10(key); pc.update('none');
+    updateTopbar(key,prices,vols);
+
+    const bins=tf.bin,start=now-tf.win,w=tf.win/bins;
+    const ag=Array.from({length:bins},(_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
+    for(const pt of b.arr){const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));const bin=ag[i];bin.vol+=(pt.vol||0);if(bin.first==null)bin.first=pt.price;bin.last=pt.price;}
+    const vc=b.vc; vc.data.labels=ag.map(x=>new Date(x.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    vc.data.datasets[0].data=ag.map(x=>x.vol);
+    vc.data.datasets[0].backgroundColor=ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down'))); vc.update('none');
+  }
+
+  // Init chart objects/state (safe even before data)
+  for(const t of TF){
+    state[t.key]={arr:[],tLast:0,trendColor:cssVar('--accent')||'#4da3ff',
+      pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
+      vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))};
+  }
+
+  const okNum = v => Number.isFinite(v) && v>0;
+
+  async function fetchCoinCap(tf){
+    const end = Date.now(), start = end - tf.win - 10000;
+    const url = `https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`;
+    const r = await fetch(url); if(!r.ok) throw new Error('CoinCap history failed');
+    const j = await r.json(); const data = j?.data||[];
+    return data.map(d=>({t:+d.time,price:+d.priceUsd,vol:0})).filter(d=>okNum(d.price));
+  }
+  async function fetchBitstamp(tf){
+    const step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
+    const url=`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`;
+    const r=await fetch(url); if(!r.ok) throw new Error('Bitstamp OHLC failed');
+    const j=await r.json(); const arr=j?.data?.ohlc||[];
+    return arr.map(c=>({t:+c.timestamp*1000,price:+c.close,vol:+c.volume||0})).filter(d=>okNum(d.price));
+  }
+  async function getHistory(tf){
+    try{const a=await fetchCoinCap(tf); if(a.length>3)return{source:'CoinCap',data:a};}catch(_){}
+    try{const b=await fetchBitstamp(tf); if(b.length>3)return{source:'Bitstamp',data:b};}catch(_){}
+    return {source:'mock',data:null};
+  }
+
+  async function preloadHistory(){
+    try{
+      histEl.textContent='History: loading…';
+      const results=await Promise.all(TF.map(getHistory));
+      const now=Date.now();
+      results.forEach((res,idx)=>{
+        const tf=TF[idx], st=state[tf.key];
+        if(res.data){
+          st.arr=res.data.filter(d=>d.t>=now-tf.win);
+          if(st.arr.length) lastPriceGlobal=st.arr[st.arr.length-1].price;
+        }else{
+          let p=lastPriceGlobal; st.arr=[];
+          const step=Math.max(2000,Math.floor(tf.win/60));
+          for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; st.arr.push({t,price:p,vol:Math.random()*2}); }
+        }
+        redraw(tf.key);
+      });
+      const labels = results.map(r=>r.source).reduce((s,x)=>s.add(x),new Set());
+      histEl.textContent='History: '+[...labels].join(' + ')+' · '+APP_VERSION;
+      setHeaderPrice(lastPriceGlobal);
+    }catch(e){
+      document.getElementById('ver').classList.add('err');
+      histEl.textContent='History: error · '+APP_VERSION;
+      // Still draw mock so UI is visible
+      const now=Date.now();
+      for(const tf of TF){
+        const st=state[tf.key]; st.arr=[];
+        let p=lastPriceGlobal;
+        const step=Math.max(2000,Math.floor(tf.win/60));
+        for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; st.arr.push({t,price:p,vol:Math.random()*2}); }
+        redraw(tf.key);
+      }
+      setHeaderPrice(lastPriceGlobal);
+    }
+  }
+
+  async function pollLive(){
+    const good=v=>Number.isFinite(v)&&v>0;
+    try{
+      const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
+      if(r.ok){const j=await r.json();const p=parseFloat(j.price||j.last||j.bid||j.ask);const v=parseFloat(j.size||j.volume||0.1);if(good(p)){onQuote(p,good(v)?v:0.1);liveEl.textContent='Live: Coinbase · '+APP_VERSION;return;}}
+    }catch{}
+    try{
+      const r=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/'); if(r.ok){const j=await r.json();const p=parseFloat(j.last);const v=parseFloat(j.volume||0.1);if(good(p)){onQuote(p,good(v)?v:0.1);liveEl.textContent='Live: Bitstamp · '+APP_VERSION;return;}}
+    }catch{}
+    try{
+      const r=await fetch('https://api.coincap.io/v2/assets/bitcoin'); if(r.ok){const j=await r.json();const p=parseFloat(j?.data?.priceUsd);if(good(p)){onQuote(p,0.1);liveEl.textContent='Live: CoinCap · '+APP_VERSION;return;}}
+    }catch{}
+    onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2); liveEl.textContent='Live: mock · '+APP_VERSION;
+  }
+
+  function onQuote(p,v){
+    if(!Number.isFinite(p)) return;
+    lastPriceGlobal=p; lastVolGlobal=Number.isFinite(v)&&v>0?v:lastVolGlobal;
+    setHeaderPrice(p);
+    const n=Date.now();
+    for(const t of TF){
+      const b=state[t.key];
+      if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:lastVolGlobal}); b.tLast=n; }
+      redraw(t.key);
+    }
+  }
+
+  // Kickoff
+  preloadHistory();      // never blocks UI
+  pollLive(); setInterval(pollLive,2000);
+  jsStatus.textContent='JS: running';
+});
+</script>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="metaLeft">
-      <span class="chip" id="ver">v1.6.7</span>
-      <span class="badge" id="histStatus">History: Bitstamp</span>
-      <span class="badge" id="liveStatus">Live: Coinbase</span>
+      <span class="chip" id="ver">v1.6.9</span>
+      <span class="badge" id="histStatus">History: loading…</span>
+      <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
     <div class="pane">
       <label>BTC/USD</label>
@@ -103,13 +280,11 @@
       <div id="headerClock">—:—:—</div>
     </div>
     <div class="metaRight">
-      <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: running</span>
+      <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
     </div>
   </header>
 
-  <section class="grid" id="dashboard">
-    <!-- your existing 4 charts will render here automatically -->
-  </section>
+  <section class="grid" id="dashboard"></section>
 </div>
 </body>
 </html>
