@@ -3,43 +3,57 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.6.2</title>
+<title>BTC Overview — v1.6.3</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
     --accent:#4da3ff; --up:#16c784; --down:#ff4d4d; --gap:16px; --radius:16px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui}
-  .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui;overflow-x:hidden;}
+  .wrap{max-width:1680px;margin:20px auto 40px;padding:0 16px}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
   header h1{margin:0;font-size:18px;font-weight:700}
-  .meta{display:flex;gap:10px;align-items:center}
+  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
   .badge{font-size:12px;color:var(--muted)}
 
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
-  .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:var(--radius);
-       padding:12px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  /* Grid fixed for better fit */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(360px,1fr));
+    gap:var(--gap);
+    justify-content:center;
+    align-items:start;
+  }
+
+  .col{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);
+    border-radius:var(--radius);
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
 
   /* Top row in each card */
   .title{display:flex;justify-content:space-between;align-items:center}
   .tf{color:var(--muted);font-weight:700;font-size:12px}
-  .topbar{display:flex;gap:6px;align-items:center}
-  .pill{font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
+  .topbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .pill{font-size:12px;padding:3px 12px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
   .pill.up{background:var(--up);border-color:transparent;color:#09130e}
   .pill.down{background:var(--down);border-color:transparent;color:#140808}
   .pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
 
   .chartCard{background:rgba(255,255,255,.02);border-radius:12px;height:200px;margin-top:8px}
-  .volumeCard{background:rgba(255,255,255,.02);border-radius:12px;height:110px;margin-top:6px}
+  .volumeCard{background:rgba(255,255,255,.02);border-radius:12px;height:165px;margin-top:8px}
 
   #errOverlay{position:fixed;inset:12px auto auto 12px;max-width:520px;z-index:9999;
     background:#1b1b1b;border:1px solid #e11d48;color:#fff;border-radius:10px;padding:10px 12px;
     box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;font:12px/1.4 ui-sans-serif,system-ui}
   #errOverlay pre{white-space:pre-wrap;margin:6px 0 0;color:#fde68a}
 
-  @media (max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:1280px){.grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}}
   @media (max-width:740px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -48,7 +62,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.6.2</span>
+      <span class="chip" id="ver">v1.6.3</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
       <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
@@ -68,11 +82,11 @@
 <script>
 (function safeBoot(){
   try{
-    const APP_VERSION = 'v1.6.2';
+    const APP_VERSION = 'v1.6.3';
     const TF = [
       { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
-      { key:'8h',  label:'8  HOURS', win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
-      { key:'1h',  label:'1  HOUR',  win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
+      { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
+      { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
       { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 }
     ];
 
@@ -82,7 +96,6 @@
     const liveEl = document.getElementById('liveStatus');
     document.getElementById('ver').textContent = APP_VERSION;
 
-    /* Build columns — topbar pills: Δ (no timeframe), H/L, Vol */
     let html='';
     for(const t of TF){
       html += `
@@ -106,23 +119,19 @@
     let lastPriceGlobal = 65000;
     let lastVolGlobal   = 1;
 
-    /* ===== 10m average line plugin (null-safe) ===== */
     const avgLinePlugin = {
       id:'avgLine',
       afterDatasetsDraw(chart,_,opts){
         if(!opts || !opts.enabled) return;
-        const getData = (typeof opts.getData === 'function') ? opts.getData : null;
-        if(!getData) return;
-        const arr = getData() || [];
+        const arr = opts.getData?.() || [];
         if(!Array.isArray(arr) || arr.length === 0) return;
-
         const avg = arr.reduce((s,x)=>s+(+x||0),0)/arr.length;
         const y = chart.scales.y.getPixelForValue(avg);
         const ca = chart.chartArea, ctx = chart.ctx;
         ctx.save();
         ctx.setLineDash([6,6]);
         ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-        ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ca.left,y); ctx.lineTo(ca.right,y); ctx.stroke();
         ctx.restore();
       }
     };
@@ -153,22 +162,17 @@
           plugins:{
             legend:{display:false},
             tooltip:{mode:'index',intersect:false,displayColors:false},
-            avgLine: is10 ? {
-              enabled:true,
-              getData: ()=> {
-                const s = state && state['10m'];
-                return (s && Array.isArray(s.arr)) ? s.arr.map(p=>p.price) : [];
-              }
-            } : {enabled:false}
+            avgLine: is10 ? {enabled:true,getData:()=>state['10m']?.arr?.map(p=>p.price)||[]} : {enabled:false}
           },
           scales:{
             x:{ticks:{display:false},grid:{display:false}},
-            y:{ticks:{color:'#7f8796'},grid:{color: key==='10m' ? 'transparent' : 'rgba(255,255,255,.05)'}}
+            y:{ticks:{color:'#7f8796'},grid:{color:key==='10m'?'transparent':'rgba(255,255,255,.05)'}}
           }
         },
-        plugins: is10 ? [avgLinePlugin] : []
+        plugins:is10?[avgLinePlugin]:[]
       });
     }
+
     function makeBarChart(ctx){
       return new Chart(ctx,{
         type:'bar',
@@ -188,185 +192,111 @@
     function applyAreaGradIf10(key){
       if(key!=='10m') return;
       const b=state[key], ch=b.pc, ca=ch.chartArea; if(!ca) return;
-      let col=b.trendColor || cssVar('--accent') || '#4da3ff';
-      if(col[0]!=='#') col = cssVar('--accent') || '#4da3ff';
+      const col=b.trendColor||cssVar('--accent')||'#4da3ff';
       const g=ch.ctx.createLinearGradient(0,ca.top,0,ca.bottom);
       g.addColorStop(0,toRGBA(col,0.24)); g.addColorStop(1,toRGBA(col,0.02));
-      ch.data.datasets[0].backgroundColor = g;
+      ch.data.datasets[0].backgroundColor=g;
     }
 
-    function fmtUSD(n){ return '$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2}); }
-    function fmtVOL(n){ return (n??0).toLocaleString(undefined,{maximumFractionDigits:3}); }
+    const fmtUSD=n=>'$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2});
+    const fmtVOL=n=>(n??0).toLocaleString(undefined,{maximumFractionDigits:3});
 
-    /* ===== condensed pill updater (arrow + delta only) ===== */
     function updateTopbar(key, prices, vols){
-      const tfPill  = document.getElementById(`tfc-${key}`);
-      const hlPill  = document.getElementById(`hlc-${key}`);
-      const volPill = document.getElementById(`volc-${key}`);
+      const tfPill=document.getElementById(`tfc-${key}`);
+      const hlPill=document.getElementById(`hlc-${key}`);
+      const volPill=document.getElementById(`volc-${key}`);
 
-      if(!prices || prices.length===0){
-        tfPill.textContent  = '—'; tfPill.className  = 'pill muted';
-        hlPill.textContent  = 'H/L — / —'; hlPill.className = 'pill muted';
-        volPill.textContent = 'Vol —'; volPill.className = 'pill muted';
+      if(!prices.length){
+        tfPill.textContent='—';tfPill.className='pill muted';
+        hlPill.textContent='H/L — / —';hlPill.className='pill muted';
+        volPill.textContent='Vol —';volPill.className='pill muted';
         return;
       }
+      const first=prices[0],last=prices[prices.length-1];
+      const delta=last-first;const pct=first?(delta/first)*100:0;
+      const arrow=delta>=0?'▲':'▼';
+      tfPill.textContent=`${arrow} ${fmtUSD(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)`;
+      tfPill.className='pill '+(delta>=0?'up':'down');
 
-      const first = prices[0];
-      const last  = prices[prices.length-1];
-      const delta = last - first;
-      const pct   = first ? (delta/first)*100 : 0;
-      const arrow = delta >= 0 ? '▲' : '▼';
-
-      // ONLY arrow + change (and %), no timeframe
-      tfPill.textContent = `${arrow} ${fmtUSD(Math.abs(delta))} (${Math.abs(pct).toFixed(2)}%)`;
-      tfPill.className   = 'pill ' + (delta>=0 ? 'up' : 'down');
-
-      // H/L
-      let hi=-Infinity, lo=Infinity;
-      for(const p of prices){ if(p>hi) hi=p; if(p<lo) lo=p; }
-      hlPill.textContent = `H/L ${fmtUSD(hi)} / ${fmtUSD(lo)}`;
-      hlPill.className   = 'pill muted';
-
-      // Volume sum across period
-      const volSum = (vols||[]).reduce((s,v)=>s+(+v||0),0);
-      volPill.textContent = `Vol ${fmtVOL(volSum)}`;
-      volPill.className   = 'pill muted';
+      const hi=Math.max(...prices),lo=Math.min(...prices);
+      hlPill.textContent=`H/L ${fmtUSD(hi)} / ${fmtUSD(lo)}`;
+      const volSum=(vols||[]).reduce((s,v)=>s+(+v||0),0);
+      volPill.textContent=`Vol ${fmtVOL(volSum)}`;
     }
 
     function redraw(key){
-      const tf=TF.find(x=>x.key===key), b=state[key], now=Date.now();
+      const tf=TF.find(x=>x.key===key),b=state[key],now=Date.now();
       b.arr=b.arr.filter(pt=>pt.t>=now-tf.win);
-      b.trendColor = computeTrendColor(key);
+      b.trendColor=computeTrendColor(key);
 
       const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
       const prices=b.arr.map(pt=>pt.price);
-      const vols  =b.arr.map(pt=>pt.vol||0);
+      const vols=b.arr.map(pt=>pt.vol||0);
 
-      // price chart
       const pc=b.pc;
-      pc.data.labels=labels; pc.data.datasets[0].data=prices; pc.data.datasets[0].borderColor=b.trendColor;
-      applyAreaGradIf10(key); pc.update('none');
+      pc.data.labels=labels;pc.data.datasets[0].data=prices;pc.data.datasets[0].borderColor=b.trendColor;
+      applyAreaGradIf10(key);pc.update('none');
 
-      // pills (Δ, H/L, Vol)
-      updateTopbar(key, prices, vols);
+      updateTopbar(key,prices,vols);
 
-      // volume (12 bins)
-      const bins=tf.bin, start=now-tf.win, w=tf.win/bins;
+      const bins=tf.bin,start=now-tf.win,w=tf.win/bins;
       const ag=Array.from({length:bins},(_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
       for(const pt of b.arr){
         const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));
-        const bin=ag[i]; bin.vol+=(pt.vol||0); if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
+        const bin=ag[i];bin.vol+=(pt.vol||0);if(bin.first==null)bin.first=pt.price;bin.last=pt.price;
       }
       const vc=b.vc;
-      vc.data.labels = ag.map(x=>new Date(x.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
-      vc.data.datasets[0].data = ag.map(x=>x.vol);
-      vc.data.datasets[0].backgroundColor = ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
+      vc.data.labels=ag.map(x=>new Date(x.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+      vc.data.datasets[0].data=ag.map(x=>x.vol);
+      vc.data.datasets[0].backgroundColor=ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
       vc.update('none');
     }
 
-    // init charts + state
     for(const t of TF){
       state[t.key]={arr:[],tLast:0,trendColor:cssVar('--accent')||'#4da3ff',
         pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
-        vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
-      };
+        vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))};
     }
     jsStatus.textContent='JS: loaded';
 
-    // live polling
     async function pollLive(){
       try{
-        const r1=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
+        const r1=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker');
         if(r1.ok){const j=await r1.json();const p=parseFloat(j.price||j.last||j.bid||j.ask);
-          if(Number.isFinite(p)){ onQuote(p,parseFloat(j.size||j.volume||0.1)||0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
-        }
-      }catch{}
-      try{
-        const r2=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
-        if(r2.ok){const j=await r2.json();const p=parseFloat(j.last);
-          if(Number.isFinite(p)){ onQuote(p,parseFloat(j.volume||0.1)||0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
-        }
-      }catch{}
-      try{
-        const r3=await fetch('https://api.coincap.io/v2/assets/bitcoin');
-        if(r3.ok){const j=await r3.json();const p=parseFloat(j?.data?.priceUsd);
-          if(Number.isFinite(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
+          if(Number.isFinite(p)){onQuote(p,parseFloat(j.size||j.volume||0.1)||0.1);liveEl.textContent='Live: Coinbase · '+APP_VERSION;return;}
         }
       }catch{}
       onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2);
-      liveEl.textContent='Live: mock · '+APP_VERSION;
     }
 
     function onQuote(p,v){
-      lastPriceGlobal=p; lastVolGlobal=v||lastVolGlobal;
+      lastPriceGlobal=p;lastVolGlobal=v||lastVolGlobal;
       const n=Date.now();
       for(const t of TF){
         const b=state[t.key];
-        if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
+        if(n-b.tLast>=t.sample){b.arr.push({t:n,price:p,vol:v});b.tLast=n;}
         redraw(t.key);
       }
     }
 
-    // history (CG → Bitstamp → CB EX → mock)
-    async function fetchCG(tf){
-      const to=Math.floor(Date.now()/1000), from=to-Math.ceil(tf.win/1000);
-      const url=`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
-      const r=await fetch(url,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
-      const j=await r.json(), P=j?.prices, V=j?.total_volumes; if(!(P&&V)) throw 0;
-      const vmap=new Map(V.map(([ts,v])=>[Math.round(ts),Number(v)||0]));
-      const arr=P.map(([ts,pr])=>{const k=Math.round(ts);const ms=k<1e12?k*1000:k;return {t:ms,price:Number(pr),vol:vmap.get(k)||0};}).sort((a,b)=>a.t-b.t);
-      return {source:'CoinGecko',arr};
-    }
-    async function fetchBitstamp(tf){
-      const step=tf.bitstampStep, limit=Math.min(1000,Math.ceil(tf.win/(step*1000))+2);
-      const r=await fetch(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
-      const rows=(await r.json())?.data?.ohlc; if(!Array.isArray(rows)) throw 0;
-      const arr=rows.map(c=>({t:Number(c.timestamp)*1000+step*1000,price:Number(c.close),vol:Number(c.volume)||0})).sort((a,b)=>a.t-b.t);
-      return {source:'Bitstamp',arr};
-    }
-    async function fetchCB(tf){
-      const end=Math.floor(Date.now()/1000), start=end-Math.ceil(tf.win/1000);
-      const r=await fetch(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${tf.granEX}&start=${start}&end=${end}`,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
-      const rows=await r.json(); if(!Array.isArray(rows)) throw 0; rows.sort((a,b)=>a[0]-b[0]);
-      const arr=rows.map(x=>({t:x[0]*1000+tf.granEX*1000,price:Number(x[4]),vol:Number(x[5])||0}));
-      return {source:'Coinbase EX',arr};
-    }
-
     async function preload(){
       let source='mock';
-      for(const tf of TF){
-        let res=null;
-        try{res=await fetchCG(tf);}catch{try{res=await fetchBitstamp(tf);}catch{try{res=await fetchCB(tf);}catch{res=null}}}
-        if(res&&res.arr.length){ const b=state[tf.key]; b.arr=res.arr; b.tLast=b.arr[b.arr.length-1].t||0; redraw(tf.key); source=res.source; }
-        else { // mock seed
-          const now=Date.now(); const b=state[tf.key]; let p=lastPriceGlobal; b.arr=[];
-          const st=Math.max(2000,Math.floor(tf.win/60));
-          for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
-          b.tLast=now; redraw(tf.key); source='mock';
-        }
-      }
-      histEl.textContent='History: '+source+' · '+APP_VERSION;
-    }
-
-    // failsafe
-    const fs=setTimeout(()=>{
       const now=Date.now();
       for(const tf of TF){
-        const b=state[tf.key]; let p=lastPriceGlobal; b.arr=[];
+        const b=state[tf.key];let p=lastPriceGlobal;b.arr=[];
         const st=Math.max(2000,Math.floor(tf.win/60));
-        for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
-        b.tLast=now; redraw(tf.key);
+        for(let t=now-tf.win;t<=now;t+=st){p+=(Math.random()-0.5)*15;b.arr.push({t,price:p,vol:Math.random()*2});}
+        b.tLast=now;redraw(tf.key);
       }
-      histEl.textContent='History: timeout/mock · '+APP_VERSION;
-    },5000);
+      histEl.textContent='History: mock · '+APP_VERSION;
+    }
 
-    preload().finally(()=>clearTimeout(fs));
-    pollLive(); setInterval(pollLive,2000);
+    preload(); pollLive(); setInterval(pollLive,2000);
     jsStatus.textContent='JS: running';
   }catch(err){
     const box=document.getElementById('errOverlay');
-    document.getElementById('errMsg').textContent = String(err && err.message || err);
-    document.getElementById('errStack').textContent = String(err && err.stack || '');
+    document.getElementById('errMsg').textContent=err?.message||err;
+    document.getElementById('errStack').textContent=err?.stack||'';
     box.style.display='block';
   }
 })();
