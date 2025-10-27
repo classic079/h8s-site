@@ -10,16 +10,15 @@
     --bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;
     --accent:#4da3ff;--up:#16c784;--down:#ff4d4d;--gap:16px;--radius:16px;
   }
-  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);
-    font:14px/1.45 Inter,ui-sans-serif,system-ui}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui}
   .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
   header{display:flex;justify-content:space-between;margin-bottom:14px}
   header h1{margin:0;font-size:18px;font-weight:700}
   header .sub{font-size:12px;color:var(--muted)}
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
-  .col{background:linear-gradient(180deg,var(--panel)0%,var(--panel-2)100%);
-       border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;
-       box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  .col{background:linear-gradient(180deg,var(--panel)0%,var(--panel-2)100%);border-radius:var(--radius);
+       padding:12px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.35);}
   .title{display:flex;justify-content:space-between}
   .tf{color:var(--muted);font-weight:700;font-size:12px}
   .price{font-weight:700}
@@ -33,7 +32,7 @@
 <div class="wrap">
   <header>
     <h1>BTC Overview</h1>
-    <div class="sub" id="status">Loading data…</div>
+    <div class="sub" id="status">Loading history…</div>
   </header>
   <section class="grid" id="dashboard"></section>
 </div>
@@ -41,70 +40,147 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const PRODUCT_ID="BTC-USD";
-const REST_URL=`https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
+const REST_TICKER=`https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
+const REST_CANDLES=`https://api.exchange.coinbase.com/products/${PRODUCT_ID}/candles`;
+
 const TF=[
- {key:'24h',label:'24 HOURS',win:24*60*60e3,sample:3e4},
- {key:'8h',label:'8 HOURS',win:8*60*60e3,sample:15e3},
- {key:'1h',label:'1 HOUR',win:60*60e3,sample:5e3},
- {key:'10m',label:'10 MIN',win:10*60e3,sample:2e3}
+ {key:'24h',label:'24 HOURS',win:24*60*60e3,sample:3e4, gran:3600},   // 1h candles
+ {key:'8h', label:'8 HOURS',  win:8*60*60e3, sample:15e3, gran:900},   // 15m
+ {key:'1h', label:'1 HOUR',   win:60*60e3,   sample:5e3,  gran:60},    // 1m
+ {key:'10m',label:'10 MIN',   win:10*60e3,   sample:2e3,  gran:60},    // 1m
 ];
+
 const dash=document.getElementById('dashboard');
 dash.innerHTML=TF.map(t=>`
 <div class="col">
- <div class="title"><div class="tf">${t.label}</div><div class="price" id="p-${t.key}">$—</div></div>
- <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
- <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
+  <div class="title"><div class="tf">${t.label}</div><div class="price" id="p-${t.key}">$—</div></div>
+  <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
+  <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
 </div>`).join('');
 
 const s={},getVar=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-TF.forEach(t=>s[t.key]={arr:[],tLast:0,pc:new Chart(document.getElementById(`c-${t.key}`).getContext('2d'),{
- type:'line',data:{labels:[],datasets:[{data:[],borderColor:getVar('--accent')||'#4da3ff',borderWidth:2,fill:false,tension:0}]},
- options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
-  plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
-  scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}}}),
- vc:new Chart(document.getElementById(`v-${t.key}`).getContext('2d'),{
- type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
- options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
-  plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}})});
+TF.forEach(t=>s[t.key]={arr:[],tLast:0,
+  pc:new Chart(document.getElementById(`c-${t.key}`).getContext('2d'),{
+    type:'line',
+    data:{labels:[],datasets:[{data:[],borderColor:getVar('--accent')||'#4da3ff',borderWidth:2,fill:false,tension:0,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false,
+        callbacks:{label:c=>`$${Number(c.formattedValue).toLocaleString()}`}}},
+      scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}
+  }),
+  vc:new Chart(document.getElementById(`v-${t.key}`).getContext('2d'),{
+    type:'bar',
+    data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}
+  })
+});
 
 let lastP=65000,lastV=1;
-function updateAll(p,v){
- lastP=p;lastV=v;
- TF.forEach(t=>{
-  const now=Date.now(),b=s[t.key];
+
+function redrawAll(tfKey){
+  const t=TF.find(x=>x.key===tfKey), b=s[tfKey], now=Date.now();
+  // prune
   b.arr=b.arr.filter(pt=>pt.t>=now-t.win);
-  if(now-b.tLast>=t.sample){b.arr.push({t:now,price:p,vol:v});b.tLast=now;}
-  const lbl=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-  const pr=b.arr.map(pt=>pt.price);
-  b.pc.data.labels=lbl;b.pc.data.datasets[0].data=pr;b.pc.update('none');
-  // volume
-  const bins=12,w=t.win/bins,start=now-t.win;
+  // price line
+  const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+  const prices=b.arr.map(pt=>pt.price);
+  b.pc.data.labels=labels; b.pc.data.datasets[0].data=prices; b.pc.update('none');
+
+  // volume histogram (12 bins)
+  const bins=12, w=t.win/bins, start=now-t.win;
   const ag=Array.from({length:bins},(_,i)=>({vol:0,first:null,last:null,start:start+i*w}));
-  for(const pt of b.arr){const i=Math.min(bins-1,Math.floor((pt.t-start)/w));const bin=ag[i];bin.vol+=pt.vol;if(bin.first==null)bin.first=pt.price;bin.last=pt.price;}
+  for(const pt of b.arr){
+    const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));
+    const bin=ag[i]; bin.vol+=pt.vol; if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
+  }
   b.vc.data.labels=ag.map(x=>new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
   b.vc.data.datasets[0].data=ag.map(x=>x.vol);
   b.vc.data.datasets[0].backgroundColor=ag.map(x=>!x.first?'#bbb':(x.last>=x.first?getVar('--up'):getVar('--down')));
   b.vc.update('none');
-  const el=document.getElementById(`p-${t.key}`);el.textContent='$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
-  el.style.color=p>=lastP?getVar('--up'):getVar('--down');
- });
 }
 
-async function poll(){
- try{
-  const r=await fetch(REST_URL,{headers:{Accept:'application/json'}});
-  const j=await r.json();
-  const p=parseFloat(j.price||j.last||j.ask||j.bid);
-  const v=parseFloat(j.size||j.volume||0.2)||0.2;
-  if(isFinite(p)){updateAll(p,v);document.getElementById('status').textContent='Live data';}
-  else throw new Error();
- }catch{document.getElementById('status').textContent='Mock data';mock();}
+function setPriceBadges(p){
+  TF.forEach(t=>{
+    const el=document.getElementById(`p-${t.key}`);
+    el.textContent='$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
+    el.style.color=p>=lastP?getVar('--up'):getVar('--down');
+  });
 }
-function mock(){
- const n=lastP+(Math.random()-0.5)*40;updateAll(n,Math.random()*2);}
 
-setInterval(poll,2000);
-poll();
+function onQuote(p,v){
+  const prev=lastP; lastP=p; lastV=v||lastV;
+  TF.forEach(t=>{
+    const b=s[t.key], n=Date.now();
+    if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
+    redrawAll(t.key);
+  });
+  setPriceBadges(p);
+}
+
+// --------- HISTORY PRELOAD ----------
+async function fetchHistory(tf){
+  // Coinbase candles: [ time, low, high, open, close, volume ], newest first
+  const end=Math.floor(Date.now()/1000);
+  const start=end - Math.ceil(tf.win/1000);
+  const url=`${REST_CANDLES}?granularity=${tf.gran}&start=${start}&end=${end}`;
+  const r=await fetch(url,{headers:{Accept:'application/json'}});
+  if(!r.ok) throw new Error('candles '+r.status);
+  const rows=await r.json();
+  if(!Array.isArray(rows)) throw new Error('bad candle payload');
+  // reverse to oldest → newest
+  rows.sort((a,b)=>a[0]-b[0]);
+  const arr=[];
+  for(const [ts,low,high,open,close,vol] of rows){
+    const tms=ts*1000 + tf.gran*1000; // place at end of candle
+    arr.push({t:tms, price:Number(close), vol:Number(vol)||0});
+  }
+  return arr;
+}
+
+async function preloadAll(){
+  try{
+    const results=await Promise.allSettled(TF.map(tf=>fetchHistory(tf)));
+    results.forEach((res,idx)=>{
+      const tf=TF[idx];
+      if(res.status==='fulfilled' && res.value.length){
+        const b=s[tf.key];
+        b.arr=res.value;
+        b.tLast = b.arr[b.arr.length-1]?.t || 0;
+        redrawAll(tf.key);
+      }else{
+        // fallback seed if candles fail
+        const b=s[tf.key], now=Date.now(), step=Math.max(2000,Math.floor(tf.win/60));
+        let p=lastP;
+        b.arr=[];
+        for(let t=now-tf.win;t<=now;t+=step){p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});}
+        b.tLast=now; redrawAll(tf.key);
+      }
+    });
+    document.getElementById('status').textContent='Live data';
+  }catch(e){
+    document.getElementById('status').textContent='History error — live only';
+  }
+}
+
+// --------- LIVE POLL ----------
+async function pollOnce(){
+  try{
+    const r=await fetch(REST_TICKER,{headers:{Accept:'application/json'}});
+    if(!r.ok) throw new Error();
+    const j=await r.json();
+    const p=parseFloat(j.price||j.last||j.ask||j.bid);
+    const v=parseFloat(j.size||j.volume||j.last_size||0.2)||0.2;
+    if(Number.isFinite(p)) onQuote(p,v);
+  }catch{ /* ignore transient */ }
+}
+
+(async function boot(){
+  await preloadAll();      // load history into each pane
+  await pollOnce();        // first live tick
+  setInterval(pollOnce,2000);
+})();
 </script>
 </body>
 </html>
