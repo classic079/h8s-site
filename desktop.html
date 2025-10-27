@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.5</title>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<title>BTC Overview — v1.5.1</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -26,6 +25,10 @@
   .price{font-weight:700}
   .chartCard{background:rgba(255,255,255,.02);border-radius:12px;height:200px;margin-top:8px}
   .volumeCard{background:rgba(255,255,255,.02);border-radius:12px;height:110px;margin-top:6px}
+  #errOverlay{position:fixed;inset:12px auto auto 12px;max-width:520px;z-index:9999;
+    background:#1b1b1b;border:1px solid #e11d48;color:#fff;border-radius:10px;padding:10px 12px;
+    box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;font:12px/1.4 ui-sans-serif,system-ui}
+  #errOverlay pre{white-space:pre-wrap;margin:6px 0 0;color:#fde68a}
   @media (max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:740px){.grid{grid-template-columns:1fr}}
 </style>
@@ -35,368 +38,271 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.5</span>
+      <span class="chip" id="ver">v1.5.1</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
+      <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
     </div>
   </header>
   <section class="grid" id="dashboard"></section>
 </div>
 
+<div id="errOverlay">
+  <strong>Script error</strong>
+  <div id="errMsg"></div>
+  <pre id="errStack"></pre>
+</div>
+
+<!-- Only external dependency -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-/* ================== VERSION ================== */
-const APP_VERSION = 'v1.5';
-console.log('BTC Dashboard', APP_VERSION);
+/* ======== Guarded boot so we never show a blank page ======== */
+(function safeBoot(){
+  try{
+    const APP_VERSION = 'v1.5.1';
+    const TF = [
+      { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
+      { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
+      { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
+      { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style
+    ];
+    const dash = document.getElementById('dashboard');
+    const jsStatus = document.getElementById('jsStatus');
+    const histEl = document.getElementById('histStatus');
+    const liveEl = document.getElementById('liveStatus');
+    document.getElementById('ver').textContent = APP_VERSION;
 
-/* ================== CONFIG ================== */
-const TF = [
-  { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
-  { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
-  { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style look
-];
+    // Build columns
+    let html='';
+    for(const t of TF){
+      html += '<div class="col">'
+            +   '<div class="title"><div class="tf">'+t.label+'</div><div class="price" id="p-'+t.key+'">$—</div></div>'
+            +   '<div class="chartCard"><canvas id="c-'+t.key+'"></canvas></div>'
+            +   '<div class="volumeCard"><canvas id="v-'+t.key+'"></canvas></div>'
+            + '</div>';
+    }
+    dash.innerHTML = html;
 
-const dash = document.getElementById('dashboard');
-(function buildColumns(){
-  var html = '';
-  for (var i=0;i<TF.length;i++){
-    var t = TF[i];
-    html += ''
-      + '<div class="col">'
-      +   '<div class="title"><div class="tf">'+t.label+'</div><div class="price" id="p-'+t.key+'">$—</div></div>'
-      +   '<div class="chartCard"><canvas id="c-'+t.key+'"></canvas></div>'
-      +   '<div class="volumeCard"><canvas id="v-'+t.key+'"></canvas></div>'
-      + '</div>';
-  }
-  dash.innerHTML = html;
-})();
+    // util
+    const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const state = {};
+    let lastPrice = 65000, lastVol = 1;
 
-const cssVar = function(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
-const state = {};
-var lastPrice = 65000, lastVol = 1;
+    // avg line plugin (10m only)
+    const avgLinePlugin = {
+      id:'avgLine',
+      afterDatasetsDraw(chart,_,opts){
+        if(!opts||!opts.enabled) return;
+        const data = opts.getData && opts.getData();
+        if(!data||!data.length) return;
+        const avg = data.reduce((s,x)=>s+(+x||0),0)/data.length;
+        const y = chart.scales.y.getPixelForValue(avg);
+        const ca = chart.chartArea, ctx = chart.ctx;
+        ctx.save();
+        ctx.setLineDash([6,6]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke();
+        ctx.restore();
+      }
+    };
 
-/* ================== AVG LINE PLUGIN (for 10m only) ================== */
-const avgLinePlugin = {
-  id: 'avgLine',
-  afterDatasetsDraw(chart, args, opts){
-    if(!opts || !opts.enabled) return;
-    const getData = opts.getData;
-    if(typeof getData !== 'function') return;
-    const arr = getData();
-    if(!arr || !arr.length) return;
-    const sum = arr.reduce((s,p)=>s+(+p||0),0);
-    const avg = sum / arr.length;
-    const y = chart.scales.y.getPixelForValue(avg);
-    const ca = chart.chartArea;
-    const ctx = chart.ctx;
-    ctx.save();
-    ctx.setLineDash([6,6]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.beginPath();
-    ctx.moveTo(ca.left, y);
-    ctx.lineTo(ca.right, y);
-    ctx.stroke();
-    ctx.restore();
-  }
-};
+    function toRGBA(hex6,a){
+      let h=(hex6||'#4da3ff').replace('#','');
+      if(h.length!==6) return `rgba(77,163,255,${a})`;
+      const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
 
-/* ================== CHART FACTORIES ================== */
-function makeLineChart(ctx, tfKey){
-  const is10 = (tfKey === '10m');
-  return new Chart(ctx, {
-    type: 'line',
-    data: { labels: [], datasets: [{
-      data: [],
-      borderColor: cssVar('--accent') || '#4da3ff',
-      borderWidth: is10 ? 3 : 2,
-      pointRadius: 0,
-      tension: is10 ? 0.25 : 0,    // mobile smooth
-      stepped: false,
-      fill: is10 ? true : false,   // soft area only for 10m
-      backgroundColor: is10 ? 'transparent' : 'transparent'
-    }]},
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 0 },
-      plugins: {
-        legend: { display: false },
-        tooltip: { mode:'index', intersect:false, displayColors:false },
-        avgLine: is10 ? {
-          enabled: true,
-          getData: ()=> state['10m'].arr.map(p=>p.price)
-        } : { enabled:false }
-      },
-      scales: {
-        x: { ticks: { display:false }, grid: { display:false } },
-        y: {
-          ticks: { color:'#7f8796' },
-          grid: { color: tfKey==='10m' ? 'transparent' : 'rgba(255,255,255,.05)' }
+    function makeLineChart(ctx, key){
+      const is10 = key==='10m';
+      return new Chart(ctx,{
+        type:'line',
+        data:{labels:[],datasets:[{
+          data:[],
+          borderColor: cssVar('--accent')||'#4da3ff',
+          borderWidth: is10?3:2,
+          pointRadius:0,
+          tension:is10?0.25:0,
+          stepped:false,
+          fill:is10,
+          backgroundColor:'transparent'
+        }]},
+        options:{
+          responsive:true,maintainAspectRatio:false,animation:{duration:0},
+          plugins:{
+            legend:{display:false},
+            tooltip:{mode:'index',intersect:false,displayColors:false},
+            avgLine: is10 ? {enabled:true,getData:()=>state['10m'].arr.map(p=>p.price)} : {enabled:false}
+          },
+          scales:{
+            x:{ticks:{display:false},grid:{display:false}},
+            y:{ticks:{color:'#7f8796'},grid:{color: key==='10m' ? 'transparent' : 'rgba(255,255,255,.05)'}}
+          }
+        },
+        plugins: is10 ? [avgLinePlugin] : []
+      });
+    }
+    function makeBarChart(ctx){
+      return new Chart(ctx,{
+        type:'bar',
+        data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+          plugins:{legend:{display:false}},
+          scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
+      });
+    }
+    function computeTrendColor(key){
+      const a=state[key].arr;
+      if(a.length<2) return cssVar('--accent')||'#4da3ff';
+      return (a[a.length-1].price>=a[0].price)?cssVar('--up'):cssVar('--down');
+    }
+    function applyAreaGradIf10(key){
+      if(key!=='10m') return;
+      const b=state[key], ch=b.pc, ca=ch.chartArea; if(!ca) return;
+      let col=b.trendColor || cssVar('--accent') || '#4da3ff';
+      if(col[0]!=='#') col = cssVar('--accent') || '#4da3ff';
+      const g=ch.ctx.createLinearGradient(0,ca.top,0,ca.bottom);
+      g.addColorStop(0,toRGBA(col,0.24)); g.addColorStop(1,toRGBA(col,0.02));
+      ch.data.datasets[0].backgroundColor = g;
+    }
+    function redraw(key){
+      const tf=TF.find(x=>x.key===key), b=state[key], now=Date.now();
+      b.arr=b.arr.filter(pt=>pt.t>=now-tf.win);
+      b.trendColor = computeTrendColor(key);
+
+      // price
+      const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+      const prices=b.arr.map(pt=>pt.price);
+      const pc=b.pc;
+      pc.data.labels=labels; pc.data.datasets[0].data=prices; pc.data.datasets[0].borderColor=b.trendColor;
+      applyAreaGradIf10(key); pc.update('none');
+
+      // volume (12 bins)
+      const bins=tf.bin, start=now-tf.win, w=tf.win/bins;
+      const ag=Array.from({length:bins},(_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
+      for(const pt of b.arr){
+        const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));
+        const bin=ag[i]; bin.vol+=(pt.vol||0); if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
+      }
+      const vc=b.vc;
+      vc.data.labels = ag.map(x=>new Date(x.start).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+      vc.data.datasets[0].data = ag.map(x=>x.vol);
+      vc.data.datasets[0].backgroundColor = ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
+      vc.update('none');
+    }
+    function setBadges(p){
+      for(const t of TF){
+        const el=document.getElementById('p-'+t.key);
+        el.textContent='$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
+        el.style.color = (p>=lastPrice)?cssVar('--up'):cssVar('--down');
+      }
+    }
+
+    // init charts
+    for(const t of TF){
+      state[t.key]={arr:[],tLast:0,trendColor:cssVar('--accent')||'#4da3ff',
+        pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
+        vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
+      };
+    }
+    jsStatus.textContent='JS: loaded';
+
+    // live polling
+    async function pollLive(){
+      try{
+        const r1=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
+        if(r1.ok){const j=await r1.json();const p=parseFloat(j.price||j.last||j.bid||j.ask);
+          if(Number.isFinite(p)){ onQuote(p,parseFloat(j.size||j.volume||0.1)||0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
+        }
+      }catch{}
+      try{
+        const r2=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
+        if(r2.ok){const j=await r2.json();const p=parseFloat(j.last);
+          if(Number.isFinite(p)){ onQuote(p,parseFloat(j.volume||0.1)||0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
+        }
+      }catch{}
+      try{
+        const r3=await fetch('https://api.coincap.io/v2/assets/bitcoin');
+        if(r3.ok){const j=await r3.json();const p=parseFloat(j?.data?.priceUsd);
+          if(Number.isFinite(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
+        }
+      }catch{}
+      onQuote(lastPrice+(Math.random()-0.5)*20,Math.random()*2);
+      liveEl.textContent='Live: mock · '+APP_VERSION;
+    }
+    function onQuote(p,v){
+      lastPrice=p; lastVol=v||lastVol;
+      const n=Date.now();
+      for(const t of TF){
+        const b=state[t.key];
+        if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
+        redraw(t.key);
+      }
+      setBadges(p);
+    }
+
+    // history (CG → Bitstamp → CB EX → mock)
+    async function fetchCG(tf){
+      const to=Math.floor(Date.now()/1000), from=to-Math.ceil(tf.win/1000);
+      const url=`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${from}&to=${to}`;
+      const r=await fetch(url,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
+      const j=await r.json(), P=j?.prices, V=j?.total_volumes; if(!(P&&V)) throw 0;
+      const vmap=new Map(V.map(([ts,v])=>[Math.round(ts),Number(v)||0]));
+      const arr=P.map(([ts,pr])=>{const k=Math.round(ts);const ms=k<1e12?k*1000:k;return {t:ms,price:Number(pr),vol:vmap.get(k)||0};}).sort((a,b)=>a.t-b.t);
+      return {source:'CoinGecko',arr};
+    }
+    async function fetchBitstamp(tf){
+      const step=tf.bitstampStep, limit=Math.min(1000,Math.ceil(tf.win/(step*1000))+2);
+      const r=await fetch(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
+      const rows=(await r.json())?.data?.ohlc; if(!Array.isArray(rows)) throw 0;
+      const arr=rows.map(c=>({t:Number(c.timestamp)*1000+step*1000,price:Number(c.close),vol:Number(c.volume)||0})).sort((a,b)=>a.t-b.t);
+      return {source:'Bitstamp',arr};
+    }
+    async function fetchCB(tf){
+      const end=Math.floor(Date.now()/1000), start=end-Math.ceil(tf.win/1000);
+      const r=await fetch(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${tf.granEX}&start=${start}&end=${end}`,{headers:{Accept:'application/json'}}); if(!r.ok) throw 0;
+      const rows=await r.json(); if(!Array.isArray(rows)) throw 0; rows.sort((a,b)=>a[0]-b[0]);
+      const arr=rows.map(x=>({t:x[0]*1000+tf.granEX*1000,price:Number(x[4]),vol:Number(x[5])||0}));
+      return {source:'Coinbase EX',arr};
+    }
+    async function preload(){
+      let source='mock';
+      for(const tf of TF){
+        let res=null;
+        try{res=await fetchCG(tf);}catch{try{res=await fetchBitstamp(tf);}catch{try{res=await fetchCB(tf);}catch{res=null}}}
+        if(res&&res.arr.length){ const b=state[tf.key]; b.arr=res.arr; b.tLast=b.arr[b.arr.length-1].t||0; redraw(tf.key); source=res.source; }
+        else { // mock seed
+          const now=Date.now(); const b=state[tf.key]; let p=lastPrice; b.arr=[];
+          const st=Math.max(2000,Math.floor(tf.win/60));
+          for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
+          b.tLast=now; redraw(tf.key); source='mock';
         }
       }
-    },
-    plugins: is10 ? [avgLinePlugin] : []
-  });
-}
+      histEl.textContent='History: '+source+' · '+APP_VERSION;
+    }
 
-function makeBarChart(ctx){
-  return new Chart(ctx, {
-    type: 'bar',
-    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 0 },
-      plugins: { legend: { display:false } },
-      scales: {
-        x: { ticks: { color:'#7f8796' } },
-        y: { ticks: { display:false } }
+    // fail-safe timeout so page never stays blank
+    const fs=setTimeout(()=>{
+      const now=Date.now();
+      for(const tf of TF){
+        const b=state[tf.key]; let p=lastPrice; b.arr=[];
+        const st=Math.max(2000,Math.floor(tf.win/60));
+        for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
+        b.tLast=now; redraw(tf.key);
       }
-    }
-  });
-}
+      histEl.textContent='History: timeout/mock · '+APP_VERSION;
+    },5000);
 
-function toRGBA(hex6, a){
-  var h = (hex6 || '#4da3ff').replace('#','');
-  if (h.length !== 6) return 'rgba(77,163,255,'+a+')';
-  var r = parseInt(h.substring(0,2),16),
-      g = parseInt(h.substring(2,4),16),
-      b = parseInt(h.substring(4,6),16);
-  return 'rgba('+r+','+g+','+b+','+a+')';
-}
-
-TF.forEach(function(t){
-  state[t.key] = {
-    arr: [],
-    tLast: 0,
-    trendColor: cssVar('--accent') || '#4da3ff',
-    pc: makeLineChart(document.getElementById('c-'+t.key).getContext('2d'), t.key),
-    vc: makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
-  };
-});
-
-/* ================== RENDER ================== */
-function computeTrendColor(tfKey){
-  var arr = state[tfKey].arr;
-  if (arr.length < 2) return cssVar('--accent') || '#4da3ff';
-  var first = arr[0].price, last = arr[arr.length-1].price;
-  return (last >= first) ? cssVar('--up') : cssVar('--down');
-}
-
-function applyAreaGradientIfNeeded(tfKey){
-  if (tfKey !== '10m') return;
-  var b = state[tfKey];
-  var chart = b.pc;
-  var area = chart.chartArea;
-  if (!area) return; // not ready yet
-  var ctx = chart.ctx;
-  var color = b.trendColor || (cssVar('--accent') || '#4da3ff');
-  if (color.indexOf('#') !== 0){ color = (cssVar('--accent') || '#4da3ff'); }
-  var grad = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-  grad.addColorStop(0, toRGBA(color.replace('#',''), 0.24));
-  grad.addColorStop(1, toRGBA(color.replace('#',''), 0.02));
-  chart.data.datasets[0].backgroundColor = grad;
-}
-
-function redraw(tfKey){
-  var t = TF.find(function(x){ return x.key===tfKey; });
-  var b = state[tfKey];
-  var now = Date.now();
-
-  // prune
-  b.arr = b.arr.filter(function(pt){ return pt.t >= (now - t.win); });
-
-  // trend color
-  b.trendColor = computeTrendColor(tfKey);
-
-  // price
-  var labels = b.arr.map(function(pt){ return new Date(pt.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); });
-  var prices = b.arr.map(function(pt){ return pt.price; });
-  var pc = b.pc;
-  pc.data.labels = labels;
-  pc.data.datasets[0].data = prices;
-  pc.data.datasets[0].borderColor = b.trendColor;
-  applyAreaGradientIfNeeded(tfKey);
-  pc.update('none');
-
-  // volume bins (12)
-  var bins = t.bin, start = now - t.win, w = t.win / bins;
-  var ag = []; for (var i=0;i<bins;i++){ ag.push({start:start+i*w, vol:0, first:null, last:null}); }
-  for (var k=0;k<b.arr.length;k++){
-    var pt = b.arr[k];
-    var idx = Math.min(bins-1, Math.max(0, Math.floor((pt.t - start)/w)));
-    var bin = ag[idx];
-    bin.vol += (pt.vol || 0);
-    if (bin.first === null) bin.first = pt.price;
-    bin.last = pt.price;
+    preload().finally(()=>clearTimeout(fs));
+    pollLive(); setInterval(pollLive,2000);
+    jsStatus.textContent='JS: running';
+  }catch(err){
+    const box=document.getElementById('errOverlay');
+    document.getElementById('errMsg').textContent = String(err && err.message || err);
+    document.getElementById('errStack').textContent = String(err && err.stack || '');
+    box.style.display='block';
   }
-  var vc = b.vc;
-  vc.data.labels = ag.map(function(x){ return new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); });
-  vc.data.datasets[0].data = ag.map(function(x){ return x.vol; });
-  vc.data.datasets[0].backgroundColor = ag.map(function(x){
-    if (x.first === null) return '#b9c2d0';
-    return (x.last >= x.first) ? cssVar('--up') : cssVar('--down');
-  });
-  vc.update('none');
-}
-
-function setBadges(p){
-  TF.forEach(function(t){
-    var el = document.getElementById('p-'+t.key);
-    el.textContent = '$' + p.toLocaleString(undefined,{maximumFractionDigits:2});
-    el.style.color = (p >= lastPrice) ? cssVar('--up') : cssVar('--down');
-  });
-}
-
-/* ================== LIVE ================== */
-async function pollLive(){
-  var liveEl = document.getElementById('liveStatus');
-
-  try{
-    var r1 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker', { headers: { Accept:'application/json' } });
-    if (r1.ok){
-      var j1 = await r1.json();
-      var p1 = parseFloat(j1.price || j1.last || j1.bid || j1.ask);
-      if (!isNaN(p1)){ onQuote(p1, parseFloat(j1.size || j1.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Coinbase · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  try{
-    var r2 = await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
-    if (r2.ok){
-      var j2 = await r2.json();
-      var p2 = parseFloat(j2.last);
-      if (!isNaN(p2)){ onQuote(p2, parseFloat(j2.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Bitstamp · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  try{
-    var r3 = await fetch('https://api.coincap.io/v2/assets/bitcoin');
-    if (r3.ok){
-      var j3 = await r3.json();
-      var p3 = parseFloat((j3 && j3.data && j3.data.priceUsd) ? j3.data.priceUsd : 'NaN');
-      if (!isNaN(p3)){ onQuote(p3, 0.1); liveEl.textContent = 'Live: CoinCap · ' + APP_VERSION; return; }
-    }
-  }catch(e){}
-
-  onQuote(lastPrice + (Math.random()-0.5)*20, Math.random()*2);
-  liveEl.textContent = 'Live: mock · ' + APP_VERSION;
-}
-
-function onQuote(p,v){
-  lastPrice = p;
-  lastVol = v || lastVol;
-  var n = Date.now();
-  TF.forEach(function(t){
-    var b = state[t.key];
-    if (n - b.tLast >= t.sample){
-      b.arr.push({ t:n, price:p, vol:v });
-      b.tLast = n;
-    }
-    redraw(t.key);
-  });
-  setBadges(p);
-}
-
-/* ================== HISTORY (CoinGecko → Bitstamp → Coinbase EX → mock) ================== */
-async function fetchCoinGecko(tf){
-  var to = Math.floor(Date.now()/1000);
-  var from = to - Math.ceil(tf.win/1000);
-  var url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from='+from+'&to='+to;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var j = await r.json();
-  var P = j && j.prices, V = j && j.total_volumes;
-  if (!(P && V)) throw 0;
-  var vmap = {}; for (var i=0;i<V.length;i++){ var k = Math.round(V[i][0]); vmap[k] = Number(V[i][1]) || 0; }
-  var arr = [];
-  for (var k=0;k<P.length;k++){
-    var ts = Math.round(P[k][0]);
-    var ms = (ts < 1e12) ? ts*1000 : ts;
-    arr.push({ t:ms, price:Number(P[k][1]), vol:vmap[ts] || 0 });
-  }
-  arr.sort(function(a,b){ return a.t-b.t; });
-  return { source:'CoinGecko', arr:arr };
-}
-async function fetchBitstamp(tf){
-  var step = tf.bitstampStep;
-  var limit = Math.min(1000, Math.ceil(tf.win/(step*1000)) + 2);
-  var url = 'https://www.bitstamp.net/api/v2/ohlc/btcusd/?step='+step+'&limit='+limit;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var j = await r.json();
-  var rows = j && j.data && j.data.ohlc;
-  if (!rows) throw 0;
-  var out = [];
-  for (var i=0;i<rows.length;i++){
-    var c = rows[i];
-    out.push({ t: Number(c.timestamp)*1000 + step*1000, price: Number(c.close), vol: Number(c.volume) || 0 });
-  }
-  out.sort(function(a,b){ return a.t-b.t; });
-  return { source:'Bitstamp', arr: out };
-}
-async function fetchCoinbaseEX(tf){
-  var end = Math.floor(Date.now()/1000);
-  var start = end - Math.ceil(tf.win/1000);
-  var url = 'https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity='+tf.granEX+'&start='+start+'&end='+end;
-  var r = await fetch(url, { headers:{ Accept:'application/json' } });
-  if (!r.ok) throw 0;
-  var rows = await r.json();
-  if (!Array.isArray(rows)) throw 0;
-  rows.sort(function(a,b){ return a[0]-b[0]; });
-  var out = [];
-  for (var i=0;i<rows.length;i++){
-    var x = rows[i];
-    out.push({ t: x[0]*1000 + tf.granEX*1000, price: Number(x[4]), vol: Number(x[5]) || 0 });
-  }
-  return { source:'Coinbase EX', arr: out };
-}
-async function preload(){
-  var histEl = document.getElementById('histStatus');
-  var source = 'mock';
-  for (var i=0;i<TF.length;i++){
-    var tf = TF[i];
-    var res = null;
-    try{ res = await fetchCoinGecko(tf); }
-    catch(e1){ try{ res = await fetchBitstamp(tf); }
-               catch(e2){ try{ res = await fetchCoinbaseEX(tf); }
-                          catch(e3){ res = null; } } }
-    if (res && res.arr && res.arr.length){
-      var b = state[tf.key];
-      b.arr = res.arr;
-      b.tLast = b.arr[b.arr.length-1].t || 0;
-      redraw(tf.key);
-      source = res.source;
-    } else {
-      var now = Date.now(), b2 = state[tf.key], p = lastPrice;
-      b2.arr = [];
-      var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b2.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
-      b2.tLast = now; redraw(tf.key); source = 'mock';
-    }
-  }
-  histEl.textContent = 'History: ' + source + ' · ' + APP_VERSION;
-}
-
-/* ================== BOOT ================== */
-(function(){
-  var fs = setTimeout(function(){
-    var histEl = document.getElementById('histStatus');
-    var now = Date.now();
-    for (var i=0;i<TF.length;i++){
-      var tf = TF[i], b = state[tf.key], p = lastPrice;
-      b.arr = [];
-      var step = Math.max(2000, Math.floor(tf.win/60));
-      for (var t=now-tf.win; t<=now; t+=step){ p += (Math.random()-0.5)*15; b.arr.push({ t:t, price:p, vol:Math.random()*2 }); }
-      b.tLast = now; redraw(tf.key);
-    }
-    histEl.textContent = 'History: timeout/mock · ' + APP_VERSION;
-  }, 5000);
-
-  preload().then(function(){ clearTimeout(fs); }).catch(function(){});
-  pollLive();
-  setInterval(pollLive, 2000);
 })();
 </script>
 </body>
