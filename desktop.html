@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.5.1</title>
+<title>BTC Overview — v1.5.2</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -38,7 +38,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.5.1</span>
+      <span class="chip" id="ver">v1.5.2</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
       <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
@@ -60,7 +60,7 @@
 /* ======== Guarded boot so we never show a blank page ======== */
 (function safeBoot(){
   try{
-    const APP_VERSION = 'v1.5.1';
+    const APP_VERSION = 'v1.5.2';
     const TF = [
       { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
       { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
@@ -89,14 +89,18 @@
     const state = {};
     let lastPrice = 65000, lastVol = 1;
 
-    // avg line plugin (10m only)
+    // avg line plugin (10m only) — NULL-SAFE
     const avgLinePlugin = {
       id:'avgLine',
       afterDatasetsDraw(chart,_,opts){
-        if(!opts||!opts.enabled) return;
-        const data = opts.getData && opts.getData();
-        if(!data||!data.length) return;
-        const avg = data.reduce((s,x)=>s+(+x||0),0)/data.length;
+        if(!opts || !opts.enabled) return;
+        const getData = (typeof opts.getData === 'function') ? opts.getData : null;
+        if(!getData) return;
+
+        const arr = getData() || [];
+        if(!Array.isArray(arr) || arr.length === 0) return;
+
+        const avg = arr.reduce((s,x)=>s+(+x||0),0) / arr.length;
         const y = chart.scales.y.getPixelForValue(avg);
         const ca = chart.chartArea, ctx = chart.ctx;
         ctx.save();
@@ -133,7 +137,14 @@
           plugins:{
             legend:{display:false},
             tooltip:{mode:'index',intersect:false,displayColors:false},
-            avgLine: is10 ? {enabled:true,getData:()=>state['10m'].arr.map(p=>p.price)} : {enabled:false}
+            avgLine: is10 ? {
+              enabled:true,
+              // NULL-SAFE until state['10m'] exists
+              getData: ()=> {
+                const s = state && state['10m'];
+                return (s && Array.isArray(s.arr)) ? s.arr.map(p=>p.price) : [];
+              }
+            } : {enabled:false}
           },
           scales:{
             x:{ticks:{display:false},grid:{display:false}},
