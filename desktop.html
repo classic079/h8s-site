@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Dashboard — 24h · 8h · 1h · 10m</title>
+<title>BTC Overview — v0.7</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
   :root{
@@ -15,7 +15,9 @@
   .wrap{max-width:1720px;margin:20px auto 40px;padding:0 16px}
   header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
   header h1{margin:0;font-size:18px;font-weight:700}
-  header .sub{font-size:12px;color:var(--muted)}
+  header .meta{display:flex;gap:12px;align-items:center}
+  .badge{font-size:12px;color:var(--muted)}
+  .version{font-size:12px;color:#cbd5e1;background:#0b1220;border:1px solid #27324a;padding:2px 8px;border-radius:999px}
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
   .col{background:linear-gradient(180deg,var(--panel)0%,var(--panel-2)100%);border-radius:var(--radius);
        padding:12px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.35);}
@@ -32,13 +34,21 @@
 <div class="wrap">
   <header>
     <h1>BTC Overview</h1>
-    <div class="sub" id="status">Loading history…</div>
+    <div class="meta">
+      <span class="version" id="ver">v0.7</span>
+      <span class="badge" id="status">Loading history…</span>
+    </div>
   </header>
   <section class="grid" id="dashboard"></section>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+/* ---------- VERSION ---------- */
+const APP_VERSION = 'v0.7';
+console.log('BTC Dashboard version:', APP_VERSION);
+document.getElementById('ver').textContent = APP_VERSION;
+
 /* ---------- CONFIG ---------- */
 const PRODUCT_ID = "BTC-USD";
 const EXCHANGE_TICKER = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
@@ -108,10 +118,10 @@ function redraw(tfKey){
     if(bin.first == null) bin.first = pt.price;
     bin.last = pt.price;
   }
-  state[tfKey].vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-  state[tfKey].vc.data.datasets[0].data = ag.map(x => x.vol);
-  state[tfKey].vc.data.datasets[0].backgroundColor = ag.map(x => (x.first==null) ? '#b9c2d0' : (x.last>=x.first ? cssVar('--up') : cssVar('--down')));
-  state[tfKey].vc.update('none');
+  b.vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+  b.vc.data.datasets[0].data = ag.map(x => x.vol);
+  b.vc.data.datasets[0].backgroundColor = ag.map(x => (x.first==null) ? '#b9c2d0' : (x.last>=x.first ? cssVar('--up') : cssVar('--down')));
+  b.vc.update('none');
 }
 
 function setBadges(p){
@@ -124,7 +134,6 @@ function setBadges(p){
 
 /* ---------- LIVE TICKS ---------- */
 function onQuote(p,v){
-  const prev = lastPrice;
   lastPrice = p;
   lastVol = v || lastVol;
   const n = Date.now();
@@ -152,31 +161,21 @@ async function pollOnce(){
 
 /* ---------- HISTORY (multi-source) ---------- */
 const statusEl = document.getElementById('status');
-
 function timeout(p, ms){ return Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]); }
 
 async function fetchAT(tf){ // Coinbase Advanced Trade v3
   const end = new Date();
   const start = new Date(end.getTime() - tf.win);
-  const params = new URLSearchParams({
-    start: start.toISOString(),
-    end: end.toISOString(),
-    granularity: tf.granAT
-  });
+  const params = new URLSearchParams({ start:start.toISOString(), end:end.toISOString(), granularity:tf.granAT });
   const url = `https://api.coinbase.com/api/v3/brokerage/products/${PRODUCT_ID}/candles?` + params.toString();
   const r = await timeout(fetch(url, {headers:{Accept:'application/json'}}), 7000);
   if(!r.ok) throw new Error('AT '+r.status);
   const j = await r.json();
   if(!j || !Array.isArray(j.candles)) throw new Error('AT payload');
-  // candles: [{start,low,high,open,close,volume}], start ISO
-  const arr = j.candles.map(c => ({
-    t: new Date(c.start).getTime() + 1, // slight nudge to end of bucket
-    price: Number(c.close),
-    vol: Number(c.volume)||0
-  })).sort((a,b)=>a.t-b.t);
+  const arr = j.candles.map(c => ({ t:new Date(c.start).getTime()+1, price:Number(c.close), vol:Number(c.volume)||0 }))
+                       .sort((a,b)=>a.t-b.t);
   return {source:'Coinbase AT', arr};
 }
-
 async function fetchEX(tf){ // Coinbase Exchange
   const end = Math.floor(Date.now()/1000);
   const start = end - Math.ceil(tf.win/1000);
@@ -185,28 +184,22 @@ async function fetchEX(tf){ // Coinbase Exchange
   if(!r.ok) throw new Error('EX '+r.status);
   const rows = await r.json();
   if(!Array.isArray(rows)) throw new Error('EX payload');
-  rows.sort((a,b)=>a[0]-b[0]); // [time, low, high, open, close, volume]
-  const arr = rows.map(([ts, , , , close, vol]) => ({
-    t: ts*1000 + tf.granEX*1000, price: Number(close), vol: Number(vol)||0
-  }));
+  rows.sort((a,b)=>a[0]-b[0]);
+  const arr = rows.map(([ts, , , , close, vol]) => ({ t:ts*1000+tf.granEX*1000, price:Number(close), vol:Number(vol)||0 }));
   return {source:'Coinbase EX', arr};
 }
-
-async function fetchBinance(tf){ // Binance USDT fallback (permissive CORS)
-  // choose interval from tf.granEX
+async function fetchBinance(tf){ // Binance fallback (permissive CORS)
   const map = {60:'1m', 900:'15m', 3600:'1h'};
   const interval = map[tf.granEX] || '1m';
-  // compute limit to cover window
   const per = { '1m':60e3, '15m':9e5, '1h':36e5 }[interval];
   const limit = Math.min(1000, Math.ceil(tf.win / per) + 2);
   const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`;
   const r = await timeout(fetch(url, {headers:{Accept:'application/json'}}), 7000);
   if(!r.ok) throw new Error('BIN '+r.status);
-  const rows = await r.json(); // [[openTime, open, high, low, close, volume, closeTime, ...], ...]
+  const rows = await r.json();
   if(!Array.isArray(rows)) throw new Error('BIN payload');
-  const arr = rows.map(k => ({
-    t: Number(k[6]), price: Number(k[4]), vol: Number(k[5]) || 0
-  })).sort((a,b)=>a.t-b.t);
+  const arr = rows.map(k => ({ t:Number(k[6]), price:Number(k[4]), vol:Number(k[5])||0 }))
+                  .sort((a,b)=>a.t-b.t);
   return {source:'Binance', arr};
 }
 
@@ -215,29 +208,27 @@ async function preload(){
     let loaded=null;
     try{ loaded = await fetchAT(tf); }
     catch(_){ try{ loaded = await fetchEX(tf); }
-    catch(_){ try{ loaded = await fetchBinance(tf); } catch(_){ /* all failed */ } }
-    }
+    catch(_){ try{ loaded = await fetchBinance(tf); } catch(_){ /* all failed */ } } }
     if(loaded && loaded.arr.length){
       const b = state[tf.key];
       b.arr = loaded.arr;
       b.tLast = b.arr[b.arr.length-1].t || 0;
       redraw(tf.key);
-      statusEl.textContent = `History: ${loaded.source} · Live data`;
+      statusEl.textContent = `History: ${loaded.source} · ${APP_VERSION}`;
     }else{
-      // seed mock if everything failed
       const b = state[tf.key], now = Date.now(), step = Math.max(2000, Math.floor(tf.win/60));
       let p = lastPrice; b.arr = [];
       for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; b.arr.push({t, price:p, vol:Math.random()*2}); }
       b.tLast = now; redraw(tf.key);
-      statusEl.textContent = `History: mock · Live data`;
+      statusEl.textContent = `History: mock · ${APP_VERSION}`;
     }
   }
 }
 
 /* ---------- BOOT ---------- */
 (async function(){
-  await preload();          // seed charts from best available source
-  await pollOnce();         // first live tick
+  await preload();      // seed charts from best available source
+  await pollOnce();    // first live tick
   setInterval(pollOnce, 2000);
 })();
 </script>
