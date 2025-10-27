@@ -3,19 +3,17 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>BTC Overview — v1.7.1</title>
+<title>BTC Overview — v1.7.2</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
-    --accent:#4da3ff; --up:#2dd4bf; --down:#f59e0b;  /* match your mobile theme */
+    --accent:#4da3ff; --up:#2dd4bf; --down:#f59e0b;
     --gap:10px; --radius:10px;
-    --grid:#223047;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui;overflow-x:hidden}
   .wrap{max-width:1920px;margin:16px auto 28px;padding:0 24px}
 
-  /* Header */
   header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-items:center;gap:8px;margin-bottom:10px}
   .metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .metaRight{justify-self:end}
@@ -28,7 +26,6 @@
   #headerPrice.down{color:#ff4d4d;filter:drop-shadow(0 0 6px rgba(255,77,77,.22))}
   #headerClock{justify-self:end;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
 
-  /* Cards */
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
   @media (max-width:1500px){ .grid{grid-template-columns:repeat(2,1fr)} }
   @media (max-width:760px){ .grid{grid-template-columns:1fr} }
@@ -45,7 +42,7 @@
   .chartCard{background:rgba(255,255,255,.02);border-radius:8px;height:210px;margin-top:6px}
   .volumeCard{background:rgba(255,255,255,.02);border-radius:8px;height:170px;margin-top:6px}
 
-  /* Bias bar (mobile-style) only for 10m card */
+  /* bias (10m) */
   .biasRow{display:flex;align-items:center;gap:10px;margin:8px 6px 0}
   .gLabel{font-size:12px;opacity:.9;user-select:none}
   .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
@@ -57,7 +54,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script defer>
 window.addEventListener('DOMContentLoaded', () => {
-  const APP_VERSION='v1.7.1';
+  const APP_VERSION='v1.7.2';
   const TF = [
     { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12, ccInt:'m15', bsStep:900 },
     { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12, ccInt:'m5',  bsStep:300 },
@@ -65,7 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
     { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, bin:12, ccInt:'m1',  bsStep:60  }
   ];
 
-  // Elements
+  // UI
   const dash = document.getElementById('dashboard');
   const histEl = document.getElementById('histStatus');
   const liveEl = document.getElementById('liveStatus');
@@ -73,7 +70,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const headClock = document.getElementById('headerClock');
   document.getElementById('ver').textContent = APP_VERSION;
 
-  // Build cards (10m gets bias bar)
   dash.innerHTML = TF.map(t=>`
     <div class="col">
       <div class="title">
@@ -99,13 +95,13 @@ window.addEventListener('DOMContentLoaded', () => {
     </div>
   `).join('');
 
-  // Clock
   headClock.textContent=new Date().toLocaleTimeString();
   setInterval(()=>headClock.textContent=new Date().toLocaleTimeString(),1000);
 
   const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const state = {};
   let lastPriceGlobal = 65000, lastVolGlobal = 0.1;
+  let lastHeader=null;
 
   // Charts
   function areaFill(chart,color){
@@ -126,27 +122,23 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
   function makeBarChart(ctx){
-    return new Chart(ctx,{
-      type:'bar',
-      data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
-    });
-  }
+    return new Chart(ctx,{type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}});}
 
   const fmtUSD=n=>'$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2});
   const fmtVOL=n=>(n??0).toLocaleString(undefined,{maximumFractionDigits:3});
   const okNum = v => Number.isFinite(v) && v>0;
-  let lastHeader=null;
+
   function setHeaderPrice(p){ headPrice.classList.remove('up','down'); headPrice.textContent=fmtUSD(p);
     if(lastHeader!=null){ if(p>lastHeader) headPrice.classList.add('up'); else if(p<lastHeader) headPrice.classList.add('down'); }
     lastHeader=p;
   }
 
-  // Bias gauge (mobile style)
+  // Bias gauge
   const biasGauge = document.getElementById('biasGauge');
   const needle = document.getElementById('needle');
   const needleValue = document.getElementById('needleValue');
-  let needlePos = 0.5; // 0..1
+  let needlePos = 0.5;
   function sizeCanvas(c){ const dpr=Math.min(3,window.devicePixelRatio||1); c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx; }
   function drawGauge(buy,sell){
     if(!biasGauge) return;
@@ -154,7 +146,6 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.clearRect(0,0,w,h);
     const tot=buy+sell; const target=tot? (buy/tot) : 0.5; needlePos += (target-needlePos)*0.25;
 
-    // gradient split at needlePos
     const up=cssVar('--up'), dn=cssVar('--down'); const g=ctx.createLinearGradient(0,0,w,0);
     g.addColorStop(0, up); g.addColorStop(Math.max(0,needlePos-0.001), up);
     g.addColorStop(Math.min(1,needlePos+0.001), dn); g.addColorStop(1, dn);
@@ -163,12 +154,10 @@ window.addEventListener('DOMContentLoaded', () => {
     ctx.beginPath(); ctx.moveTo(r,1); ctx.lineTo(w-r,1); ctx.arcTo(w-1,1,w-1,r,r); ctx.lineTo(w-1,h-r); ctx.arcTo(w-1,h-1,w-r,h-1,r);
     ctx.lineTo(r,h-1); ctx.arcTo(1,h-1,1,h-r,r); ctx.lineTo(1,r); ctx.arcTo(1,1,r,1,r); ctx.fill();
 
-    // dominance overlay
     ctx.globalAlpha=.18; ctx.fillStyle=(needlePos>=0.5)?up:dn;
     const domW=(needlePos>=0.5)?(w*needlePos):(w*(1-needlePos)); const domX=(needlePos>=0.5)?0:(w*needlePos);
     ctx.fillRect(domX,1,domW,h-2); ctx.globalAlpha=1;
 
-    // move DOM needle/pill
     const leftPx = Math.round(biasGauge.getBoundingClientRect().width * needlePos);
     needle.style.left = leftPx+'px';
     const biasPct = tot ? ((buy - sell)/tot)*100 : 0;
@@ -176,8 +165,8 @@ window.addEventListener('DOMContentLoaded', () => {
     needleValue.style.left = leftPx+'px';
   }
 
-  // State + redraw
-  function computeTrendColor(arr){ if(arr.length<2) return cssVar('--accent')||'#4da3ff'; return (arr[arr.length-1].price>=arr[0].price)?'#16c784':'#ff4d4d'; }
+  // State & redraw
+  function trendColor(arr){ if(arr.length<2) return cssVar('--accent')||'#4da3ff'; return (arr[arr.length-1].price>=arr[0].price)?'#16c784':'#ff4d4d'; }
   function redraw(key){
     const tf=TF.find(x=>x.key===key),b=state[key],now=Date.now();
     b.arr=b.arr.filter(pt=>pt.t>=now-tf.win);
@@ -186,11 +175,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const prices=b.arr.map(pt=>pt.price),vols=b.arr.map(pt=>pt.vol||0);
 
     const pc=b.pc; pc.data.labels=labels; pc.data.datasets[0].data=prices;
-    const color = computeTrendColor(b.arr); pc.data.datasets[0].borderColor=color;
+    const color = trendColor(b.arr); pc.data.datasets[0].borderColor=color;
     if(key==='10m'){ const fill=areaFill(pc,color.replace('#','rgb(')); if(fill) pc.data.datasets[0].backgroundColor=fill; }
     pc.update('none');
 
-    // top pills
     const tfP=document.getElementById(`tfc-${key}`), hlP=document.getElementById(`hlc-${key}`), voP=document.getElementById(`volc-${key}`);
     if(prices.length){
       const first=prices[0], last=prices[prices.length-1], delta=last-first, pct=first? (delta/first)*100 : 0;
@@ -202,7 +190,7 @@ window.addEventListener('DOMContentLoaded', () => {
       tfP.textContent='—'; tfP.className='pill muted'; hlP.textContent='H/L — / —'; voP.textContent='Vol —';
     }
 
-    // volume bins coloured by minute change
+    // aggregate minute bins for volume + bias
     const bins=tf.bin,start=now-tf.win,w=tf.win/bins;
     const ag=Array.from({length:bins},(_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
     for(const pt of b.arr){const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));const bin=ag[i];bin.vol+=(pt.vol||0); if(bin.first==null)bin.first=pt.price; bin.last=pt.price;}
@@ -210,7 +198,6 @@ window.addEventListener('DOMContentLoaded', () => {
     vc.data.datasets[0].data=ag.map(x=>x.vol);
     vc.data.datasets[0].backgroundColor=ag.map(x=>x.first==null?'#7f8796':(x.last>=x.first?cssVar('--up'):cssVar('--down'))); vc.update('none');
 
-    // bias gauge from last 10m totals
     if(key==='10m'){
       let buy=0,sell=0;
       for(const x of ag){ if(x.first!=null){ if(x.last>=x.first) buy+=x.vol; else sell+=x.vol; } }
@@ -218,33 +205,35 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // init charts/state + seed small mock so UI is never blank
+  // init charts + seed light mock so it never looks blank
   for(const t of TF){
     state[t.key]={arr:[],tLast:0,
       pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
       vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
     };
-    // seed light mock
     const now=Date.now(); let p=lastPriceGlobal;
     for(let i=12;i>0;i--){ p+=(Math.random()-0.5)*20; state[t.key].arr.push({t:now-i*10000,price:p,vol:Math.random()*2}); }
     redraw(t.key);
   }
   setHeaderPrice(lastPriceGlobal);
 
-  /* ------------------ Data: History + Live with fallbacks ------------------ */
+  /* ---------- network helpers (timeout + JSON) ---------- */
+  function fetchJSON(url, ms=1500){
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),ms);
+    return fetch(url,{signal:ctl.signal,headers:{Accept:'application/json'}})
+      .then(r=>{clearTimeout(t); if(!r.ok) throw new Error('http '+r.status); return r.json();});
+  }
+
+  /* ---------- history ---------- */
   async function fetchCoinCap(tf){
     const end=Date.now(), start=end-tf.win-10000;
-    const r=await fetch(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`);
-    if(!r.ok) throw new Error('coincap history');
-    const j=await r.json(); const d=j?.data||[];
-    return d.map(x=>({t:+x.time,price:+x.priceUsd,vol:0})).filter(x=>okNum(x.price));
+    const j=await fetchJSON(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`,3000);
+    const d=j?.data||[]; return d.map(x=>({t:+x.time,price:+x.priceUsd,vol:0})).filter(x=>okNum(x.price));
   }
   async function fetchBitstamp(tf){
     const step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
-    const r=await fetch(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`);
-    if(!r.ok) throw new Error('bitstamp history');
-    const j=await r.json(); const arr=j?.data?.ohlc||[];
-    return arr.map(c=>({t:+c.timestamp*1000,price:+c.close,vol:+c.volume||0})).filter(x=>okNum(x.price));
+    const j=await fetchJSON(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,3000);
+    const arr=j?.data?.ohlc||[]; return arr.map(c=>({t:+c.timestamp*1000,price:+c.close,vol:+c.volume||0})).filter(x=>okNum(x.price));
   }
   async function getHistory(tf){
     try{const a=await fetchCoinCap(tf); if(a.length>3) return {src:'CoinCap',data:a};}catch(_){}
@@ -255,39 +244,44 @@ window.addEventListener('DOMContentLoaded', () => {
     histEl.textContent='History: loading…';
     try{
       const res=await Promise.all(TF.map(getHistory));
-      const now=Date.now(); const labels=new Set();
+      const now=Date.now(); const sources=new Set();
       res.forEach((r,i)=>{
         const tf=TF[i], st=state[tf.key];
-        if(r.data){ st.arr=r.data.filter(d=>d.t>=now-tf.win); labels.add(r.src); if(st.arr.length) lastPriceGlobal=st.arr[st.arr.length-1].price; }
-        else{ // mock
+        if(r.data){ st.arr=r.data.filter(d=>d.t>=now-tf.win); sources.add(r.src); if(st.arr.length) lastPriceGlobal=st.arr[st.arr.length-1].price; }
+        else{ // mock fallback
           let p=lastPriceGlobal; st.arr=[];
           const step=Math.max(2000,Math.floor(tf.win/60));
           for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; st.arr.push({t,price:p,vol:Math.random()*2}); }
-          labels.add('mock');
+          sources.add('mock');
         }
         redraw(tf.key);
       });
-      histEl.textContent=`History: ${[...labels].join(' + ')} · ${APP_VERSION}`;
+      histEl.textContent=`History: ${[...sources].join(' + ')} · ${APP_VERSION}`;
       setHeaderPrice(lastPriceGlobal);
-    }catch(e){
-      histEl.textContent=`History: error · ${APP_VERSION}`;
-    }
+    }catch{ histEl.textContent=`History: error · ${APP_VERSION}`; }
   }
 
+  /* ---------- live with timeouts + fallbacks ---------- */
   async function pollLive(){
     const good=v=>Number.isFinite(v)&&v>0;
+    // 1) CoinCap (CORS-friendly)
     try{
-      const r=await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker',{headers:{Accept:'application/json'}});
-      if(r.ok){const j=await r.json();const p=parseFloat(j.price||j.last||j.bid||j.ask);const v=parseFloat(j.size||j.volume||0.1); if(good(p)){onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return;}}
+      const j=await fetchJSON('https://api.coincap.io/v2/assets/bitcoin',1500);
+      const p=parseFloat(j?.data?.priceUsd); if(good(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
     }catch{}
+    // 2) Bitstamp
     try{
-      const r=await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/'); if(r.ok){const j=await r.json();const p=parseFloat(j.last);const v=parseFloat(j.volume||0.1); if(good(p)){onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return;}}
-    }catch{}
+      const j=await fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',1500);
+      const p=parseFloat(j.last), v=parseFloat(j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
+    }catch(){}
+    // 3) Coinbase
     try{
-      const r=await fetch('https://api.coincap.io/v2/assets/bitcoin'); if(r.ok){const j=await r.json();const p=parseFloat(j?.data?.priceUsd); if(good(p)){onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return;}}
-    }catch{}
-    // mock fallback
-    onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2); liveEl.textContent='Live: mock · '+APP_VERSION;
+      const j=await fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',1500);
+      const p=parseFloat(j.price||j.last||j.bid||j.ask), v=parseFloat(j.size||j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
+    }catch(){}
+    // 4) mock fallback
+    onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2);
+    liveEl.textContent='Live: mock · '+APP_VERSION;
   }
 
   function onQuote(p,v){
@@ -302,9 +296,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // start
+  // init
   preloadHistory();
-  pollLive(); setInterval(pollLive,2000);
+  pollLive();
+  setInterval(pollLive, 2500);
 });
 </script>
 </head>
@@ -312,7 +307,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <div class="wrap">
   <header>
     <div class="metaLeft">
-      <span class="chip" id="ver">v1.7.1</span>
+      <span class="chip" id="ver">v1.7.2</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
