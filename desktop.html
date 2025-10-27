@@ -36,6 +36,7 @@
   .chartCard{height:200px}
   .volumeCard{height:110px}
   .spacer{min-height:40px} /* reserved for future Top Buy/Sell */
+  .badge{color:var(--muted);font-size:11px}
   @media (max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:740px){.grid{grid-template-columns:1fr}}
 </style>
@@ -44,124 +45,148 @@
   <div class="wrap">
     <header>
       <h1>BTC Overview</h1>
-      <div class="sub">Live data · Chart on top, volume just below · reversed columns</div>
+      <div class="sub"><span id="status" class="badge">Live data</span> · Chart on top, volume below · reversed columns</div>
     </header>
     <section class="grid" id="dashboard"></section>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-  <script>
-  /******** CONFIG ********/
-  const USE_MOCK_DATA = false;            // ✅ live by default
-  const PRODUCT_ID = "BTC-USD";
-  const REST_TICKER_URL = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
+  <!-- Load Chart.js without SRI to avoid silent blocks -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
 
-  // Reversed order, with 1h and 10m swapped: 24h · 8h · 1h · 10m
+  <script>
+  // --- Build the columns immediately so the page never appears empty ---
   const TIMEFRAMES = [
     { key:'24h', label:'24 HOURS', windowMs:24*60*60*1000, sampleEveryMs:30000 },
     { key:'8h',  label:'8 HOURS',  windowMs: 8*60*60*1000, sampleEveryMs:15000 },
     { key:'1h',  label:'1 HOUR',   windowMs:60*60*1000,    sampleEveryMs:5000  },
     { key:'10m', label:'10 MIN',   windowMs:10*60*1000,    sampleEveryMs:2000  },
   ];
-  const VOLUME_BIN_MAX = 12;
-  const CHART_LINE_OPTIONS = { tension:0, pointRadius:0, segment:{borderWidth:2} };
-
-  /******** DOM ********/
-  const dash=document.getElementById('dashboard');
+  const dash = document.getElementById('dashboard');
   dash.innerHTML = TIMEFRAMES.map(tf=>`
     <div class="col" id="col-${tf.key}">
-      <div class="title"><div class="tf">${tf.label}</div><div class="price" id="price-${tf.key}">$—</div></div>
+      <div class="title">
+        <div class="tf">${tf.label}</div>
+        <div class="price" id="price-${tf.key}">$—</div>
+      </div>
       <div class="chartBlock">
         <div class="chartCard"><canvas id="priceChart-${tf.key}"></canvas></div>
         <div class="volumeCard"><canvas id="volChart-${tf.key}"></canvas></div>
       </div>
       <div class="spacer"></div>
-    </div>`).join('');
+    </div>
+  `).join('');
 
-  /******** STATE ********/
-  const state={}; let lastPrice=65000,lastVol=1;
-  TIMEFRAMES.forEach(tf=>state[tf.key]={series:[],lastSample:0,priceChart:null,volChart:null});
-
-  /******** CHARTS ********/
-  function getVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
-  function makeLineChart(c){
-    return new Chart(c.getContext('2d'),{
-      type:'line',
-      data:{labels:[],datasets:[{data:[],borderColor:getVar('--accent')||'#4da3ff',borderWidth:2,fill:false,...CHART_LINE_OPTIONS}]},
-      options:{
-        responsive:true,maintainAspectRatio:false,animation:{duration:0},
-        plugins:{legend:{display:false},tooltip:{intersect:false,mode:'index',displayColors:false,callbacks:{label:c=>`$${Number(c.formattedValue).toLocaleString()}`}}},
-        scales:{x:{ticks:{display:false},grid:{display:false},border:{display:false}},
-                y:{ticks:{color:'#7f8796',callback:v=>'$'+Number(v).toLocaleString()},grid:{color:'rgba(255,255,255,.06)'},border:{display:false}}}
-      });
-  }
-  function makeBarChart(c){
-    return new Chart(c.getContext('2d'),{
-      type:'bar',
-      data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
-      options:{
-        responsive:true,maintainAspectRatio:false,animation:{duration:0},
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Vol: ${Number(c.raw).toLocaleString()}`}}},
-        scales:{x:{ticks:{color:'#7f8796'},grid:{display:false},border:{display:false}},
-                y:{ticks:{display:false},grid:{color:'rgba(255,255,255,.06)'},border:{display:false}}}
-      });
-  }
-  TIMEFRAMES.forEach(tf=>{
-    state[tf.key].priceChart=makeLineChart(document.getElementById(`priceChart-${tf.key}`));
-    state[tf.key].volChart=makeBarChart(document.getElementById(`volChart-${tf.key}`));
+  // --- App once Chart.js is ready ---
+  window.addEventListener('load', () => {
+    try { startApp(); }
+    catch (e) {
+      console.error(e);
+      document.getElementById('status').textContent = 'Chart error — falling back to mock';
+      startApp(true); // fallback to mock anyway
+    }
   });
 
-  /******** HELPERS ********/
-  function prune(tfKey){const tf=TIMEFRAMES.find(t=>t.key===tfKey),cut=Date.now()-tf.windowMs;state[tfKey].series=state[tfKey].series.filter(p=>p.t>=cut);}
-  function resample(tfKey,p,v){const tf=TIMEFRAMES.find(t=>t.key===tfKey),b=state[tfKey],n=Date.now();if(n-b.lastSample>=tf.sampleEveryMs){b.series.push({t:n,price:p,vol:v});b.lastSample=n;}}
-  function drawPrice(tfKey){const b=state[tfKey],l=b.series.map(p=>new Date(p.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})),p=b.series.map(p=>p.price);const ch=b.priceChart;ch.data.labels=l;ch.data.datasets[0].data=p;ch.update('none');}
-  function drawVol(tfKey){
-    const tf=TIMEFRAMES.find(t=>t.key===tfKey),b=state[tfKey]; if(!b.series.length)return;
-    const now=Date.now(),start=now-tf.windowMs,binCount=VOLUME_BIN_MAX,binW=tf.windowMs/binCount;
-    const bins=Array.from({length:binCount},(_,i)=>({start:start+i*binW,end:start+(i+1)*binW,vol:0,first:null,last:null}));
-    for(const pt of b.series){
-      const idx=Math.min(binCount-1,Math.max(0,Math.floor((pt.t-start)/binW)));
-      const bin=bins[idx];bin.vol+=pt.vol;if(bin.first===null)bin.first=pt.price;bin.last=pt.price;
-    }
-    const labels=bins.map(x=>new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
-    const vols=bins.map(x=>x.vol);
-    const colors=bins.map(x=>!x.first?'#b9c2d0':(x.last>=x.first?getVar('--up'):getVar('--down')));
-    const ch=b.volChart;ch.data.labels=labels;ch.data.datasets[0].data=vols;ch.data.datasets[0].backgroundColor=colors;ch.update('none');
-  }
-  function setPrice(tfKey,p,prev){const e=document.getElementById(`price-${tfKey}`);e.style.color=(p-prev)>=0?getVar('--up'):getVar('--down');e.textContent='$'+Number(p).toLocaleString(undefined,{maximumFractionDigits:2});}
+  function startApp(forceMock = false){
+    const PRODUCT_ID = "BTC-USD";
+    const REST_TICKER_URL = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
+    const VOLUME_BIN_MAX = 12;
+    const CHART_LINE_OPTIONS = { tension:0, pointRadius:0, segment:{borderWidth:2} };
+    const getVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
-  /******** DATA ********/
-  function onQuote(p,v){const prev=lastPrice;lastPrice=p;lastVol=v||lastVol;
-    TIMEFRAMES.forEach(tf=>{prune(tf.key);resample(tf.key,p,v);drawPrice(tf.key);drawVol(tf.key);setPrice(tf.key,p,prev);});}
+    const state = {};
+    let lastPrice = 65000, lastVol = 1;
+    TIMEFRAMES.forEach(tf=>state[tf.key]={series:[],lastSample:0,priceChart:null,volChart:null});
 
-  // Mock feed
-  function startMock(){setInterval(()=>{const s=(Math.random()-0.5)*40;const mr=(65000-lastPrice)*0.002;const nxt=Math.max(1000,lastPrice+s+mr);const vol=Math.max(0.1,(Math.random()*2)**2);onQuote(nxt,vol);},800);}
-
-  // Live feed (public REST, no key)
-  async function pollOnce(){
-    try{
-      const r=await fetch(REST_TICKER_URL,{headers:{'Accept':'application/json'}});
-      if(!r.ok) return;
-      const j=await r.json();
-      const price=parseFloat(j.price||j.last||j.ask||j.bid);
-      const size =parseFloat(j.size||j.volume||j.last_size||0.2)||0.2;
-      if(Number.isFinite(price)) onQuote(price,size);
-    }catch(e){ /* ignore transient errors */ }
-  }
-  function startREST(){pollOnce();setInterval(pollOnce,2000);}
-
-  // Seed with ~60 points so it isn’t empty on load
-  (function seed(){
-    const now=Date.now();
+    // Create charts
     TIMEFRAMES.forEach(tf=>{
-      const step=Math.max(2000,Math.floor(tf.windowMs/60));
-      const arr=[], start=now-tf.windowMs; let p=lastPrice;
-      for(let t=start;t<=now;t+=step){p+=(Math.random()-0.5)*15;arr.push({t,price:p,vol:Math.random()*2});}
-      const b=state[tf.key]; b.series=arr; b.lastSample=now; drawPrice(tf.key); drawVol(tf.key); setPrice(tf.key,p,p);
+      state[tf.key].priceChart = new Chart(document.getElementById(`priceChart-${tf.key}`).getContext('2d'),{
+        type:'line',
+        data:{labels:[],datasets:[{data:[],borderColor:getVar('--accent')||'#4da3ff',borderWidth:2,fill:false,...CHART_LINE_OPTIONS}]},
+        options:{
+          responsive:true,maintainAspectRatio:false,animation:{duration:0},
+          plugins:{legend:{display:false},tooltip:{intersect:false,mode:'index',displayColors:false,callbacks:{label:c=>`$${Number(c.formattedValue).toLocaleString()}`}}},
+          scales:{x:{ticks:{display:false},grid:{display:false},border:{display:false}},
+                  y:{ticks:{color:'#7f8796',callback:v=>'$'+Number(v).toLocaleString()},grid:{color:'rgba(255,255,255,.06)'},border:{display:false}}}
+      });
+      state[tf.key].volChart = new Chart(document.getElementById(`volChart-${tf.key}`).getContext('2d'),{
+        type:'bar',
+        data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
+        options:{
+          responsive:true,maintainAspectRatio:false,animation:{duration:0},
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`Vol: ${Number(c.raw).toLocaleString()}`}}},
+          scales:{x:{ticks:{color:'#7f8796'},grid:{display:false},border:{display:false}},
+                  y:{ticks:{display:false},grid:{color:'rgba(255,255,255,.06)'},border:{display:false}}}
+      });
     });
-  })();
 
-  if(USE_MOCK_DATA) startMock(); else startREST();
+    // Helpers
+    function prune(tfKey){const tf=TIMEFRAMES.find(t=>t.key===tfKey),cut=Date.now()-tf.windowMs;state[tfKey].series=state[tfKey].series.filter(p=>p.t>=cut);}
+    function resample(tfKey,p,v){const tf=TIMEFRAMES.find(t=>t.key===tfKey),b=state[tfKey],n=Date.now();if(n-b.lastSample>=tf.sampleEveryMs){b.series.push({t:n,price:p,vol:v});b.lastSample=n;}}
+    function drawPrice(tfKey){const b=state[tfKey],l=b.series.map(p=>new Date(p.t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})),p=b.series.map(p=>p.price);const ch=b.priceChart;ch.data.labels=l;ch.data.datasets[0].data=p;ch.update('none');}
+    function drawVol(tfKey){
+      const tf=TIMEFRAMES.find(t=>t.key===tfKey),b=state[tfKey]; if(!b.series.length)return;
+      const now=Date.now(),start=now-tf.windowMs,binCount=VOLUME_BIN_MAX,binW=tf.windowMs/binCount;
+      const bins=Array.from({length:binCount},(_,i)=>({start:start+i*binW,end:start+(i+1)*binW,vol:0,first:null,last:null}));
+      for(const pt of b.series){
+        const idx=Math.min(binCount-1,Math.max(0,Math.floor((pt.t-start)/binW)));
+        const bin=bins[idx];bin.vol+=pt.vol;if(bin.first===null)bin.first=pt.price;bin.last=pt.price;
+      }
+      const labels=bins.map(x=>new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
+      const vols=bins.map(x=>x.vol);
+      const colors=bins.map(x=>!x.first?'#b9c2d0':(x.last>=x.first?getVar('--up'):getVar('--down')));
+      const ch=b.volChart;ch.data.labels=labels;ch.data.datasets[0].data=vols;ch.data.datasets[0].backgroundColor=colors;ch.update('none');
+    }
+    function setPrice(tfKey,p,prev){const e=document.getElementById(`price-${tfKey}`);e.style.color=(p-prev)>=0?getVar('--up'):getVar('--down');e.textContent='$'+Number(p).toLocaleString(undefined,{maximumFractionDigits:2});}
+    function onQuote(p,v){const prev=lastPrice;lastPrice=p;lastVol=v||lastVol;TIMEFRAMES.forEach(tf=>{prune(tf.key);resample(tf.key,p,v);drawPrice(tf.key);drawVol(tf.key);setPrice(tf.key,p,prev);});}
+
+    // Seed charts so they don't start empty
+    (function seed(){
+      const now=Date.now();
+      TIMEFRAMES.forEach(tf=>{
+        const step=Math.max(2000,Math.floor(tf.windowMs/60));
+        const arr=[], start=now-tf.windowMs; let p=lastPrice;
+        for(let t=start;t<=now;t+=step){p+=(Math.random()-0.5)*15;arr.push({t,price:p,vol:Math.random()*2});}
+        const b=state[tf.key]; b.series=arr; b.lastSample=now; drawPrice(tf.key); drawVol(tf.key); setPrice(tf.key,p,p);
+      });
+    })();
+
+    // Feeds
+    let useMock = !!forceMock;
+    let failCount = 0;
+
+    function startMock(){
+      document.getElementById('status').textContent = 'Fallback: mock data';
+      setInterval(()=>{
+        const s=(Math.random()-0.5)*40;
+        const mr=(65000-lastPrice)*0.002;
+        const nxt=Math.max(1000,lastPrice+s+mr);
+        const vol=Math.max(0.1,(Math.random()*2)**2);
+        onQuote(nxt,vol);
+      },800);
+    }
+
+    async function pollOnce(){
+      try{
+        const r = await fetch(REST_TICKER_URL, { headers:{ 'Accept':'application/json' }});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const j = await r.json();
+        const price = parseFloat(j.price || j.last || j.ask || j.bid);
+        const size  = parseFloat(j.size || j.volume || j.last_size || 0.2) || 0.2;
+        if(Number.isFinite(price)){ onQuote(price,size); failCount = 0; }
+        else throw new Error('No price in payload');
+      }catch(e){
+        failCount++;
+        if(failCount === 3 && !useMock){ useMock = true; startMock(); }
+      }
+    }
+    function startREST(){
+      document.getElementById('status').textContent = 'Live data';
+      pollOnce();
+      setInterval(pollOnce, 2000);
+    }
+
+    if(useMock){ startMock(); } else { startREST(); }
+  }
   </script>
 </body>
 </html>
