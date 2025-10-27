@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.5.2</title>
+<title>BTC Overview — v1.6</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -17,18 +17,28 @@
   .meta{display:flex;gap:10px;align-items:center}
   .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
   .badge{font-size:12px;color:var(--muted)}
+
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
   .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:var(--radius);
        padding:12px;display:flex;flex-direction:column;box-shadow:0 6px 18px rgba(0,0,0,.35)}
-  .title{display:flex;justify-content:space-between}
+
+  /* Top row in each card */
+  .title{display:flex;justify-content:space-between;align-items:center}
   .tf{color:var(--muted);font-weight:700;font-size:12px}
-  .price{font-weight:700}
+  .topbar{display:flex;gap:6px;align-items:center}
+  .pill{font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
+  .pill.up{background:var(--up);border-color:transparent;color:#09130e}
+  .pill.down{background:var(--down);border-color:transparent;color:#140808}
+  .pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
+
   .chartCard{background:rgba(255,255,255,.02);border-radius:12px;height:200px;margin-top:8px}
   .volumeCard{background:rgba(255,255,255,.02);border-radius:12px;height:110px;margin-top:6px}
+
   #errOverlay{position:fixed;inset:12px auto auto 12px;max-width:520px;z-index:9999;
     background:#1b1b1b;border:1px solid #e11d48;color:#fff;border-radius:10px;padding:10px 12px;
     box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;font:12px/1.4 ui-sans-serif,system-ui}
   #errOverlay pre{white-space:pre-wrap;margin:6px 0 0;color:#fde68a}
+
   @media (max-width:1280px){.grid{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:740px){.grid{grid-template-columns:1fr}}
 </style>
@@ -38,7 +48,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.5.2</span>
+      <span class="chip" id="ver">v1.6</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
       <span class="chip" id="jsStatus" style="border-color:#2e7d32;color:#b7f5c8">JS: booting…</span>
@@ -53,54 +63,60 @@
   <pre id="errStack"></pre>
 </div>
 
-<!-- Only external dependency -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-/* ======== Guarded boot so we never show a blank page ======== */
 (function safeBoot(){
   try{
-    const APP_VERSION = 'v1.5.2';
+    const APP_VERSION = 'v1.6';
     const TF = [
       { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
       { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
       { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-      { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style
+      { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 }
     ];
+
     const dash = document.getElementById('dashboard');
     const jsStatus = document.getElementById('jsStatus');
     const histEl = document.getElementById('histStatus');
     const liveEl = document.getElementById('liveStatus');
     document.getElementById('ver').textContent = APP_VERSION;
 
-    // Build columns
+    // Build columns (with topbar: price + H/L pills)
     let html='';
     for(const t of TF){
-      html += '<div class="col">'
-            +   '<div class="title"><div class="tf">'+t.label+'</div><div class="price" id="p-'+t.key+'">$—</div></div>'
-            +   '<div class="chartCard"><canvas id="c-'+t.key+'"></canvas></div>'
-            +   '<div class="volumeCard"><canvas id="v-'+t.key+'"></canvas></div>'
-            + '</div>';
+      html += `
+      <div class="col">
+        <div class="title">
+          <div class="tf">${t.label}</div>
+          <div class="topbar">
+            <span class="pill muted" id="pc-${t.key}">$—</span>
+            <span class="pill muted" id="hc-${t.key}">H: —</span>
+            <span class="pill muted" id="lc-${t.key}">L: —</span>
+          </div>
+        </div>
+        <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
+        <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
+      </div>`;
     }
     dash.innerHTML = html;
 
-    // util
     const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
     const state = {};
-    let lastPrice = 65000, lastVol = 1;
+    let lastPriceGlobal = 65000;
+    let lastVolGlobal = 1;
 
-    // avg line plugin (10m only) — NULL-SAFE
+    /* ===== 10m average line plugin (null-safe) ===== */
     const avgLinePlugin = {
       id:'avgLine',
       afterDatasetsDraw(chart,_,opts){
         if(!opts || !opts.enabled) return;
         const getData = (typeof opts.getData === 'function') ? opts.getData : null;
         if(!getData) return;
-
         const arr = getData() || [];
         if(!Array.isArray(arr) || arr.length === 0) return;
 
-        const avg = arr.reduce((s,x)=>s+(+x||0),0) / arr.length;
+        const avg = arr.reduce((s,x)=>s+(+x||0),0)/arr.length;
         const y = chart.scales.y.getPixelForValue(avg);
         const ca = chart.chartArea, ctx = chart.ctx;
         ctx.save();
@@ -139,7 +155,6 @@
             tooltip:{mode:'index',intersect:false,displayColors:false},
             avgLine: is10 ? {
               enabled:true,
-              // NULL-SAFE until state['10m'] exists
               getData: ()=> {
                 const s = state && state['10m'];
                 return (s && Array.isArray(s.arr)) ? s.arr.map(p=>p.price) : [];
@@ -163,11 +178,13 @@
           scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
       });
     }
+
     function computeTrendColor(key){
       const a=state[key].arr;
       if(a.length<2) return cssVar('--accent')||'#4da3ff';
       return (a[a.length-1].price>=a[0].price)?cssVar('--up'):cssVar('--down');
     }
+
     function applyAreaGradIf10(key){
       if(key!=='10m') return;
       const b=state[key], ch=b.pc, ca=ch.chartArea; if(!ca) return;
@@ -177,17 +194,58 @@
       g.addColorStop(0,toRGBA(col,0.24)); g.addColorStop(1,toRGBA(col,0.02));
       ch.data.datasets[0].backgroundColor = g;
     }
+
+    function fmtUSD(n){ return '$'+(n??0).toLocaleString(undefined,{maximumFractionDigits:2}); }
+
+    function updateTopbar(key, prices){
+      const pricePill = document.getElementById(`pc-${key}`);
+      const highPill  = document.getElementById(`hc-${key}`);
+      const lowPill   = document.getElementById(`lc-${key}`);
+
+      if(!prices || prices.length===0){
+        pricePill.textContent='$—'; highPill.textContent='H: —'; lowPill.textContent='L: —';
+        pricePill.className='pill muted'; highPill.className='pill muted'; lowPill.className='pill muted';
+        return;
+      }
+      const last = prices[prices.length-1];
+      const prev = prices.length>1 ? prices[prices.length-2] : last;
+      const dir  = last - prev;
+
+      // price pill color live
+      pricePill.textContent = fmtUSD(last);
+      pricePill.className = 'pill ' + (dir>0 ? 'up' : dir<0 ? 'down' : 'muted');
+
+      // Hi/Lo for the period
+      let hi = -Infinity, lo = Infinity;
+      for(const p of prices){ if(p>hi) hi=p; if(p<lo) lo=p; }
+      highPill.textContent = 'H: ' + fmtUSD(hi);
+      lowPill.textContent  = 'L: ' + fmtUSD(lo);
+
+      // Emphasize when current price is down; otherwise show muted
+      if(dir<0){
+        highPill.className = 'pill up';
+        lowPill.className  = 'pill down';
+      }else{
+        highPill.className = 'pill muted';
+        lowPill.className  = 'pill muted';
+      }
+    }
+
     function redraw(key){
       const tf=TF.find(x=>x.key===key), b=state[key], now=Date.now();
       b.arr=b.arr.filter(pt=>pt.t>=now-tf.win);
       b.trendColor = computeTrendColor(key);
 
-      // price
       const labels=b.arr.map(pt=>new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
       const prices=b.arr.map(pt=>pt.price);
+
+      // update price chart
       const pc=b.pc;
       pc.data.labels=labels; pc.data.datasets[0].data=prices; pc.data.datasets[0].borderColor=b.trendColor;
       applyAreaGradIf10(key); pc.update('none');
+
+      // update top bar (price + H/L)
+      updateTopbar(key, prices);
 
       // volume (12 bins)
       const bins=tf.bin, start=now-tf.win, w=tf.win/bins;
@@ -202,15 +260,8 @@
       vc.data.datasets[0].backgroundColor = ag.map(x=>x.first==null?'#b9c2d0':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
       vc.update('none');
     }
-    function setBadges(p){
-      for(const t of TF){
-        const el=document.getElementById('p-'+t.key);
-        el.textContent='$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
-        el.style.color = (p>=lastPrice)?cssVar('--up'):cssVar('--down');
-      }
-    }
 
-    // init charts
+    // init charts + state
     for(const t of TF){
       state[t.key]={arr:[],tLast:0,trendColor:cssVar('--accent')||'#4da3ff',
         pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
@@ -239,18 +290,18 @@
           if(Number.isFinite(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
         }
       }catch{}
-      onQuote(lastPrice+(Math.random()-0.5)*20,Math.random()*2);
+      onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2);
       liveEl.textContent='Live: mock · '+APP_VERSION;
     }
+
     function onQuote(p,v){
-      lastPrice=p; lastVol=v||lastVol;
+      lastPriceGlobal=p; lastVolGlobal=v||lastVolGlobal;
       const n=Date.now();
       for(const t of TF){
         const b=state[t.key];
         if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
         redraw(t.key);
       }
-      setBadges(p);
     }
 
     // history (CG → Bitstamp → CB EX → mock)
@@ -277,6 +328,7 @@
       const arr=rows.map(x=>({t:x[0]*1000+tf.granEX*1000,price:Number(x[4]),vol:Number(x[5])||0}));
       return {source:'Coinbase EX',arr};
     }
+
     async function preload(){
       let source='mock';
       for(const tf of TF){
@@ -284,7 +336,7 @@
         try{res=await fetchCG(tf);}catch{try{res=await fetchBitstamp(tf);}catch{try{res=await fetchCB(tf);}catch{res=null}}}
         if(res&&res.arr.length){ const b=state[tf.key]; b.arr=res.arr; b.tLast=b.arr[b.arr.length-1].t||0; redraw(tf.key); source=res.source; }
         else { // mock seed
-          const now=Date.now(); const b=state[tf.key]; let p=lastPrice; b.arr=[];
+          const now=Date.now(); const b=state[tf.key]; let p=lastPriceGlobal; b.arr=[];
           const st=Math.max(2000,Math.floor(tf.win/60));
           for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
           b.tLast=now; redraw(tf.key); source='mock';
@@ -293,11 +345,11 @@
       histEl.textContent='History: '+source+' · '+APP_VERSION;
     }
 
-    // fail-safe timeout so page never stays blank
+    // fail-safe timeout
     const fs=setTimeout(()=>{
       const now=Date.now();
       for(const tf of TF){
-        const b=state[tf.key]; let p=lastPrice; b.arr=[];
+        const b=state[tf.key]; let p=lastPriceGlobal; b.arr=[];
         const st=Math.max(2000,Math.floor(tf.win/60));
         for(let t=now-tf.win;t<=now;t+=st){ p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2}); }
         b.tLast=now; redraw(tf.key);
