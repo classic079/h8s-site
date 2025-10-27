@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.4</title>
+<title>BTC Overview — v1.5</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
   :root{
@@ -35,7 +35,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="chip" id="ver">v1.4</span>
+      <span class="chip" id="ver">v1.5</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
@@ -46,15 +46,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 /* ================== VERSION ================== */
-const APP_VERSION = 'v1.4';
+const APP_VERSION = 'v1.5';
 console.log('BTC Dashboard', APP_VERSION);
 
-/* ================== CONFIG (unchanged) ================== */
+/* ================== CONFIG ================== */
 const TF = [
   { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, granEX:3600, bin:12, bitstampStep:3600 },
   { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, granEX: 900, bin:12, bitstampStep: 900 },
   { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, granEX:  60, bin:12, bitstampStep:  60 },
-  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style
+  { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, granEX:  60, bin:12, bitstampStep:  60 } // mobile-style look
 ];
 
 const dash = document.getElementById('dashboard');
@@ -76,9 +76,34 @@ const cssVar = function(n){ return getComputedStyle(document.documentElement).ge
 const state = {};
 var lastPrice = 65000, lastVol = 1;
 
+/* ================== AVG LINE PLUGIN (for 10m only) ================== */
+const avgLinePlugin = {
+  id: 'avgLine',
+  afterDatasetsDraw(chart, args, opts){
+    if(!opts || !opts.enabled) return;
+    const getData = opts.getData;
+    if(typeof getData !== 'function') return;
+    const arr = getData();
+    if(!arr || !arr.length) return;
+    const sum = arr.reduce((s,p)=>s+(+p||0),0);
+    const avg = sum / arr.length;
+    const y = chart.scales.y.getPixelForValue(avg);
+    const ca = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(ca.left, y);
+    ctx.lineTo(ca.right, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
 /* ================== CHART FACTORIES ================== */
 function makeLineChart(ctx, tfKey){
-  var is10 = (tfKey === '10m');
+  const is10 = (tfKey === '10m');
   return new Chart(ctx, {
     type: 'line',
     data: { labels: [], datasets: [{
@@ -86,16 +111,23 @@ function makeLineChart(ctx, tfKey){
       borderColor: cssVar('--accent') || '#4da3ff',
       borderWidth: is10 ? 3 : 2,
       pointRadius: 0,
-      tension: is10 ? 0 : 0,
-      stepped: is10 ? 'after' : false,
-      fill: is10 ? true : false,
-      backgroundColor: is10 ? 'transparent' : 'transparent' // gradient applied on redraw
+      tension: is10 ? 0.25 : 0,    // mobile smooth
+      stepped: false,
+      fill: is10 ? true : false,   // soft area only for 10m
+      backgroundColor: is10 ? 'transparent' : 'transparent'
     }]},
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 0 },
-      plugins: { legend: { display: false }, tooltip: { mode:'index', intersect:false, displayColors:false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode:'index', intersect:false, displayColors:false },
+        avgLine: is10 ? {
+          enabled: true,
+          getData: ()=> state['10m'].arr.map(p=>p.price)
+        } : { enabled:false }
+      },
       scales: {
         x: { ticks: { display:false }, grid: { display:false } },
         y: {
@@ -103,7 +135,8 @@ function makeLineChart(ctx, tfKey){
           grid: { color: tfKey==='10m' ? 'transparent' : 'rgba(255,255,255,.05)' }
         }
       }
-    }
+    },
+    plugins: is10 ? [avgLinePlugin] : []
   });
 }
 
@@ -124,8 +157,8 @@ function makeBarChart(ctx){
   });
 }
 
-function toRGBA(hex, a){
-  var h = (hex || '#4da3ff').replace('#','');
+function toRGBA(hex6, a){
+  var h = (hex6 || '#4da3ff').replace('#','');
   if (h.length !== 6) return 'rgba(77,163,255,'+a+')';
   var r = parseInt(h.substring(0,2),16),
       g = parseInt(h.substring(2,4),16),
@@ -143,7 +176,7 @@ TF.forEach(function(t){
   };
 });
 
-/* ================== RENDER (unchanged except 10m gradient) ================== */
+/* ================== RENDER ================== */
 function computeTrendColor(tfKey){
   var arr = state[tfKey].arr;
   if (arr.length < 2) return cssVar('--accent') || '#4da3ff';
@@ -187,7 +220,7 @@ function redraw(tfKey){
   applyAreaGradientIfNeeded(tfKey);
   pc.update('none');
 
-  // volume bins
+  // volume bins (12)
   var bins = t.bin, start = now - t.win, w = t.win / bins;
   var ag = []; for (var i=0;i<bins;i++){ ag.push({start:start+i*w, vol:0, first:null, last:null}); }
   for (var k=0;k<b.arr.length;k++){
@@ -216,9 +249,10 @@ function setBadges(p){
   });
 }
 
-/* ================== LIVE (unchanged) ================== */
+/* ================== LIVE ================== */
 async function pollLive(){
   var liveEl = document.getElementById('liveStatus');
+
   try{
     var r1 = await fetch('https://api.exchange.coinbase.com/products/BTC-USD/ticker', { headers: { Accept:'application/json' } });
     if (r1.ok){
@@ -227,6 +261,7 @@ async function pollLive(){
       if (!isNaN(p1)){ onQuote(p1, parseFloat(j1.size || j1.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Coinbase · ' + APP_VERSION; return; }
     }
   }catch(e){}
+
   try{
     var r2 = await fetch('https://www.bitstamp.net/api/v2/ticker/btcusd/');
     if (r2.ok){
@@ -235,6 +270,7 @@ async function pollLive(){
       if (!isNaN(p2)){ onQuote(p2, parseFloat(j2.volume || 0.1) || 0.1); liveEl.textContent = 'Live: Bitstamp · ' + APP_VERSION; return; }
     }
   }catch(e){}
+
   try{
     var r3 = await fetch('https://api.coincap.io/v2/assets/bitcoin');
     if (r3.ok){
@@ -243,6 +279,7 @@ async function pollLive(){
       if (!isNaN(p3)){ onQuote(p3, 0.1); liveEl.textContent = 'Live: CoinCap · ' + APP_VERSION; return; }
     }
   }catch(e){}
+
   onQuote(lastPrice + (Math.random()-0.5)*20, Math.random()*2);
   liveEl.textContent = 'Live: mock · ' + APP_VERSION;
 }
@@ -262,7 +299,7 @@ function onQuote(p,v){
   setBadges(p);
 }
 
-/* ================== HISTORY (unchanged) ================== */
+/* ================== HISTORY (CoinGecko → Bitstamp → Coinbase EX → mock) ================== */
 async function fetchCoinGecko(tf){
   var to = Math.floor(Date.now()/1000);
   var from = to - Math.ceil(tf.win/1000);
