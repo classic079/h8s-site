@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v0.7</title>
+<title>BTC Overview — v0.8</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
   :root{
@@ -35,7 +35,7 @@
   <header>
     <h1>BTC Overview</h1>
     <div class="meta">
-      <span class="version" id="ver">v0.7</span>
+      <span class="version" id="ver">v0.8</span>
       <span class="badge" id="status">Loading history…</span>
     </div>
   </header>
@@ -44,24 +44,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-/* ---------- VERSION ---------- */
-const APP_VERSION = 'v0.7';
-console.log('BTC Dashboard version:', APP_VERSION);
-document.getElementById('ver').textContent = APP_VERSION;
+const APP_VERSION = 'v0.8';
+console.log(`BTC Dashboard ${APP_VERSION} — init`);
 
-/* ---------- CONFIG ---------- */
 const PRODUCT_ID = "BTC-USD";
 const EXCHANGE_TICKER = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/ticker`;
 
-// 24h · 8h · 1h · 10m
 const TF = [
-  { key:'24h', label:'24 HOURS', win:24*60*60e3, sample:3e4, granAT:'ONE_HOUR',  granEX:3600,  bin:12 },
-  { key:'8h',  label:'8 HOURS',  win: 8*60*60e3, sample:15e3, granAT:'FIFTEEN_MINUTE', granEX:900,   bin:12 },
-  { key:'1h',  label:'1 HOUR',   win: 1*60*60e3, sample:5e3,  granAT:'ONE_MINUTE',     granEX:60,   bin:12 },
-  { key:'10m', label:'10 MIN',   win:10*60e3,    sample:2e3,  granAT:'ONE_MINUTE',     granEX:60,   bin:12 },
+  { key:'24h', label:'24 HOURS', win:24*60*60e3, sample:3e4, granEX:3600,  bin:12 },
+  { key:'8h',  label:'8 HOURS',  win: 8*60*60e3, sample:15e3, granEX:900,   bin:12 },
+  { key:'1h',  label:'1 HOUR',   win: 1*60*60e3, sample:5e3,  granEX:60,   bin:12 },
+  { key:'10m', label:'10 MIN',   win:10*60e3,    sample:2e3,  granEX:60,   bin:12 },
 ];
 
-// Build layout immediately
 const dash = document.getElementById('dashboard');
 dash.innerHTML = TF.map(t=>`
   <div class="col">
@@ -70,7 +65,6 @@ dash.innerHTML = TF.map(t=>`
     <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
   </div>`).join('');
 
-// State + charts
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const state = {};
 TF.forEach(t => {
@@ -78,17 +72,16 @@ TF.forEach(t => {
     arr: [], tLast: 0,
     pc: new Chart(document.getElementById(`c-${t.key}`).getContext('2d'), {
       type:'line',
-      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent')||'#4da3ff',borderWidth:2,fill:false,tension:0,pointRadius:0}]},
-      options:{
-        responsive:true,maintainAspectRatio:false,animation:{duration:0},
-        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false,
-          callbacks:{label:c=>`$${Number(c.formattedValue).toLocaleString()}`}}},
-        scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}
+      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent'),borderWidth:2,fill:false,tension:0,pointRadius:0}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false}},
+        scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:'rgba(255,255,255,.05)'}}}}
     }),
     vc: new Chart(document.getElementById(`v-${t.key}`).getContext('2d'), {
       type:'bar',
       data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},
+      options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
+        plugins:{legend:{display:false}},
         scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}}
     })
   };
@@ -96,53 +89,39 @@ TF.forEach(t => {
 
 let lastPrice = 65000, lastVol = 1;
 
-/* ---------- RENDER ---------- */
 function redraw(tfKey){
   const t = TF.find(x=>x.key===tfKey), b = state[tfKey], now = Date.now();
-  // prune
   b.arr = b.arr.filter(pt => pt.t >= now - t.win);
-  // price line
   const labels = b.arr.map(pt => new Date(pt.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
   const prices = b.arr.map(pt => pt.price);
-  b.pc.data.labels = labels;
-  b.pc.data.datasets[0].data = prices;
-  b.pc.update('none');
+  b.pc.data.labels = labels; b.pc.data.datasets[0].data = prices; b.pc.update('none');
 
-  // 12-bin volume histogram
   const bins = t.bin, start = now - t.win, w = t.win / bins;
   const ag = Array.from({length:bins}, (_,i)=>({start: start+i*w, vol:0, first:null, last:null}));
   for(const pt of b.arr){
     const i = Math.min(bins-1, Math.max(0, Math.floor((pt.t-start)/w)));
-    const bin = ag[i];
-    bin.vol += pt.vol || 0;
-    if(bin.first == null) bin.first = pt.price;
-    bin.last = pt.price;
+    const bin = ag[i]; bin.vol += pt.vol||0; if(bin.first==null)bin.first=pt.price; bin.last=pt.price;
   }
-  b.vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+  b.vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
   b.vc.data.datasets[0].data = ag.map(x => x.vol);
-  b.vc.data.datasets[0].backgroundColor = ag.map(x => (x.first==null) ? '#b9c2d0' : (x.last>=x.first ? cssVar('--up') : cssVar('--down')));
+  b.vc.data.datasets[0].backgroundColor = ag.map(x => (x.first==null)?'#999':(x.last>=x.first?cssVar('--up'):cssVar('--down')));
   b.vc.update('none');
 }
 
 function setBadges(p){
   TF.forEach(t=>{
     const el = document.getElementById(`p-${t.key}`);
-    el.textContent = '$' + p.toLocaleString(undefined,{maximumFractionDigits:2});
-    el.style.color = p >= lastPrice ? cssVar('--up') : cssVar('--down');
+    el.textContent = '$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
+    el.style.color = p>=lastPrice ? cssVar('--up') : cssVar('--down');
   });
 }
 
-/* ---------- LIVE TICKS ---------- */
 function onQuote(p,v){
-  lastPrice = p;
-  lastVol = v || lastVol;
+  lastPrice = p; lastVol = v||lastVol;
   const n = Date.now();
   TF.forEach(t=>{
-    const b = state[t.key];
-    if (n - b.tLast >= t.sample){
-      b.arr.push({t:n, price:p, vol:v});
-      b.tLast = n;
-    }
+    const b=state[t.key];
+    if(n-b.tLast>=t.sample){ b.arr.push({t:n,price:p,vol:v}); b.tLast=n; }
     redraw(t.key);
   });
   setBadges(p);
@@ -150,86 +129,75 @@ function onQuote(p,v){
 
 async function pollOnce(){
   try{
-    const r = await fetch(EXCHANGE_TICKER, { headers:{Accept:'application/json'}});
-    if(!r.ok) throw new Error('ticker '+r.status);
+    const r = await fetch(EXCHANGE_TICKER,{headers:{Accept:'application/json'}});
+    if(!r.ok) throw new Error();
     const j = await r.json();
-    const p = parseFloat(j.price || j.last || j.ask || j.bid);
-    const v = parseFloat(j.size || j.last_size || j.volume || 0.2) || 0.2;
-    if (Number.isFinite(p)) onQuote(p, v);
-  }catch(e){ /* ignore transient */ }
+    const p = parseFloat(j.price||j.last||j.ask||j.bid);
+    const v = parseFloat(j.size||j.volume||j.last_size||0.1);
+    if(Number.isFinite(p)) onQuote(p,v);
+  }catch(e){}
 }
 
-/* ---------- HISTORY (multi-source) ---------- */
-const statusEl = document.getElementById('status');
-function timeout(p, ms){ return Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]); }
-
-async function fetchAT(tf){ // Coinbase Advanced Trade v3
-  const end = new Date();
-  const start = new Date(end.getTime() - tf.win);
-  const params = new URLSearchParams({ start:start.toISOString(), end:end.toISOString(), granularity:tf.granAT });
-  const url = `https://api.coinbase.com/api/v3/brokerage/products/${PRODUCT_ID}/candles?` + params.toString();
-  const r = await timeout(fetch(url, {headers:{Accept:'application/json'}}), 7000);
-  if(!r.ok) throw new Error('AT '+r.status);
-  const j = await r.json();
-  if(!j || !Array.isArray(j.candles)) throw new Error('AT payload');
-  const arr = j.candles.map(c => ({ t:new Date(c.start).getTime()+1, price:Number(c.close), vol:Number(c.volume)||0 }))
-                       .sort((a,b)=>a.t-b.t);
-  return {source:'Coinbase AT', arr};
-}
-async function fetchEX(tf){ // Coinbase Exchange
-  const end = Math.floor(Date.now()/1000);
-  const start = end - Math.ceil(tf.win/1000);
-  const url = `https://api.exchange.coinbase.com/products/${PRODUCT_ID}/candles?granularity=${tf.granEX}&start=${start}&end=${end}`;
-  const r = await timeout(fetch(url, {headers:{Accept:'application/json'}}), 7000);
-  if(!r.ok) throw new Error('EX '+r.status);
-  const rows = await r.json();
-  if(!Array.isArray(rows)) throw new Error('EX payload');
-  rows.sort((a,b)=>a[0]-b[0]);
-  const arr = rows.map(([ts, , , , close, vol]) => ({ t:ts*1000+tf.granEX*1000, price:Number(close), vol:Number(vol)||0 }));
-  return {source:'Coinbase EX', arr};
-}
-async function fetchBinance(tf){ // Binance fallback (permissive CORS)
-  const map = {60:'1m', 900:'15m', 3600:'1h'};
-  const interval = map[tf.granEX] || '1m';
-  const per = { '1m':60e3, '15m':9e5, '1h':36e5 }[interval];
-  const limit = Math.min(1000, Math.ceil(tf.win / per) + 2);
-  const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`;
-  const r = await timeout(fetch(url, {headers:{Accept:'application/json'}}), 7000);
-  if(!r.ok) throw new Error('BIN '+r.status);
-  const rows = await r.json();
-  if(!Array.isArray(rows)) throw new Error('BIN payload');
-  const arr = rows.map(k => ({ t:Number(k[6]), price:Number(k[4]), vol:Number(k[5])||0 }))
-                  .sort((a,b)=>a.t-b.t);
-  return {source:'Binance', arr};
+async function fetchBinance(tf){
+  const map={60:'1m',900:'15m',3600:'1h'};
+  const interval=map[tf.granEX]||'1m';
+  const per={'1m':60e3,'15m':9e5,'1h':36e5}[interval];
+  const limit=Math.min(500,Math.ceil(tf.win/per)+2);
+  const url=`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`;
+  const r=await fetch(url);
+  const rows=await r.json();
+  const arr=rows.map(k=>({t:Number(k[6]),price:Number(k[4]),vol:Number(k[5])||0}));
+  return arr;
 }
 
 async function preload(){
+  console.log('Preloading history…');
+  const status=document.getElementById('status');
+  let loadedAny=false;
   for(const tf of TF){
-    let loaded=null;
-    try{ loaded = await fetchAT(tf); }
-    catch(_){ try{ loaded = await fetchEX(tf); }
-    catch(_){ try{ loaded = await fetchBinance(tf); } catch(_){ /* all failed */ } } }
-    if(loaded && loaded.arr.length){
-      const b = state[tf.key];
-      b.arr = loaded.arr;
-      b.tLast = b.arr[b.arr.length-1].t || 0;
+    try{
+      const arr=await fetchBinance(tf);
+      if(arr?.length){
+        state[tf.key].arr=arr;
+        redraw(tf.key);
+        loadedAny=true;
+      }
+    }catch(e){console.warn('history fail',e);}
+  }
+  if(loadedAny){
+    status.textContent=`History: Binance · ${APP_VERSION}`;
+  }else{
+    // fallback mock
+    const now=Date.now();
+    TF.forEach(tf=>{
+      const b=state[tf.key]; let p=lastPrice; b.arr=[];
+      for(let t=now-tf.win;t<=now;t+=Math.max(2000,tf.win/60)){
+        p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});
+      }
       redraw(tf.key);
-      statusEl.textContent = `History: ${loaded.source} · ${APP_VERSION}`;
-    }else{
-      const b = state[tf.key], now = Date.now(), step = Math.max(2000, Math.floor(tf.win/60));
-      let p = lastPrice; b.arr = [];
-      for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; b.arr.push({t, price:p, vol:Math.random()*2}); }
-      b.tLast = now; redraw(tf.key);
-      statusEl.textContent = `History: mock · ${APP_VERSION}`;
-    }
+    });
+    status.textContent=`History: mock · ${APP_VERSION}`;
   }
 }
 
-/* ---------- BOOT ---------- */
 (async function(){
-  await preload();      // seed charts from best available source
-  await pollOnce();    // first live tick
-  setInterval(pollOnce, 2000);
+  const failSafe=setTimeout(()=>{
+    console.log('⚠️ Fallback to mock after timeout');
+    document.getElementById('status').textContent=`Timeout · mock data · ${APP_VERSION}`;
+    const now=Date.now();
+    TF.forEach(tf=>{
+      const b=state[tf.key]; let p=lastPrice; b.arr=[];
+      for(let t=now-tf.win;t<=now;t+=Math.max(2000,tf.win/60)){
+        p+=(Math.random()-0.5)*15; b.arr.push({t,price:p,vol:Math.random()*2});
+      }
+      redraw(tf.key);
+    });
+  },5000);
+
+  await preload();
+  clearTimeout(failSafe);
+  await pollOnce();
+  setInterval(pollOnce,2000);
 })();
 </script>
 </body>
