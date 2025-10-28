@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Overview - v2.5 FINAL</title>
+<title>BTC Overview - v3.0 FIREBASE</title>
 <style>
 :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
 *{box-sizing:border-box}
@@ -13,6 +13,7 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 .metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .metaRight{justify-self:end}
 .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
+.chip.connected{border-color:#2e7d32;color:#b7f5c8}
 .badge{font-size:12px;color:var(--muted)}
 .pane{background:linear-gradient(180deg,var(--panel),var(--panel-2));border-radius:12px;padding:6px 12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.24)}
 .pane label{color:#cbd5e1;font-weight:700;margin-right:12px}
@@ -42,26 +43,48 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 .needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
 <div class="wrap">
 <header>
 <div class="metaLeft">
-<span class="chip">v2.5 PRODUCTION</span>
-<span class="badge" id="histStatus">History: Ready</span>
-<span class="badge" id="liveStatus">Live: Market Data</span>
+<span class="chip">v3.0 FIREBASE</span>
+<span class="badge" id="histStatus">History: Loading...</span>
+<span class="badge" id="liveStatus">Live: Connecting...</span>
 </div>
 <div class="pane">
 <label>BTC/USD</label>
 <div id="headerPrice">$—</div>
 <div id="headerClock">—:—:—</div>
 </div>
-<div class="metaRight"><span class="chip" style="border-color:#2e7d32;color:#b7f5c8">Live</span></div>
+<div class="metaRight">
+<span class="chip" id="fbStatus">Firebase: Connecting...</span>
+<span class="badge" id="userCount">— users</span>
+</div>
 </header>
 <section class="grid" id="dashboard"></section>
 </div>
 
 <script>
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDMq4I4AXQ1dIE5P16fP-BhYCesh_6KvJ4",
+  authDomain: "btc-dashboard-53e09.firebaseapp.com",
+  databaseURL: "https://btc-dashboard-53e09-default-rtdb.firebaseio.com",
+  projectId: "btc-dashboard-53e09",
+  storageBucket: "btc-dashboard-53e09.firebasestorage.app",
+  messagingSenderId: "848378804701",
+  appId: "1:848378804701:web:7c342ae86b7e5927f74834",
+  measurementId: "G-QV1Y9LSWET"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+
 const TF = [
   {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12},
   {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12},
@@ -106,11 +129,38 @@ setInterval(updateClock, 1000);
 <script>
 const histEl = document.getElementById('histStatus');
 const liveEl = document.getElementById('liveStatus');
+const fbStatus = document.getElementById('fbStatus');
+const userCount = document.getElementById('userCount');
 const headPrice = document.getElementById('headerPrice');
 const stateMap = {};
-let basePrice = 114000; // Starting price based on current BTC
+let basePrice = 114000;
 let lastPriceGlobal = basePrice;
 let lastHeader = null;
+let isConnected = false;
+
+// Track online users
+const myConnectionsRef = database.ref('users/' + Date.now());
+const connectedRef = database.ref('.info/connected');
+
+connectedRef.on('value', (snap) => {
+  if (snap.val() === true) {
+    isConnected = true;
+    fbStatus.textContent = 'Firebase: Connected';
+    fbStatus.classList.add('connected');
+    myConnectionsRef.onDisconnect().remove();
+    myConnectionsRef.set(true);
+  } else {
+    isConnected = false;
+    fbStatus.textContent = 'Firebase: Disconnected';
+    fbStatus.classList.remove('connected');
+  }
+});
+
+// Count online users
+database.ref('users').on('value', (snap) => {
+  const count = snap.numChildren();
+  userCount.textContent = count + ' user' + (count === 1 ? '' : 's');
+});
 
 function cssVar(v) {
   return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -331,94 +381,188 @@ function redraw(key) {
   }
 }
 
-// Generate realistic price history using Brownian motion
-function generateRealisticHistory() {
-  const now = Date.now();
+// Load historical data from Firebase
+function loadHistoricalData() {
+  histEl.textContent = 'History: Loading from Firebase...';
   
-  // Try to get real current price first
+  const priceHistoryRef = database.ref('priceHistory');
+  
+  priceHistoryRef.once('value', (snapshot) => {
+    const data = snapshot.val();
+    
+    if (data && data.points) {
+      console.log('Loaded', data.points.length, 'points from Firebase');
+      
+      const now = Date.now();
+      TF.forEach(tf => {
+        const s = stateMap[tf.key];
+        s.arr = data.points.filter(pt => pt.t >= now - tf.win);
+        redraw(tf.key);
+      });
+      
+      if (data.points.length > 0) {
+        lastPriceGlobal = data.points[data.points.length - 1].price;
+        basePrice = data.basePrice || lastPriceGlobal;
+        setHeaderPrice(lastPriceGlobal);
+        histEl.textContent = 'History: Loaded from Firebase';
+      }
+    } else {
+      console.log('No Firebase data, generating initial history');
+      generateInitialHistory();
+    }
+  });
+}
+
+// Generate initial history if Firebase is empty
+function generateInitialHistory() {
+  histEl.textContent = 'History: Generating initial data...';
+  
   fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
     .then(r => r.json())
     .then(j => {
       if (j && j.bitcoin && j.bitcoin.usd) {
         basePrice = j.bitcoin.usd;
         lastPriceGlobal = basePrice;
-        console.log('Got real BTC price: $' + basePrice);
-        liveEl.textContent = 'Live: Market Data';
+        liveEl.textContent = 'Live: Got real price';
       }
     })
     .catch(() => console.log('Using default price'))
     .finally(() => {
-      // Generate history for each timeframe
-      TF.forEach(t => {
-        const s = stateMap[t.key];
-        const points = 60; // Number of historical points
-        const step = t.win / points;
+      const now = Date.now();
+      const points = [];
+      let p = basePrice;
+      const volatility = basePrice * 0.0008;
+      
+      // Generate 24 hours of history
+      for (let i = 1440; i > 0; i--) {
+        const change = (Math.random() - 0.5) * volatility;
+        p += change;
+        const meanReversion = (basePrice - p) * 0.01;
+        p += meanReversion;
         
-        let p = basePrice;
-        const volatility = basePrice * 0.0008; // 0.08% volatility per step
-        const trend = (Math.random() - 0.5) * 0.0001; // Small random trend
-        
-        for (let i = points; i > 0; i--) {
-          // Brownian motion with drift
-          const change = (Math.random() - 0.5 + trend) * volatility;
-          p += change;
-          
-          // Add some mean reversion
-          const meanReversion = (basePrice - p) * 0.01;
-          p += meanReversion;
-          
-          s.arr.push({
-            t: now - i * step,
-            price: p,
-            vol: Math.abs(change) * 50 + Math.random() * 10 + 5
-          });
-        }
-        
-        redraw(t.key);
+        points.push({
+          t: now - i * 60000, // One minute intervals
+          price: p,
+          vol: Math.abs(change) * 50 + Math.random() * 10 + 5
+        });
+      }
+      
+      // Save to Firebase
+      database.ref('priceHistory').set({
+        basePrice: basePrice,
+        lastUpdate: now,
+        points: points
+      });
+      
+      // Load into charts
+      TF.forEach(tf => {
+        const s = stateMap[tf.key];
+        s.arr = points.filter(pt => pt.t >= now - tf.win);
+        redraw(tf.key);
       });
       
       setHeaderPrice(lastPriceGlobal);
-      histEl.textContent = 'History: Loaded';
+      histEl.textContent = 'History: Generated & saved';
     });
 }
 
-// Simulate realistic price updates
-function simulateMarket() {
-  const volatility = basePrice * 0.0001; // 0.01% per update
-  const change = (Math.random() - 0.5) * volatility;
+// Listen for real-time price updates
+function listenForPriceUpdates() {
+  const currentPriceRef = database.ref('currentPrice');
   
-  // Add momentum (trending behavior)
-  if (Math.random() > 0.7) {
-    const momentum = (lastPriceGlobal - basePrice) * 0.1;
-    lastPriceGlobal += change + momentum;
-  } else {
-    lastPriceGlobal += change;
-  }
-  
-  // Mean reversion to keep price realistic
-  const meanReversion = (basePrice - lastPriceGlobal) * 0.005;
-  lastPriceGlobal += meanReversion;
-  
-  setHeaderPrice(lastPriceGlobal);
-  
-  const n = Date.now();
-  TF.forEach(t => {
-    const s = stateMap[t.key];
-    if (n - s.tLast >= t.sample) {
-      s.arr.push({
-        t: n,
-        price: lastPriceGlobal,
-        vol: Math.abs(change) * 50 + Math.random() * 10 + 5
+  currentPriceRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.price) {
+      lastPriceGlobal = data.price;
+      setHeaderPrice(data.price);
+      liveEl.textContent = 'Live: Firebase sync';
+      
+      const now = Date.now();
+      TF.forEach(t => {
+        const s = stateMap[t.key];
+        if (now - s.tLast >= t.sample) {
+          s.arr.push({
+            t: now,
+            price: data.price,
+            vol: data.vol || 0.1
+          });
+          s.tLast = now;
+          redraw(t.key);
+        }
       });
-      s.tLast = n;
-      redraw(t.key);
     }
   });
 }
 
-console.log('BTC Dashboard v2.5 Production starting...');
-generateRealisticHistory();
-setInterval(simulateMarket, 2000); // Update every 2 seconds
+// Update price in Firebase (only one instance does this)
+function becomePriceUpdater() {
+  const updaterRef = database.ref('updater');
+  
+  updaterRef.transaction((current) => {
+    if (current === null) {
+      return Date.now();
+    }
+  }, (error, committed) => {
+    if (!error && committed) {
+      console.log('This instance is the price updater');
+      liveEl.textContent = 'Live: Updating prices';
+      
+      setInterval(() => {
+        const volatility = basePrice * 0.0001;
+        const change = (Math.random() - 0.5) * volatility;
+        
+        if (Math.random() > 0.7) {
+          const momentum = (lastPriceGlobal - basePrice) * 0.1;
+          lastPriceGlobal += change + momentum;
+        } else {
+          lastPriceGlobal += change;
+        }
+        
+        const meanReversion = (basePrice - lastPriceGlobal) * 0.005;
+        lastPriceGlobal += meanReversion;
+        
+        // Update Firebase
+        database.ref('currentPrice').set({
+          price: lastPriceGlobal,
+          vol: Math.abs(change) * 50 + Math.random() * 10 + 5,
+          timestamp: Date.now()
+        });
+        
+        // Also update history (keep last 2000 points)
+        database.ref('priceHistory/points').once('value', (snap) => {
+          let points = snap.val() || [];
+          points.push({
+            t: Date.now(),
+            price: lastPriceGlobal,
+            vol: Math.abs(change) * 50 + Math.random() * 10 + 5
+          });
+          
+          // Keep only last 2000 points
+          if (points.length > 2000) {
+            points = points.slice(-2000);
+          }
+          
+          database.ref('priceHistory').update({
+            points: points,
+            lastUpdate: Date.now()
+          });
+        });
+      }, 2000);
+    } else {
+      console.log('Another instance is the updater');
+      liveEl.textContent = 'Live: Receiving updates';
+    }
+  });
+}
+
+console.log('BTC Dashboard v3.0 with Firebase starting...');
+
+// Wait for Firebase connection
+setTimeout(() => {
+  loadHistoricalData();
+  listenForPriceUpdates();
+  becomePriceUpdater();
+}, 1000);
 </script>
 </body>
 </html>
