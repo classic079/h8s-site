@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.6</title>
+<title>BTC Stalker - Multi-Timeframe v1.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.6</span>
+      <span class="pill" style="opacity:.6">v1.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -122,6 +122,7 @@ const pct1 = new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 /* ===== State ===== */
 let lastPrice = null;
 let win24h = [], win8h = [], win1h = [], win10m = [];
+let win24hVol = [], win8hVol = [], win1hVol = [], win10mVol = []; // Separate volume tracking
 let last24hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0;
 const SAMPLE_INTERVALS = {
   '24h': 300000,  // 5 minutes
@@ -218,7 +219,7 @@ function onTrade(t){
   lastPrice = p;
   priceEl.textContent = fmtUSD.format(p);
 
-  // Sample at different rates for each window
+  // Sample at different rates for price charts
   const now = Date.now();
   const trade = {price:p, size:s, side, time};
 
@@ -239,6 +240,12 @@ function onTrade(t){
     last10mSample = now;
   }
 
+  // Add ALL trades to volume windows (no sampling)
+  win24hVol.push(trade);
+  win8hVol.push(trade);
+  win1hVol.push(trade);
+  win10mVol.push(trade);
+
   prune();
   updateAll();
 }
@@ -249,13 +256,19 @@ function prune(){
   win8h = win8h.filter(t => t.time >= now - 28800000);
   win1h = win1h.filter(t => t.time >= now - 3600000);
   win10m = win10m.filter(t => t.time >= now - 600000);
+
+  win24hVol = win24hVol.filter(t => t.time >= now - 86400000);
+  win8hVol = win8hVol.filter(t => t.time >= now - 28800000);
+  win1hVol = win1hVol.filter(t => t.time >= now - 3600000);
+  win10mVol = win10mVol.filter(t => t.time >= now - 600000);
 }
 
 /* ===== Update stats & charts ===== */
 function updateAll(){
   TF.forEach(tf => {
     const arr = tf.key==='24h' ? win24h : tf.key==='8h' ? win8h : tf.key==='1h' ? win1h : win10m;
-    const stats = calcStats(arr);
+    const volArr = tf.key==='24h' ? win24hVol : tf.key==='8h' ? win8hVol : tf.key==='1h' ? win1hVol : win10mVol;
+    const stats = calcStats(volArr); // Use volume array for stats
 
     if(stats){
       const delta = stats.last - stats.first;
@@ -272,8 +285,8 @@ function updateAll(){
       ratioEl.className = `statPill ${stats.buyRatio>=50?'up':'down'}`;
     }
 
-    drawChart(tf.key, arr);
-    drawVolume(tf.key, arr, tf);
+    drawChart(tf.key, arr); // Use sampled array for price chart
+    drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
 
     if(tf.key==='10m' && stats){
       drawGauge(stats.buyVol, stats.sellVol);
@@ -603,31 +616,20 @@ async function fetchHistoricalCandles(){
 
       candles.forEach(c => {
         const vol = +c[5]; // actual volume from candle
-        // Add two trades per candle: 50% buy, 50% sell
-        win1h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'buy',
-          time: c[0] * 1000
-        });
-        win1h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'sell',
-          time: c[0] * 1000
-        });
-        win10m.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'buy',
-          time: c[0] * 1000
-        });
-        win10m.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'sell',
-          time: c[0] * 1000
-        });
+        const buyTrade = {price: +c[4], size: vol * 0.5, side: 'buy', time: c[0] * 1000};
+        const sellTrade = {price: +c[4], size: vol * 0.5, side: 'sell', time: c[0] * 1000};
+
+        // Add to price arrays (sampled)
+        win1h.push(buyTrade);
+        win1h.push(sellTrade);
+        win10m.push(buyTrade);
+        win10m.push(sellTrade);
+
+        // Add to volume arrays (for accurate volume tracking)
+        win1hVol.push(buyTrade);
+        win1hVol.push(sellTrade);
+        win10mVol.push(buyTrade);
+        win10mVol.push(sellTrade);
       });
 
       console.log('✅ Loaded', candles.length, '1h candles');
@@ -644,31 +646,20 @@ async function fetchHistoricalCandles(){
 
       candles.forEach(c => {
         const vol = +c[5]; // actual volume from candle
-        // Add two trades per candle: 50% buy, 50% sell
-        win24h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'buy',
-          time: c[0] * 1000
-        });
-        win24h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'sell',
-          time: c[0] * 1000
-        });
-        win8h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'buy',
-          time: c[0] * 1000
-        });
-        win8h.push({
-          price: +c[4],
-          size: vol * 0.5,
-          side: 'sell',
-          time: c[0] * 1000
-        });
+        const buyTrade = {price: +c[4], size: vol * 0.5, side: 'buy', time: c[0] * 1000};
+        const sellTrade = {price: +c[4], size: vol * 0.5, side: 'sell', time: c[0] * 1000};
+
+        // Add to price arrays (sampled)
+        win24h.push(buyTrade);
+        win24h.push(sellTrade);
+        win8h.push(buyTrade);
+        win8h.push(sellTrade);
+
+        // Add to volume arrays (for accurate volume tracking)
+        win24hVol.push(buyTrade);
+        win24hVol.push(sellTrade);
+        win8hVol.push(buyTrade);
+        win8hVol.push(sellTrade);
       });
 
       console.log('✅ Loaded', candles.length, '24h candles');
