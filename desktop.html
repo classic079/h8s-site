@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.3</title>
+<title>BTC Stalker - Multi-Timeframe v1.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.3</span>
+      <span class="pill" style="opacity:.6">v1.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -122,11 +122,12 @@ const pct1 = new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 /* ===== State ===== */
 let lastPrice = null;
 let win24h = [], win8h = [], win1h = [], win10m = [];
-const windows = {
-  '24h': win24h,
-  '8h': win8h,
-  '1h': win1h,
-  '10m': win10m
+let last24hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0;
+const SAMPLE_INTERVALS = {
+  '24h': 300000,  // 5 minutes
+  '8h': 120000,   // 2 minutes
+  '1h': 60000,    // 1 minute
+  '10m': 5000     // 5 seconds
 };
 
 /* ===== Build DOM ===== */
@@ -208,7 +209,7 @@ function onTrade(t){
   const side = t.side==='sell' ? 'sell' : 'buy';
   const time = t.time.getTime();
 
-  // Update price display
+  // Update price display (always)
   if(lastPrice !== null){
     priceEl.classList.remove('up','down');
     if(p>lastPrice) priceEl.classList.add('up');
@@ -217,12 +218,26 @@ function onTrade(t){
   lastPrice = p;
   priceEl.textContent = fmtUSD.format(p);
 
-  // Add to all windows
+  // Sample at different rates for each window
+  const now = Date.now();
   const trade = {price:p, size:s, side, time};
-  win24h.push(trade);
-  win8h.push(trade);
-  win1h.push(trade);
-  win10m.push(trade);
+
+  if(now - last24hSample >= SAMPLE_INTERVALS['24h']){
+    win24h.push(trade);
+    last24hSample = now;
+  }
+  if(now - last8hSample >= SAMPLE_INTERVALS['8h']){
+    win8h.push(trade);
+    last8hSample = now;
+  }
+  if(now - last1hSample >= SAMPLE_INTERVALS['1h']){
+    win1h.push(trade);
+    last1hSample = now;
+  }
+  if(now - last10mSample >= SAMPLE_INTERVALS['10m']){
+    win10m.push(trade);
+    last10mSample = now;
+  }
 
   prune();
   updateAll();
