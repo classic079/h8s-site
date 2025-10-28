@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.0</title>
+<title>BTC Stalker - Multi-Timeframe v2.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.0</span>
+      <span class="pill" style="opacity:.6">v2.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -405,17 +405,18 @@ function drawVolume(key, arr, tf){
     ctx.fillStyle = up;
     ctx.fillRect(x - barW/2, yB - hSell - hBuy, barW, hBuy);
 
-    // Add volume label pills on top of bars
+    // Add volume label pills on top of bars (with max height cap)
     if(tot > 0.01){
       const label = tot >= 1 ? `₿${tot.toFixed(1)}` : `₿${tot.toFixed(2)}`;
 
-      // Draw pill background on top of bar
+      // Draw pill background on top of bar (capped at 80% of chart height)
       ctx.font = '9px system-ui';
       const metrics = ctx.measureText(label);
       const pillW = metrics.width + 8;
       const pillH = 14;
       const pillX = x - pillW/2;
-      const pillY = yB - hT - pillH - 2;
+      const maxY = padY + chartH * 0.15; // Don't go higher than 15% from top
+      const pillY = Math.max(maxY, yB - hT - pillH - 2);
 
       ctx.fillStyle = 'rgba(0,0,0,.85)';
       ctx.beginPath();
@@ -431,6 +432,35 @@ function drawVolume(key, arr, tf){
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, x, pillY + pillH/2);
+    }
+
+    // Add bias pill inside bar showing buy vs sell
+    if(tot > 0.01 && hT > 24){ // Only if bar is tall enough
+      const bias = tot ? ((b.buy - b.sell) / tot) * 100 : 0;
+      const biasLabel = (bias >= 0 ? '+' : '') + bias.toFixed(0) + '%';
+
+      ctx.font = '9px system-ui';
+      const biasMetrics = ctx.measureText(biasLabel);
+      const biasPillW = biasMetrics.width + 8;
+      const biasPillH = 14;
+      const biasPillX = x - biasPillW/2;
+      const biasPillY = yB - hT/2 - biasPillH/2; // Center of bar
+
+      // Draw bias pill
+      ctx.fillStyle = bias >= 0 ? 'rgba(45,212,191,.85)' : 'rgba(245,158,11,.85)';
+      ctx.beginPath();
+      ctx.moveTo(biasPillX + 7, biasPillY);
+      ctx.arcTo(biasPillX + biasPillW, biasPillY, biasPillX + biasPillW, biasPillY + biasPillH, 7);
+      ctx.arcTo(biasPillX + biasPillW, biasPillY + biasPillH, biasPillX, biasPillY + biasPillH, 7);
+      ctx.arcTo(biasPillX, biasPillY + biasPillH, biasPillX, biasPillY, 7);
+      ctx.arcTo(biasPillX, biasPillY, biasPillX + biasPillW, biasPillY, 7);
+      ctx.fill();
+
+      // Draw bias text
+      ctx.fillStyle = 'rgba(0,0,0,.9)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(biasLabel, x, biasPillY + biasPillH/2);
     }
   });
 }
