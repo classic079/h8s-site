@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BTC Test - Simple</title>
+<style>
+body{margin:0;background:#0e0f13;color:#e5e7eb;font:14px system-ui;padding:20px}
+.status{padding:10px;margin:10px 0;background:#151823;border-radius:8px}
+.price{font-size:32px;font-weight:bold;margin:20px 0}
+</style>
+</head>
+<body>
+<h1>BTC Dashboard - Debug Version</h1>
+<div class="status" id="status">Initializing...</div>
+<div class="price" id="price">$—</div>
+<div class="status" id="log"></div>
+
+<script>
+console.log("Script started");
+const statusEl = document.getElementById('status');
+const priceEl = document.getElementById('price');
+const logEl = document.getElementById('log');
+
+function log(msg) {
+    console.log(msg);
+    logEl.innerHTML += msg + '<br>';
+    statusEl.textContent = msg;
+}
+
+log("JavaScript is working!");
+
+let currentPrice = 95000;
+
+function updatePrice(p) {
+    currentPrice = p;
+    priceEl.textContent = '$' + p.toLocaleString();
+    log("Price updated: $" + p.toLocaleString());
+}
+
+// Test 1: Basic price update
+log("Test 1: Setting initial price...");
+updatePrice(95000);
+
+// Test 2: Try WebSocket
+log("Test 2: Attempting WebSocket connection...");
+try {
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+    
+    ws.onopen = function() {
+        log("✅ WebSocket connected!");
+    };
+    
+    ws.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.p) {
+                updatePrice(Math.round(parseFloat(data.p)));
+            }
+        } catch(e) {
+            log("❌ WebSocket parse error: " + e.message);
+        }
+    };
+    
+    ws.onerror = function(error) {
+        log("❌ WebSocket error: " + error);
+    };
+    
+    ws.onclose = function() {
+        log("⚠️ WebSocket closed");
+    };
+} catch(e) {
+    log("❌ WebSocket failed: " + e.message);
+}
+
+// Test 3: Try API
+log("Test 3: Attempting API fetch...");
+setTimeout(() => {
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        .then(r => r.json())
+        .then(j => {
+            if (j && j.bitcoin && j.bitcoin.usd) {
+                updatePrice(Math.round(j.bitcoin.usd));
+                log("✅ API fetch successful!");
+            } else {
+                log("❌ API returned invalid data");
+            }
+        })
+        .catch(e => {
+            log("❌ API fetch failed: " + e.message);
+        });
+}, 2000);
+
+// Test 4: Simulate price if all else fails
+log("Test 4: Starting price simulation...");
+setInterval(() => {
+    currentPrice += (Math.random() - 0.5) * 100;
+    updatePrice(Math.round(currentPrice));
+}, 3000);
+
+log("All tests initiated. Watch for updates...");
+</script>
+</body>
+</html>
