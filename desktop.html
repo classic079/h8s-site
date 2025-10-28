@@ -1,75 +1,157 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Overview - v3.1 SMOOTH REAL-TIME</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>h8s — BTC Stalker v4.0</title>
 <style>
-:root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui;overflow-x:hidden}
-.wrap{max-width:1920px;margin:16px auto 28px;padding:0 24px}
-header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-items:center;gap:8px;margin-bottom:10px}
-.metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.metaRight{justify-self:end}
-.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
-.chip.connected{border-color:#2e7d32;color:#b7f5c8}
-.chip.live{border-color:#ff6b35;color:#ffd4c4;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
-.badge{font-size:12px;color:var(--muted)}
-.pane{background:linear-gradient(180deg,var(--panel),var(--panel-2));border-radius:12px;padding:6px 12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.24)}
-.pane label{color:#cbd5e1;font-weight:700;margin-right:12px}
-#headerPrice{justify-self:center;font-weight:900;font-size:clamp(20px,3.2vw,36px);letter-spacing:.2px;transition:color .18s}
-#headerPrice.up{color:var(--up)}
-#headerPrice.down{color:var(--down)}
-#headerClock{justify-self:end;color:var(--muted);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-@media(max-width:1500px){.grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:760px){.grid{grid-template-columns:1fr}}
-.col{background:linear-gradient(180deg,var(--panel),var(--panel-2));border-radius:10px;padding:8px;display:flex;flex-direction:column;box-shadow:0 3px 12px rgba(0,0,0,.25)}
-.title{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.tf{color:var(--muted);font-weight:800;font-size:12px}
-.topbar{display:flex;gap:6px;flex-wrap:wrap}
-.pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
-.pill.up{background:var(--up);border-color:transparent;color:#06140e}
-.pill.down{background:var(--down);border-color:transparent;color:#140808}
-.pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
-.chartCard{background:rgba(255,255,255,.02);border-radius:8px;height:210px;margin-top:6px}
-.volumeCard{background:rgba(255,255,255,.02);border-radius:8px;height:170px;margin-top:6px}
-.biasRow{display:flex;align-items:center;gap:10px;margin:8px 6px 0}
-.gLabel{font-size:12px;opacity:.9}
-.gLabel.buy{color:var(--up)}.gLabel.sell{color:#f59e0b}
-.gaugeWrap{position:relative;flex:1}
-#biasGauge{height:22px;width:100%;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
-.needle{position:absolute;top:2px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));transition:left .2s}
-.needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25)}
+  :root{
+    --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
+    --text:#e9fef7; --muted:#c8d6cf;
+    --up:#2dd4bf; --down:#f59e0b;
+    --grid:rgba(255,255,255,.08); --grid-2:rgba(255,255,255,.06);
+    --pill-bg:rgba(0,0,0,.75); --pill-bd:rgba(255,255,255,.22);
+    --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
+  .wrap{padding:14px 14px 120px; max-width:900px; margin:0 auto;}
+  .card{background:var(--panel); border-radius:14px; box-shadow:var(--glow); position:relative; margin-bottom:14px;}
+  .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px;
+        border-radius:999px; background:var(--pill-bg); border:1px solid var(--pill-bd);
+        font-size:12px; white-space:nowrap; color:#fff;}
+
+  /* Header */
+  .header{position:relative; padding:12px 12px 6px;}
+  .tinyTitle{margin:0; text-align:center; font-size:11px; letter-spacing:.12em;
+             text-transform:uppercase; color:var(--muted); opacity:.85}
+  .bigPrice{margin:4px 0 0; text-align:center; font-weight:900;
+            font-size: clamp(24px,7.6vw,44px); letter-spacing:.5px; transition:color .2s}
+  .bigPrice.up{color:var(--up)} .bigPrice.down{color:var(--down)}
+  
+  .subTitle{text-align:center; font-size:10px; color:var(--muted); margin:2px 0 0; opacity:.7}
+
+  /* Gear */
+  .gearBtn{position:absolute; top:10px; right:12px;
+           width:32px; height:32px; border-radius:9px;
+           border:1px solid rgba(255,255,255,.18);
+           background:rgba(0,0,0,.45);
+           display:flex; align-items:center; justify-content:center;
+           cursor:pointer; transition:transform .12s ease, background .15s ease, border-color .15s ease;}
+  .gearBtn:active{transform:scale(.96)}
+  .gearBtn:hover{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.28)}
+  .gearSvg{width:18px;height:18px;opacity:.92; stroke:currentColor}
+
+  .chartBox{padding:0 10px 6px}
+  canvas{display:block; width:100%; border-radius:12px; background:var(--panel-2)}
+  .priceChart{height:240px}
+  .volChart{height:210px}
+  .legend{display:flex; align-items:center; gap:16px; padding:8px 10px 4px; flex-wrap:wrap}
+  .dot{width:12px; height:12px; border-radius:3px; display:inline-block}
+  .dot.up{background:var(--up)} .dot.down{background:var(--down)}
+  .conn{position:fixed; left:14px; bottom:14px; z-index:30}
+  .conn.connected{border-color:var(--up); background:rgba(45,212,191,.15)}
+
+  /* gauge */
+  .gaugeRow{display:flex; align-items:center; gap:10px; padding:6px 10px 2px; position:relative}
+  .gLabel{font-size:12px; opacity:.9; user-select:none}
+  .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
+  #biasGauge{height:24px; border-radius:999px; background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
+  .needle{position:absolute; top:3px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left 0.2s ease;}
+  .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25);}
+
+  /* mirrored tops */
+  #topsCanvas{height:360px; margin-top:10px}
+
+  /* settings sheet */
+  .sheet{position:fixed; left:0; right:0; bottom:0; background:#0f0f0f; border-radius:16px 16px 0 0;
+         box-shadow:0 -12px 30px rgba(0,0,0,.55); transform:translateY(110%); transition:.25s ease;
+         border-top:1px solid rgba(255,255,255,.12); z-index:60; max-height:80vh; overflow-y:auto}
+  .sheet.open{transform:translateY(0)}
+  .sheetInner{padding:14px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+  .row label{font-size:14px;opacity:.9}
+  .row select{background:#181818;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px; min-width:120px}
+  .sheetClose{display:block;margin:10px auto 0}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
-<div class="wrap">
-<header>
-<div class="metaLeft">
-<span class="chip live">v3.1 SMOOTH RT</span>
-<span class="badge" id="histStatus">History: Loading...</span>
-<span class="badge" id="updateRate">—</span>
-</div>
-<div class="pane">
-<label>BTC/USD</label>
-<div id="headerPrice">$—</div>
-<div id="headerClock">—:—:—</div>
-</div>
-<div class="metaRight">
-<span class="chip" id="fbStatus">Firebase: Connecting...</span>
-<span class="badge" id="userCount">— users</span>
-</div>
-</header>
-<section class="grid" id="dashboard"></section>
-</div>
+  <main class="wrap">
+    <section class="card">
+      <div class="header">
+        <h2 class="tinyTitle">coinbase stalker v4.0</h2>
+        <h1 id="bigPrice" class="bigPrice">$—</h1>
+        <p class="subTitle" id="subTitle">Real-time Firebase + Coinbase</p>
+
+        <button id="gearBtn" class="gearBtn" title="Settings">
+          <svg class="gearSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+            <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="chartBox">
+        <!-- 1-MINUTE CHART -->
+        <canvas id="priceCanvas" class="priceChart"></canvas>
+
+        <!-- Gauge row -->
+        <div class="gaugeRow">
+          <span class="gLabel buy">Buys</span>
+          <div style="position:relative; flex:1">
+            <canvas id="biasGauge"></canvas>
+            <div id="needle" class="needle" style="left:50%"></div>
+            <div id="needleValue" class="needleValue" style="left:50%">0%</div>
+          </div>
+          <span class="gLabel sell">Sells</span>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend">
+          <span class="dot up"></span><span style="font-size:12px">Buys</span>
+          <span class="dot down"></span><span style="font-size:12px">Sells</span>
+          <span style="margin-left:auto" class="pill" id="maxVolPill">Vol —</span>
+        </div>
+
+        <!-- Volume -->
+        <canvas id="volCanvas" class="volChart"></canvas>
+      </div>
+    </section>
+
+    <div class="pill conn" id="connPill">Connecting...</div>
+  </main>
+
+  <!-- Settings sheet -->
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+    <div class="sheetInner">
+      <div class="row">
+        <label for="themeSel">Theme</label>
+        <select id="themeSel">
+          <option value="showgirl">Showgirl (teal/orange)</option>
+          <option value="classic">Classic (green/red)</option>
+          <option value="emerald">Emerald/Orange</option>
+          <option value="violet">Violet/Gold</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="timeframeSel">Timeframe</label>
+        <select id="timeframeSel">
+          <option value="1m">1 Minute</option>
+          <option value="5m">5 Minutes</option>
+          <option value="10m">10 Minutes</option>
+          <option value="1h">1 Hour</option>
+        </select>
+      </div>
+      <button id="closeSheet" class="pill sheetClose">Done</button>
+    </div>
+  </div>
 
 <script>
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDMq4I4AXQ1dIE5P16fP-BhYCesh_6KvJ4",
   authDomain: "btc-dashboard-53e09.firebaseapp.com",
@@ -83,208 +165,238 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-const TF = [
-  {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12},
-  {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12},
-  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12},
-  {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12}
-];
-
-const dash = document.getElementById('dashboard');
-dash.innerHTML = TF.map(t => `
-<div class="col">
-  <div class="title">
-    <div class="tf">${t.label}</div>
-    <div class="topbar">
-      <span class="pill muted" id="tfc-${t.key}">—</span>
-      <span class="pill muted" id="hlc-${t.key}">H/L — / —</span>
-      <span class="pill muted" id="volc-${t.key}">Vol —</span>
-    </div>
-  </div>
-  <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
-  ${t.key === '10m' ? `
-  <div class="biasRow">
-    <span class="gLabel buy">Buys</span>
-    <div class="gaugeWrap">
-      <canvas id="biasGauge"></canvas>
-      <div id="needle" class="needle" style="left:50%"></div>
-      <div id="needleValue" class="needleValue" style="left:50%">0%</div>
-    </div>
-    <span class="gLabel sell">Sells</span>
-  </div>` : ''}
-  <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
-</div>
-`).join('');
-
-const headClock = document.getElementById('headerClock');
-const updateRateEl = document.getElementById('updateRate');
-function updateClock() {
-  headClock.textContent = new Date().toLocaleTimeString();
-}
-updateClock();
-setInterval(updateClock, 1000);
-</script>
-
-<script>
-const histEl = document.getElementById('histStatus');
-const fbStatus = document.getElementById('fbStatus');
-const userCount = document.getElementById('userCount');
-const headPrice = document.getElementById('headerPrice');
-const stateMap = {};
-let lastPriceGlobal = null;
-let lastHeader = null;
-let isConnected = false;
-let lastUpdateTime = Date.now();
-let updateCount = 0;
-
-// Track updates per second
-setInterval(() => {
-  const rate = updateCount > 0 ? updateCount + '/sec' : 'Waiting...';
-  updateRateEl.textContent = rate;
-  updateCount = 0;
-}, 1000);
-
-const myConnectionsRef = database.ref('users/' + Date.now());
-const connectedRef = database.ref('.info/connected');
-
-connectedRef.on('value', (snap) => {
-  if (snap.val() === true) {
-    isConnected = true;
-    fbStatus.textContent = 'Firebase: Connected';
-    fbStatus.classList.add('connected');
-    myConnectionsRef.onDisconnect().remove();
-    myConnectionsRef.set(true);
-  } else {
-    isConnected = false;
-    fbStatus.textContent = 'Firebase: Disconnected';
-    fbStatus.classList.remove('connected');
-  }
-});
-
-database.ref('users').on('value', (snap) => {
-  const count = snap.numChildren();
-  userCount.textContent = count + ' user' + (count === 1 ? '' : 's');
-});
-
-function cssVar(v) {
-  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-}
-
-function makeLineChart(ctx, key) {
-  const smooth = key === '10m';
-  return new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        data: [],
-        borderColor: '#4da3ff',
-        borderWidth: smooth ? 3 : 2,
-        pointRadius: 0,
-        tension: smooth ? 0.4 : 0.1,
-        fill: smooth,
-        backgroundColor: 'transparent'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: {duration: 200, easing: 'linear'},
-      plugins: {
-        legend: {display: false},
-        tooltip: {mode: 'index', intersect: false, displayColors: false}
-      },
-      scales: {
-        x: {ticks: {display: false}, grid: {display: false}},
-        y: {ticks: {color: '#7f8796'}, grid: {color: key === '10m' ? 'transparent' : 'rgba(255,255,255,.05)'}}
-      }
-    }
-  });
-}
-
-function makeBarChart(ctx) {
-  return new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: [],
-      datasets: [{data: [], backgroundColor: []}]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: {duration: 200},
-      plugins: {legend: {display: false}},
-      scales: {
-        x: {ticks: {color: '#7f8796'}},
-        y: {ticks: {display: false}}
-      }
-    }
-  });
-}
-
-function trendColor(arr) {
-  if (arr.length < 2) return '#4da3ff';
-  return arr[arr.length - 1].price >= arr[0].price ? cssVar('--up') : '#ff4d4d';
-}
-
-function fmtUSD(n) {
-  return '$' + (n || 0).toLocaleString(undefined, {maximumFractionDigits: 2});
-}
-
-function fmtVOL(n) {
-  return (n || 0).toFixed(2) + ' BTC';
-}
-
-function setHeaderPrice(p) {
-  headPrice.classList.remove('up', 'down');
-  headPrice.textContent = fmtUSD(p);
-  if (lastHeader != null) {
-    if (p > lastHeader) headPrice.classList.add('up');
-    else if (p < lastHeader) headPrice.classList.add('down');
-  }
-  lastHeader = p;
-}
-
-let needlePos = 0.5;
+// Elements
+const priceEl = document.getElementById('bigPrice');
+const subTitle = document.getElementById('subTitle');
+const priceCanvas = document.getElementById('priceCanvas');
+const volCanvas = document.getElementById('volCanvas');
+const maxVolPill = document.getElementById('maxVolPill');
+const connPill = document.getElementById('connPill');
+const sheet = document.getElementById('sheet');
+const gearBtn = document.getElementById('gearBtn');
+const themeSel = document.getElementById('themeSel');
+const timeframeSel = document.getElementById('timeframeSel');
+const closeSheet = document.getElementById('closeSheet');
 const biasGauge = document.getElementById('biasGauge');
 const needle = document.getElementById('needle');
 const needleValue = document.getElementById('needleValue');
 
-function drawGauge(buy, sell) {
-  if (!biasGauge) return;
-  const ctx = biasGauge.getContext('2d');
-  const w = biasGauge.width = biasGauge.offsetWidth;
-  const h = biasGauge.height = biasGauge.offsetHeight;
+// State
+let series = [];           // {t, price, vol}
+let volBins = [];          // aggregated volume bins
+let lastPrice = null;
+let updateCount = 0;
+let timeframe = '1m';      // 1m, 5m, 10m, 1h
+
+const TIMEFRAMES = {
+  '1m': { window: 60000, bins: 12, sample: 5000 },
+  '5m': { window: 300000, bins: 12, sample: 15000 },
+  '10m': { window: 600000, bins: 12, sample: 30000 },
+  '1h': { window: 3600000, bins: 12, sample: 60000 }
+};
+
+// Theme handling
+const THEMES = {
+  showgirl: { up: '#2dd4bf', down: '#f59e0b' },
+  classic: { up: '#16c784', down: '#ff4d4d' },
+  emerald: { up: '#10b981', down: '#f59e0b' },
+  violet: { up: '#8b5cf6', down: '#f59e0b' }
+};
+
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.showgirl;
+  document.documentElement.style.setProperty('--up', t.up);
+  document.documentElement.style.setProperty('--down', t.down);
+  localStorage.setItem('btc_theme', name);
+}
+
+const savedTheme = localStorage.getItem('btc_theme') || 'showgirl';
+applyTheme(savedTheme);
+themeSel.value = savedTheme;
+
+themeSel.addEventListener('change', () => applyTheme(themeSel.value));
+timeframeSel.addEventListener('change', () => {
+  timeframe = timeframeSel.value;
+  series = [];
+  volBins = [];
+});
+
+// Settings sheet
+gearBtn.addEventListener('click', () => sheet.classList.add('open'));
+closeSheet.addEventListener('click', () => sheet.classList.remove('open'));
+
+// Canvas helpers
+function sizeCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+// Price display
+function setPrice(p) {
+  if (!p) return;
+  priceEl.classList.remove('up', 'down');
+  priceEl.textContent = '$' + p.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (lastPrice !== null) {
+    if (p > lastPrice) priceEl.classList.add('up');
+    else if (p < lastPrice) priceEl.classList.add('down');
+  }
+  lastPrice = p;
+}
+
+// Prune old data
+function prune() {
+  const tf = TIMEFRAMES[timeframe];
+  const now = Date.now();
+  series = series.filter(pt => pt.t >= now - tf.window);
+}
+
+// Draw price chart
+function drawPrice() {
+  const ctx = sizeCanvas(priceCanvas);
+  const w = priceCanvas.clientWidth;
+  const h = priceCanvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
+
+  if (series.length < 2) {
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = '13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Waiting for data...', w/2, h/2);
+    return;
+  }
+
+  const prices = series.map(s => s.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+
+  const padTop = 20, padBot = 10;
+  const chartH = h - padTop - padBot;
+
+  // Draw line
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+
+  series.forEach((pt, i) => {
+    const x = (i / (series.length - 1)) * w;
+    const y = padTop + chartH - ((pt.price - min) / range) * chartH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Gradient fill
+  const lastY = padTop + chartH - ((series[series.length-1].price - min) / range) * chartH;
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  
+  const grad = ctx.createLinearGradient(0, padTop, 0, h);
+  grad.addColorStop(0, 'rgba(45,212,191,.2)');
+  grad.addColorStop(1, 'rgba(45,212,191,.02)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Current price label
+  ctx.fillStyle = 'rgba(0,0,0,.85)';
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  const priceText = '$' + series[series.length-1].price.toFixed(2);
+  ctx.font = '12px system-ui';
+  const tw = ctx.measureText(priceText).width + 12;
+  roundRect(ctx, w - tw - 10, lastY - 10, tw, 20, 10, true, true);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'left';
+  ctx.fillText(priceText, w - tw - 4, lastY);
+}
+
+// Draw volume bars
+function drawVol() {
+  const ctx = sizeCanvas(volCanvas);
+  const w = volCanvas.clientWidth;
+  const h = volCanvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  if (volBins.length === 0) return;
+
+  const maxVol = Math.max(1, ...volBins.map(b => b.buy + b.sell));
+  maxVolPill.textContent = `Vol ${maxVol.toFixed(2)} BTC`;
+
+  const barW = Math.max(8, w / volBins.length - 4);
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+
+  volBins.forEach((bin, i) => {
+    const x = (i / volBins.length) * w;
+    const tot = bin.buy + bin.sell;
+    const barH = (tot / maxVol) * (h - 20);
+    const buyH = tot > 0 ? (bin.buy / tot) * barH : 0;
+    const sellH = barH - buyH;
+
+    // Sell (bottom)
+    ctx.fillStyle = dn;
+    roundRect(ctx, x, h - sellH, barW, sellH, 4, true, false);
+
+    // Buy (top)
+    ctx.fillStyle = up;
+    roundRect(ctx, x, h - barH, barW, buyH, 4, true, false);
+  });
+}
+
+// Gauge
+let needlePos = 0.5;
+function drawGauge() {
+  const ctx = sizeCanvas(biasGauge);
+  const w = biasGauge.clientWidth;
+  const h = biasGauge.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+
+  let buy = 0, sell = 0;
+  volBins.forEach(b => { buy += b.buy; sell += b.sell; });
   const tot = buy + sell;
-  const target = tot ? buy / tot : 0.5;
+  const target = tot ? (buy / tot) : 0.5;
+  
   needlePos += (target - needlePos) * 0.25;
-  const up = cssVar('--up');
-  const dn = cssVar('--down');
+
+  const up = getComputedStyle(document.body).getPropertyValue('--up').trim();
+  const dn = getComputedStyle(document.body).getPropertyValue('--down').trim();
+  
   const g = ctx.createLinearGradient(0, 0, w, 0);
   g.addColorStop(0, up);
   g.addColorStop(Math.max(0, needlePos - 0.001), up);
   g.addColorStop(Math.min(1, needlePos + 0.001), dn);
   g.addColorStop(1, dn);
+
   const r = h / 2;
   ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.moveTo(r, 1);
-  ctx.lineTo(w - r, 1);
-  ctx.arcTo(w - 1, 1, w - 1, r, r);
-  ctx.lineTo(w - 1, h - r);
-  ctx.arcTo(w - 1, h - 1, w - r, h - 1, r);
-  ctx.lineTo(r, h - 1);
-  ctx.arcTo(1, h - 1, 1, h - r, r);
-  ctx.lineTo(1, r);
-  ctx.arcTo(1, 1, r, 1, r);
-  ctx.fill();
+  roundRect(ctx, 1, 1, w - 2, h - 2, r - 1, true, false);
+
   ctx.globalAlpha = 0.18;
   ctx.fillStyle = needlePos >= 0.5 ? up : dn;
   const domW = needlePos >= 0.5 ? w * needlePos : w * (1 - needlePos);
   const domX = needlePos >= 0.5 ? 0 : w * needlePos;
-  ctx.fillRect(domX, 1, domW, h - 2);
+  roundRect(ctx, domX, 1, domW, h - 2, r - 1, true, false);
   ctx.globalAlpha = 1;
+
   const leftPx = Math.round(biasGauge.getBoundingClientRect().width * needlePos);
   needle.style.left = leftPx + 'px';
   const biasPct = tot ? ((buy - sell) / tot) * 100 : 0;
@@ -292,159 +404,87 @@ function drawGauge(buy, sell) {
   needleValue.style.left = leftPx + 'px';
 }
 
-TF.forEach(t => {
-  stateMap[t.key] = {
-    arr: [],
-    tLast: 0,
-    pc: makeLineChart(document.getElementById('c-' + t.key).getContext('2d'), t.key),
-    vc: makeBarChart(document.getElementById('v-' + t.key).getContext('2d'))
-  };
+// Animation loop
+function frame() {
+  prune();
+  drawPrice();
+  drawVol();
+  drawGauge();
+  requestAnimationFrame(frame);
+}
+
+// Firebase connection
+const connectedRef = database.ref('.info/connected');
+connectedRef.on('value', (snap) => {
+  if (snap.val() === true) {
+    connPill.textContent = 'Live';
+    connPill.classList.add('connected');
+  } else {
+    connPill.textContent = 'Offline';
+    connPill.classList.remove('connected');
+  }
 });
 
-function redraw(key) {
-  const tf = TF.find(x => x.key === key);
-  const s = stateMap[key];
-  const now = Date.now();
-  s.arr = s.arr.filter(pt => pt.t >= now - tf.win);
-  const labels = s.arr.map(pt => new Date(pt.t).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
-  const prices = s.arr.map(pt => pt.price);
-  const vols = s.arr.map(pt => pt.vol || 0);
-  
-  const pc = s.pc;
-  pc.data.labels = labels;
-  pc.data.datasets[0].data = prices;
-  const col = trendColor(s.arr);
-  pc.data.datasets[0].borderColor = col;
-  
-  if (key === '10m' && pc.chartArea) {
-    const ca = pc.chartArea;
-    const g = pc.ctx.createLinearGradient(0, ca.top, 0, ca.bottom);
-    g.addColorStop(0, col.replace('rgb', 'rgba').replace(')', ', 0.22)'));
-    g.addColorStop(1, col.replace('rgb', 'rgba').replace(')', ', 0.02)'));
-    pc.data.datasets[0].backgroundColor = g;
-  }
-  pc.update('active');
-  
-  const tfP = document.getElementById('tfc-' + key);
-  const hlP = document.getElementById('hlc-' + key);
-  const voP = document.getElementById('volc-' + key);
-  
-  if (prices.length) {
-    const first = prices[0];
-    const last = prices[prices.length - 1];
-    const delta = last - first;
-    const pct = first ? (delta / first) * 100 : 0;
-    tfP.textContent = (delta >= 0 ? '▲ ' : '▼ ') + fmtUSD(Math.abs(delta)) + ' (' + Math.abs(pct).toFixed(2) + '%)';
-    tfP.className = 'pill ' + (delta >= 0 ? 'up' : 'down');
-    hlP.textContent = 'H/L ' + fmtUSD(Math.max(...prices)) + ' / ' + fmtUSD(Math.min(...prices));
-    voP.textContent = 'Vol ' + fmtVOL(vols.reduce((a, b) => a + b, 0));
-  } else {
-    tfP.textContent = '—';
-    tfP.className = 'pill muted';
-    hlP.textContent = 'H/L — / —';
-    voP.textContent = 'Vol —';
-  }
-  
-  const bins = tf.bin;
-  const start = now - tf.win;
-  const w = tf.win / bins;
-  const ag = Array.from({length: bins}, (_, i) => ({
-    start: start + i * w,
-    vol: 0,
-    first: null,
-    last: null
-  }));
-  
-  s.arr.forEach(pt => {
-    const i = Math.min(bins - 1, Math.max(0, Math.floor((pt.t - start) / w)));
-    const b = ag[i];
-    b.vol += pt.vol || 0;
-    if (b.first === null) b.first = pt.price;
-    b.last = pt.price;
-  });
-  
-  const vc = s.vc;
-  vc.data.labels = ag.map(x => new Date(x.start).toLocaleTimeString([], {minute: '2-digit'}));
-  vc.data.datasets[0].data = ag.map(x => x.vol);
-  vc.data.datasets[0].backgroundColor = ag.map(x => 
-    x.first === null ? '#7f8796' : 
-    x.last >= x.first ? cssVar('--up') : cssVar('--down')
-  );
-  vc.update('active');
-  
-  if (key === '10m') {
-    let buy = 0;
-    let sell = 0;
-    ag.forEach(x => {
-      if (x.first !== null) {
-        if (x.last >= x.first) buy += x.vol;
-        else sell += x.vol;
-      }
-    });
-    drawGauge(buy, sell);
-  }
-}
+// Listen for price updates
+database.ref('currentPrice').on('value', (snapshot) => {
+  const data = snapshot.val();
+  if (!data || !data.price) return;
 
-function loadHistoricalData() {
-  histEl.textContent = 'History: Loading...';
-  
-  database.ref('priceHistory').once('value', (snapshot) => {
-    const data = snapshot.val();
-    
-    if (data && data.points) {
-      console.log('✅ Loaded', data.points.length, 'points from Firebase');
-      
-      const now = Date.now();
-      TF.forEach(tf => {
-        const s = stateMap[tf.key];
-        s.arr = data.points.filter(pt => pt.t >= now - tf.win);
-        redraw(tf.key);
-      });
-      
-      if (data.points.length > 0) {
-        lastPriceGlobal = data.points[data.points.length - 1].price;
-        setHeaderPrice(lastPriceGlobal);
-        histEl.textContent = `History: ${data.points.length} points loaded`;
+  updateCount++;
+  setPrice(data.price);
+  subTitle.textContent = `${updateCount}/sec | ${timeframe.toUpperCase()}`;
+
+  const now = Date.now();
+  const tf = TIMEFRAMES[timeframe];
+
+  // Add to series
+  if (series.length === 0 || now - series[series.length - 1].t >= tf.sample) {
+    series.push({
+      t: now,
+      price: data.price,
+      vol: data.vol || 0
+    });
+  }
+
+  // Build volume bins
+  const start = now - tf.window;
+  const binWidth = tf.window / tf.bins;
+  const newBins = Array.from({ length: tf.bins }, (_, i) => ({
+    ts: start + i * binWidth,
+    buy: 0,
+    sell: 0
+  }));
+
+  series.forEach(pt => {
+    const idx = Math.min(tf.bins - 1, Math.max(0, Math.floor((pt.t - start) / binWidth)));
+    const bin = newBins[idx];
+    // Simple heuristic: alternate buy/sell based on price movement
+    if (series.length > 1) {
+      const prevIdx = series.indexOf(pt) - 1;
+      if (prevIdx >= 0 && pt.price > series[prevIdx].price) {
+        bin.buy += pt.vol || 0.1;
+      } else {
+        bin.sell += pt.vol || 0.1;
       }
     } else {
-      histEl.textContent = 'History: Waiting for data...';
+      bin.buy += (pt.vol || 0.1) / 2;
+      bin.sell += (pt.vol || 0.1) / 2;
     }
   });
-}
 
-function listenForPriceUpdates() {
-  const currentPriceRef = database.ref('currentPrice');
-  
-  currentPriceRef.on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (data && data.price) {
-      updateCount++;
-      lastPriceGlobal = data.price;
-      setHeaderPrice(data.price);
-      
-      const now = Date.now();
-      TF.forEach(t => {
-        const s = stateMap[t.key];
-        if (now - s.tLast >= t.sample) {
-          s.arr.push({
-            t: now,
-            price: data.price,
-            vol: data.vol || 0.1
-          });
-          s.tLast = now;
-          redraw(t.key);
-        }
-      });
-    }
-  });
-}
+  volBins = newBins;
+});
 
-console.log('🚀 BTC Dashboard v3.1 SMOOTH starting...');
+// Reset update count every second
+setInterval(() => {
+  subTitle.textContent = `${updateCount}/sec | ${timeframe.toUpperCase()}`;
+  updateCount = 0;
+}, 1000);
 
-setTimeout(() => {
-  loadHistoricalData();
-  listenForPriceUpdates();
-}, 500);
+// Start
+console.log('🚀 BTC Stalker v4.0 starting...');
+new ResizeObserver(() => { drawPrice(); drawVol(); drawGauge(); }).observe(document.body);
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
