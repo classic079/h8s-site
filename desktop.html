@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.5</title>
+<title>BTC Stalker - Multi-Timeframe v2.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -48,7 +48,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .col{background:var(--panel);border-radius:14px;box-shadow:var(--glow);padding:10px;display:flex;flex-direction:column}
 .colHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .tfLabel{font-weight:800;font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
-.statPills{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.statPills{display:flex;gap:6px;flex-wrap:wrap}
 .statPill{font-size:11px;padding:3px 8px;border-radius:999px;
   border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.6);color:#fff;white-space:nowrap}
 .statPill.up{background:var(--up);border-color:transparent;color:#0a0a0a;font-weight:700}
@@ -137,14 +137,12 @@ dash.innerHTML = TF.map(t => `
 <div class="col" id="col-${t.key}">
   <div class="colHeader">
     <div class="tfLabel">${t.label}</div>
+    <div class="statPills" id="pills-${t.key}">
+      <span class="statPill" id="vol-${t.key}">Vol —</span>
+      <span class="statPill" id="hl-${t.key}">H/L —</span>
+    </div>
   </div>
   <div class="chartBox"><canvas id="chart-${t.key}"></canvas></div>
-  <div class="statPills" id="pills-${t.key}">
-    <span class="statPill" id="change-${t.key}">Δ —</span>
-    <span class="statPill" id="hl-${t.key}">H/L —</span>
-    <span class="statPill" id="vol-${t.key}">Vol —</span>
-    <span class="statPill" id="ratio-${t.key}">Buy —</span>
-  </div>
   <div class="gaugeRow">
     <span class="gLabel buy">Buys</span>
     <div class="gaugeWrap">
@@ -270,18 +268,8 @@ function updateAll(){
     const stats = calcStats(volArr); // Use volume array for stats
 
     if(stats){
-      const delta = stats.last - stats.first;
-      const pct = stats.first ? (delta/stats.first)*100 : 0;
-      const changeEl = document.getElementById(`change-${tf.key}`);
-      changeEl.textContent = `${delta>=0?'▲':'▼'} ${fmtUSD0.format(Math.abs(delta))} (${pct1.format(Math.abs(pct))}%)`;
-      changeEl.className = `statPill ${delta>=0?'up':'down'}`;
-
-      document.getElementById(`hl-${tf.key}`).textContent = `H/L ${fmtUSD0.format(stats.hi)} / ${fmtUSD0.format(stats.lo)}`;
       document.getElementById(`vol-${tf.key}`).textContent = `Vol ₿${fmtBTC.format(stats.buyVol + stats.sellVol)}`;
-
-      const ratioEl = document.getElementById(`ratio-${tf.key}`);
-      ratioEl.textContent = `Buy ${pct1.format(stats.buyRatio)}%`;
-      ratioEl.className = `statPill ${stats.buyRatio>=50?'up':'down'}`;
+      document.getElementById(`hl-${tf.key}`).textContent = `H/L ${fmtUSD0.format(stats.hi)} / ${fmtUSD0.format(stats.lo)}`;
     }
 
     drawChart(tf.key, arr); // Use sampled array for price chart
