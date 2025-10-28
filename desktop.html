@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.1</title>
+<title>BTC Stalker - Multi-Timeframe v2.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.1</span>
+      <span class="pill" style="opacity:.6">v2.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -434,10 +434,20 @@ function drawVolume(key, arr, tf){
       ctx.fillText(label, x, pillY + pillH/2);
     }
 
-    // Add bias pill inside bar showing buy vs sell
+    // Add bias pill inside bar showing buy vs sell ratio
     if(tot > 0.01 && hT > 24){ // Only if bar is tall enough
-      const bias = tot ? ((b.buy - b.sell) / tot) * 100 : 0;
-      const biasLabel = (bias >= 0 ? '+' : '') + bias.toFixed(0) + '%';
+      const buyPct = tot ? (b.buy / tot) * 100 : 50;
+      const sellPct = 100 - buyPct;
+
+      // Show which side is dominant and by how much
+      let biasLabel, isBuyDominant;
+      if(buyPct > sellPct){
+        isBuyDominant = true;
+        biasLabel = `+${(buyPct - 50).toFixed(0)}%`; // How much over 50%
+      } else {
+        isBuyDominant = false;
+        biasLabel = `-${(sellPct - 50).toFixed(0)}%`; // How much over 50%
+      }
 
       ctx.font = '9px system-ui';
       const biasMetrics = ctx.measureText(biasLabel);
@@ -446,8 +456,8 @@ function drawVolume(key, arr, tf){
       const biasPillX = x - biasPillW/2;
       const biasPillY = yB - hT/2 - biasPillH/2; // Center of bar
 
-      // Draw bias pill
-      ctx.fillStyle = bias >= 0 ? 'rgba(45,212,191,.85)' : 'rgba(245,158,11,.85)';
+      // Draw bias pill (teal for buy dominant, orange for sell dominant)
+      ctx.fillStyle = isBuyDominant ? 'rgba(45,212,191,.85)' : 'rgba(245,158,11,.85)';
       ctx.beginPath();
       ctx.moveTo(biasPillX + 7, biasPillY);
       ctx.arcTo(biasPillX + biasPillW, biasPillY, biasPillX + biasPillW, biasPillY + biasPillH, 7);
