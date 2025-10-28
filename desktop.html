@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Overview - v2.3 BINANCE</title>
+<title>BTC Overview - v2.4 CORS FIXED</title>
 <style>
 :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
 *{box-sizing:border-box}
@@ -47,7 +47,7 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 <div class="wrap">
 <header>
 <div class="metaLeft">
-<span class="chip">v2.3 BINANCE</span>
+<span class="chip">v2.4 CORS FIXED</span>
 <span class="badge" id="histStatus">History: Loading...</span>
 <span class="badge" id="liveStatus">Live: Starting...</span>
 </div>
@@ -65,7 +65,7 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 const TF = [
   {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12, binanceInterval: '1h', binanceLimit: 24},
   {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12, binanceInterval: '15m', binanceLimit: 32},
-  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12, binanceInterval: '1m', binanceLimit: 60},
+  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12, binanceInterval: '5m', binanceLimit: 12},
   {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12, binanceInterval: '1m', binanceLimit: 10}
 ];
 
@@ -111,6 +111,14 @@ const stateMap = {};
 let lastPriceGlobal = null;
 let lastHeader = null;
 let historyLoaded = false;
+
+// CORS proxy URLs - try multiple
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  ''  // Direct attempt last
+];
+let currentProxyIndex = 0;
 
 function cssVar(v) {
   return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -331,36 +339,51 @@ function redraw(key) {
   }
 }
 
-// Fetch historical data from Binance (no rate limits, no auth needed)
+async function fetchWithProxy(url) {
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    try {
+      const proxyUrl = CORS_PROXIES[i] + encodeURIComponent(url);
+      console.log(`Trying proxy ${i}: ${CORS_PROXIES[i]}`);
+      const response = await fetch(proxyUrl);
+      if (response.ok) {
+        console.log(`Success with proxy ${i}`);
+        currentProxyIndex = i;
+        return await response.json();
+      }
+    } catch (e) {
+      console.log(`Proxy ${i} failed:`, e.message);
+    }
+  }
+  throw new Error('All proxies failed');
+}
+
 async function fetchBinanceHistory(tf) {
   try {
     const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf.binanceInterval}&limit=${tf.binanceLimit}`;
-    console.log(`Fetching Binance history for ${tf.key}: ${url}`);
+    console.log(`Fetching history for ${tf.key}`);
     
-    const response = await fetch(url);
-    const data = await response.json();
+    const data = await fetchWithProxy(url);
     
     if (Array.isArray(data) && data.length > 0) {
-      // Binance klines format: [openTime, open, high, low, close, volume, closeTime, ...]
       const points = data.map(k => ({
-        t: k[0],  // Open time
-        price: parseFloat(k[4]),  // Close price
-        vol: parseFloat(k[5])  // Volume
+        t: k[0],
+        price: parseFloat(k[4]),
+        vol: parseFloat(k[5])
       }));
       
-      console.log(`Got ${points.length} Binance points for ${tf.key}, first: $${points[0].price}, last: $${points[points.length-1].price}`);
+      console.log(`Got ${points.length} points for ${tf.key}, price range: $${Math.min(...points.map(p=>p.price))} - $${Math.max(...points.map(p=>p.price))}`);
       return points;
     }
-    throw new Error('No Binance data');
+    throw new Error('No data');
   } catch (e) {
-    console.error(`Failed to fetch Binance history for ${tf.key}:`, e);
+    console.error(`Failed to fetch history for ${tf.key}:`, e);
     return null;
   }
 }
 
 async function loadHistoricalData() {
-  histEl.textContent = 'History: Loading from Binance...';
-  console.log('Loading historical data from Binance...');
+  histEl.textContent = 'History: Loading via proxy...';
+  console.log('Loading historical data...');
   
   const results = await Promise.all(TF.map(tf => fetchBinanceHistory(tf)));
   
@@ -371,25 +394,23 @@ async function loadHistoricalData() {
     
     if (points && points.length > 0) {
       s.arr = points;
-      if (lastPriceGlobal === null && points.length > 0) {
+      if (lastPriceGlobal === null) {
         lastPriceGlobal = points[points.length - 1].price;
       }
       successCount++;
-      console.log(`Loaded ${points.length} points for ${tf.key}, current price: $${points[points.length-1].price}`);
     }
     
     redraw(tf.key);
   });
   
   if (successCount > 0) {
-    histEl.textContent = `History: Loaded from Binance (${successCount}/4)`;
+    histEl.textContent = `History: Loaded (${successCount}/4)`;
     historyLoaded = true;
     if (lastPriceGlobal) {
       setHeaderPrice(lastPriceGlobal);
-      console.log(`Set initial price to $${lastPriceGlobal}`);
     }
   } else {
-    histEl.textContent = 'History: Failed to load';
+    histEl.textContent = 'History: Failed (CORS blocked)';
   }
 }
 
@@ -397,7 +418,6 @@ function onQuote(p, v) {
   if (!Number.isFinite(p) || p <= 0) return;
   
   if (!historyLoaded) {
-    console.log('Waiting for history before live updates');
     return;
   }
   
@@ -418,31 +438,26 @@ function onQuote(p, v) {
   });
 }
 
-// Get current price from Binance ticker
-function fetchBinancePrice() {
-  fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT')
-    .then(r => r.json())
-    .then(j => {
-      if (j && j.lastPrice) {
-        const price = parseFloat(j.lastPrice);
-        const vol = parseFloat(j.volume);
-        onQuote(price, vol);
-        liveEl.textContent = 'Live: Binance ✓';
-      }
-    })
-    .catch(e => {
-      console.error('Binance price fetch failed:', e);
-      liveEl.textContent = 'Live: Error';
-    });
+async function fetchPrice() {
+  try {
+    const url = 'https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT';
+    const data = await fetchWithProxy(url);
+    if (data && data.lastPrice) {
+      onQuote(parseFloat(data.lastPrice), parseFloat(data.volume));
+      liveEl.textContent = 'Live: Binance ✓';
+    }
+  } catch (e) {
+    console.error('Price fetch failed:', e);
+    liveEl.textContent = 'Live: Error';
+  }
 }
 
-console.log('BTC Dashboard v2.3 starting with Binance API...');
+console.log('BTC Dashboard v2.4 starting with CORS proxy...');
 
-// Load historical data first, then start live updates
 loadHistoricalData().then(() => {
-  console.log('Historical data loaded from Binance, starting live updates');
-  setTimeout(fetchBinancePrice, 1000);
-  setInterval(fetchBinancePrice, 3000);
+  console.log('Starting live updates');
+  setTimeout(fetchPrice, 1000);
+  setInterval(fetchPrice, 3000);
 });
 </script>
 </body>
