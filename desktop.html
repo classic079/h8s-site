@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.8.0 FIXED</title>
+<title>BTC Overview — v1.9.0 WEBSOCKET</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -43,6 +43,7 @@
   #biasGauge{height:22px;width:100%;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
   .needle{position:absolute;top:2px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));transition:left .2s ease}
   .needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25)}
+  .error-banner{background:#ff4d4d22;border:1px solid #ff4d4d;color:#ffaaaa;padding:12px;border-radius:8px;margin-bottom:12px;font-size:13px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -50,7 +51,7 @@
 <div class="wrap">
   <header>
     <div class="metaLeft">
-      <span class="chip" id="ver">v1.8.0</span>
+      <span class="chip" id="ver">v1.9.0</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
@@ -61,17 +62,17 @@
     </div>
     <div class="metaRight"><span class="chip" style="border-color:#2e7d32;color:#b7f5c8">JS: running</span></div>
   </header>
+  <div id="errorBanner" style="display:none" class="error-banner"></div>
   <section class="grid" id="dashboard"></section>
 </div>
 
-<!-- UI scaffold -->
 <script>
-  const APP_VERSION = 'v1.8.0 FIXED';
+  const APP_VERSION = 'v1.9.0 WEBSOCKET';
   const TF = [
-    { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12, ccInt:'m15', bsStep:900 },
-    { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12, ccInt:'m5',  bsStep:300 },
-    { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, bin:12, ccInt:'m1',  bsStep:60  },
-    { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, bin:12, ccInt:'m1',  bsStep:60  }
+    { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12 },
+    { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12 },
+    { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, bin:12 },
+    { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, bin:12 }
   ];
   document.getElementById('ver').textContent = APP_VERSION;
 
@@ -102,24 +103,32 @@
      </div>`
   ).join('');
 
-  // header clock
   const headClock = document.getElementById('headerClock');
   headClock.textContent = new Date().toLocaleTimeString();
   setInterval(()=> headClock.textContent = new Date().toLocaleTimeString(), 1000);
 </script>
 
-<!-- Main Logic -->
 <script>
 (function(){
   const histEl = document.getElementById('histStatus');
   const liveEl = document.getElementById('liveStatus');
   const headPrice = document.getElementById('headerPrice');
+  const errorBanner = document.getElementById('errorBanner');
 
   const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const stateMap = {};
-  let lastPriceGlobal = 65000, lastHeader = null;
+  let lastPriceGlobal = 95000; // Updated starting price
+  let lastHeader = null;
+  let wsConnection = null;
+  let apiFailCount = 0;
 
-  // charts
+  function showError(msg){
+    errorBanner.textContent = msg;
+    errorBanner.style.display = 'block';
+    setTimeout(() => errorBanner.style.display = 'none', 5000);
+  }
+
+  // Charts
   function areaFill(chart,color){
     const ca=chart.chartArea; if(!ca) return null;
     const g=chart.ctx.createLinearGradient(0,ca.top,0,ca.bottom);
@@ -151,7 +160,7 @@
     lastHeader=p;
   }
 
-  // gauge
+  // Gauge
   let needlePos=0.5;
   const biasGauge=document.getElementById('biasGauge');
   const needle=document.getElementById('needle');
@@ -179,7 +188,7 @@
     needleValue.style.left = leftPx+'px';
   }
 
-  // build charts
+  // Build charts
   TF.forEach(t=>{
     stateMap[t.key]={arr:[],tLast:0,
       pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
@@ -209,7 +218,6 @@
       tfP.textContent='—'; tfP.className='pill muted'; hlP.textContent='H/L — / —'; voP.textContent='Vol —';
     }
 
-    // aggregate volume bins + bias
     const bins=tf.bin, start=now-tf.win, w=tf.win/bins, ag=[...Array(bins)].map((_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
     s.arr.forEach(pt=>{ const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w))); const b=ag[i]; b.vol+=(pt.vol||0); if(b.first===null) b.first=pt.price; b.last=pt.price; });
 
@@ -225,149 +233,137 @@
     }
   }
 
-  // Initial seed with better mock data
+  // Enhanced realistic seed data
   (function seed(){
     const now=Date.now();
+    let basePrice = lastPriceGlobal;
+    
     TF.forEach(t=>{
-      const s=stateMap[t.key]; let p=lastPriceGlobal;
-      for(let i=24;i>0;i--){ 
-        p+=(Math.random()-0.5)*50; 
-        s.arr.push({t:now-i*5000,price:p,vol:Math.random()*5}); 
+      const s=stateMap[t.key];
+      const points = 48;
+      const step = t.win / points;
+      let p = basePrice;
+      
+      for(let i=points; i>0; i--){ 
+        // More realistic price movement
+        const volatility = 100;
+        const trend = (Math.random() - 0.48) * volatility; // Slight upward bias
+        p += trend;
+        p = Math.max(basePrice * 0.95, Math.min(basePrice * 1.05, p)); // Keep within 5% range
+        
+        s.arr.push({
+          t: now - i * step,
+          price: p,
+          vol: Math.random() * 10 + 5 // Random volume 5-15
+        }); 
       }
       redraw(t.key);
     });
-    document.getElementById('headerPrice').textContent = fmtUSD(lastPriceGlobal);
+    
+    setHeaderPrice(lastPriceGlobal);
+    histEl.textContent='History: Simulated data (APIs loading...)';
   })();
 
-  // IMPROVED: Fetch helpers with better error handling
-  function fetchJSON(url, ms=3000){
-    const ctl=new AbortController(); 
-    const tid=setTimeout(()=>ctl.abort(), ms);
-    return fetch(url,{
-      signal:ctl.signal,
-      headers:{Accept:'application/json'},
-      mode: 'cors'
-    })
-    .then(r=>{ 
-      clearTimeout(tid); 
-      if(!r.ok) throw new Error('HTTP '+r.status); 
-      return r.json(); 
-    })
-    .catch(err => {
-      clearTimeout(tid);
-      console.error('Fetch error for', url, ':', err);
-      throw err;
-    });
-  }
   const good = v => Number.isFinite(v) && v>0;
 
-  // IMPROVED: History with fallback chain
-  function fetchCoinCap(tf){
-    const end=Date.now(), start=end-tf.win-10000;
-    return fetchJSON(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`,5000)
-      .then(j=> {
-        if(!j || !j.data) throw new Error('No data');
-        return (j.data||[]).map(x=>({t:+x.time, price:+x.priceUsd, vol:0})).filter(x=>good(x.price));
-      });
-  }
-  
-  function fetchBitstamp(tf){
-    const step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
-    return fetchJSON(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,5000)
-      .then(j=> {
-        if(!j || !j.data || !j.data.ohlc) throw new Error('No data');
-        return (j.data.ohlc||[]).map(c=>({t:+c.timestamp*1000, price:+c.close, vol:+c.volume||0})).filter(x=>good(x.price));
-      });
-  }
-
-  function fetchCoinGecko(tf){
-    // CoinGecko is more CORS-friendly
-    const days = Math.ceil(tf.win / (24*60*60*1000)) || 1;
-    return fetchJSON(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,5000)
-      .then(j=> {
-        if(!j || !j.prices) throw new Error('No data');
-        return j.prices.map(([t,p])=>({t, price:p, vol:0})).filter(x=>good(x.price));
-      });
-  }
-
-  function getHistory(tf){
-    console.log('Fetching history for', tf.key);
-    
-    // Try CoinGecko first (usually most reliable with CORS)
-    return fetchCoinGecko(tf)
-      .then(a => {
-        if(a && a.length > 3) {
-          console.log('CoinGecko success for', tf.key);
-          return {src:'CoinGecko', data:a};
+  // Try JSONP approach for better CORS handling
+  function tryJSONP(url){
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const callbackName = 'jsonp_' + Date.now();
+      
+      window[callbackName] = function(data) {
+        delete window[callbackName];
+        document.body.removeChild(script);
+        resolve(data);
+      };
+      
+      script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callbackName;
+      script.onerror = () => {
+        delete window[callbackName];
+        document.body.removeChild(script);
+        reject(new Error('JSONP failed'));
+      };
+      
+      setTimeout(() => {
+        if (window[callbackName]) {
+          delete window[callbackName];
+          if(document.body.contains(script)) document.body.removeChild(script);
+          reject(new Error('JSONP timeout'));
         }
-        throw new Error('Insufficient data');
-      })
-      .catch(() => {
-        console.log('CoinGecko failed, trying CoinCap for', tf.key);
-        return fetchCoinCap(tf)
-          .then(a => {
-            if(a && a.length > 3) {
-              console.log('CoinCap success for', tf.key);
-              return {src:'CoinCap', data:a};
-            }
-            throw new Error('Insufficient data');
-          });
-      })
-      .catch(() => {
-        console.log('CoinCap failed, trying Bitstamp for', tf.key);
-        return fetchBitstamp(tf)
-          .then(b => {
-            if(b && b.length > 3) {
-              console.log('Bitstamp success for', tf.key);
-              return {src:'Bitstamp', data:b};
-            }
-            throw new Error('Insufficient data');
-          });
-      })
-      .catch(() => {
-        console.log('All APIs failed for', tf.key, 'using enhanced mock');
-        return {src:'mock', data:null};
-      });
-  }
-
-  function preloadHistory(){
-    histEl.textContent='History: loading…';
-    console.log('Starting history preload...');
-    
-    Promise.all(TF.map(getHistory)).then(res=>{
-      const now=Date.now(); const sources={};
-      res.forEach((r,i)=>{
-        const tf=TF[i], s=stateMap[tf.key];
-        if(r.data && r.data.length > 0){ 
-          s.arr=r.data.filter(d=>d.t>=now-tf.win); 
-          sources[r.src]=1; 
-          if(s.arr.length) lastPriceGlobal=s.arr.at(-1).price;
-          console.log(`Loaded ${s.arr.length} points for ${tf.key} from ${r.src}`);
-        }
-        else { 
-          sources.mock=1; 
-          let p=lastPriceGlobal; 
-          s.arr=[]; 
-          const step=Math.max(2000,Math.floor(tf.win/60));
-          for(let t=now-tf.win;t<=now;t+=step){ 
-            p+=(Math.random()-0.5)*30; 
-            s.arr.push({t,price:p,vol:Math.random()*5}); 
-          }
-          console.log(`Using mock data for ${tf.key}`);
-        }
-        redraw(tf.key);
-      });
-      const sourceList = Object.keys(sources).join(' + ');
-      histEl.textContent='History: '+sourceList;
-      console.log('History loaded from:', sourceList);
-      setHeaderPrice(lastPriceGlobal);
-    }).catch(err => {
-      console.error('History load failed:', err);
-      histEl.textContent='History: error (check console)';
+      }, 5000);
+      
+      document.body.appendChild(script);
     });
   }
 
-  // IMPROVED: Live polling with better fallbacks
+  // Use CryptoCompare API (better CORS support)
+  function fetchCryptoCompare(){
+    const url = 'https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD';
+    return fetch(url, {mode: 'cors'})
+      .then(r => r.json())
+      .then(j => {
+        if(j && j.USD && good(j.USD)){
+          return {price: j.USD, source: 'CryptoCompare'};
+        }
+        throw new Error('Invalid data');
+      });
+  }
+
+  // Try Blockchain.info API
+  function fetchBlockchain(){
+    return fetch('https://blockchain.info/ticker', {mode: 'cors'})
+      .then(r => r.json())
+      .then(j => {
+        if(j && j.USD && j.USD.last && good(j.USD.last)){
+          return {price: j.USD.last, source: 'Blockchain.info'};
+        }
+        throw new Error('Invalid data');
+      });
+  }
+
+  // WebSocket connection to Binance (most reliable)
+  function connectWebSocket(){
+    try {
+      if(wsConnection) wsConnection.close();
+      
+      wsConnection = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@trade');
+      
+      wsConnection.onopen = () => {
+        console.log('WebSocket connected to Binance');
+        liveEl.textContent = 'Live: Binance WebSocket ✓';
+      };
+      
+      wsConnection.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if(data.p && good(parseFloat(data.p))){
+            onQuote(parseFloat(data.p), parseFloat(data.q) || 0.1);
+            liveEl.textContent = 'Live: Binance WebSocket ✓';
+            apiFailCount = 0;
+          }
+        } catch(e) {
+          console.error('WebSocket parse error:', e);
+        }
+      };
+      
+      wsConnection.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        liveEl.textContent = 'Live: WebSocket error, retrying...';
+      };
+      
+      wsConnection.onclose = () => {
+        console.log('WebSocket closed, will retry...');
+        liveEl.textContent = 'Live: Reconnecting...';
+        setTimeout(connectWebSocket, 5000);
+      };
+      
+    } catch(e) {
+      console.error('WebSocket connection failed:', e);
+      liveEl.textContent = 'Live: WebSocket unavailable';
+    }
+  }
+
   function onQuote(p,v){
     if(!good(p)) return;
     lastPriceGlobal=p; setHeaderPrice(p);
@@ -382,72 +378,58 @@
     });
   }
 
-  function pollLive(){
-    // Try CoinGecko first
-    fetchJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true',3000)
-      .then(j=>{
-        const p=j?.bitcoin?.usd;
-        const v=j?.bitcoin?.usd_24h_vol || 0.1;
-        if(good(p)){ 
-          onQuote(p, v); 
-          liveEl.textContent='Live: CoinGecko';
-          return; 
+  // Fallback polling if WebSocket fails
+  function pollPrice(){
+    fetchCryptoCompare()
+      .then(result => {
+        onQuote(result.price, 0.1);
+        liveEl.textContent = 'Live: ' + result.source;
+        apiFailCount = 0;
+      })
+      .catch(() => {
+        return fetchBlockchain()
+          .then(result => {
+            onQuote(result.price, 0.1);
+            liveEl.textContent = 'Live: ' + result.source;
+            apiFailCount = 0;
+          });
+      })
+      .catch(() => {
+        apiFailCount++;
+        if(apiFailCount > 3){
+          // Simulate realistic price movement
+          const change = (Math.random() - 0.5) * 50;
+          lastPriceGlobal += change;
+          onQuote(lastPriceGlobal, Math.random() * 10);
+          liveEl.textContent = 'Live: Simulated (APIs blocked by CORS)';
+          
+          if(apiFailCount === 4){
+            showError('⚠️ Unable to connect to cryptocurrency APIs. Displaying simulated data. This may be due to CORS restrictions or network issues.');
+          }
         }
-        throw new Error('Invalid data');
-      })
-      .catch(()=> {
-        // Fallback to CoinCap
-        return fetchJSON('https://api.coincap.io/v2/assets/bitcoin',3000)
-          .then(j=>{
-            const p=parseFloat(j?.data?.priceUsd); 
-            if(good(p)){ 
-              onQuote(p,0.1); 
-              liveEl.textContent='Live: CoinCap';
-              return; 
-            }
-            throw new Error('Invalid data');
-          });
-      })
-      .catch(()=> {
-        // Fallback to Bitstamp
-        return fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',3000)
-          .then(j=>{
-            const p=parseFloat(j.last), v=parseFloat(j.volume||0.1); 
-            if(good(p)){ 
-              onQuote(p,good(v)?v:0.1); 
-              liveEl.textContent='Live: Bitstamp';
-              return; 
-            }
-            throw new Error('Invalid data');
-          });
-      })
-      .catch(()=> {
-        // Final fallback to Coinbase
-        return fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',3000)
-          .then(j=>{
-            const p=parseFloat(j.price||j.last||j.bid||j.ask);
-            const v=parseFloat(j.size||j.volume||0.1); 
-            if(good(p)){ 
-              onQuote(p,good(v)?v:0.1); 
-              liveEl.textContent='Live: Coinbase';
-              return; 
-            }
-            throw new Error('Invalid data');
-          });
-      })
-      .catch(()=>{ 
-        // Use mock data if all APIs fail
-        onQuote(lastPriceGlobal+(Math.random()-0.5)*50,Math.random()*5); 
-        liveEl.textContent='Live: mock (APIs unavailable)';
-        console.warn('All live APIs failed, using mock data');
       });
   }
 
-  // Start everything
-  console.log('Initializing BTC Dashboard v1.8.0...');
-  preloadHistory();
-  setTimeout(pollLive, 1000); // Give history a moment to load first
-  setInterval(pollLive, 3000); // Poll every 3 seconds
+  // Initialize
+  console.log('BTC Dashboard v1.9.0 initializing...');
+  histEl.textContent = 'History: Ready (simulated data loaded)';
+  
+  // Try WebSocket first (best option)
+  connectWebSocket();
+  
+  // Also poll as backup
+  setTimeout(pollPrice, 2000);
+  setInterval(pollPrice, 5000);
+  
+  // Simulate more realistic price updates even if APIs fail
+  setInterval(() => {
+    if(apiFailCount > 3){
+      const change = (Math.random() - 0.5) * 30;
+      lastPriceGlobal += change;
+      onQuote(lastPriceGlobal, Math.random() * 8 + 2);
+    }
+  }, 2500);
+  
 })();
 </script>
 </body>
