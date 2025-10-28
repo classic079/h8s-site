@@ -158,6 +158,7 @@ dash.innerHTML = TF.map(t => `
 
 /* ===== Canvas helpers ===== */
 function sizeCanvas(c){
+  if(!c) return null;
   const dpr = Math.max(1, Math.min(devicePixelRatio||1, 3));
   c.width = Math.max(1, c.clientWidth*dpr);
   c.height = Math.max(1, c.clientHeight*dpr);
@@ -266,6 +267,7 @@ function drawChart(key, arr){
   const canvas = document.getElementById(`chart-${key}`);
   if(!canvas) return;
   const ctx = sizeCanvas(canvas);
+  if(!ctx) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
 
@@ -323,6 +325,7 @@ function drawVolume(key, arr, tf){
   const canvas = document.getElementById(`vol-${key}`);
   if(!canvas) return;
   const ctx = sizeCanvas(canvas);
+  if(!ctx) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
 
@@ -379,6 +382,7 @@ function drawGauge(buyVol, sellVol){
   const canvas = document.getElementById('biasGauge');
   if(!canvas) return;
   const ctx = sizeCanvas(canvas);
+  if(!ctx) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
 
