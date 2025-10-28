@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.9</title>
+<title>BTC Stalker - Multi-Timeframe v2.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -64,7 +64,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .gaugeRow{display:flex;align-items:center;gap:8px;padding:6px 8px;margin-top:8px}
 .gLabel{font-size:11px;opacity:.9}
 .gLabel.buy{color:var(--up)}.gLabel.sell{color:var(--down)}
-#biasGauge{width:100%;height:20px;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+[id^="biasGauge-"]{width:100%;height:20px;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
 .gaugeWrap{position:relative;flex:1}
 .needle{position:absolute;top:2px;width:0;height:0;border-left:6px solid transparent;
   border-right:6px solid transparent;border-top:9px solid #fff;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.9</span>
+      <span class="pill" style="opacity:.6">v2.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -145,16 +145,15 @@ dash.innerHTML = TF.map(t => `
     <span class="statPill" id="vol-${t.key}">Vol —</span>
     <span class="statPill" id="ratio-${t.key}">Buy —</span>
   </div>
-  ${t.key === '10m' ? `
   <div class="gaugeRow">
     <span class="gLabel buy">Buys</span>
     <div class="gaugeWrap">
-      <canvas id="biasGauge"></canvas>
-      <div id="needle" class="needle" style="left:50%"></div>
-      <div id="needleValue" class="needleValue" style="left:50%">0%</div>
+      <canvas id="biasGauge-${t.key}"></canvas>
+      <div id="needle-${t.key}" class="needle" style="left:50%"></div>
+      <div id="needleValue-${t.key}" class="needleValue" style="left:50%">0%</div>
     </div>
     <span class="gLabel sell">Sells</span>
-  </div>` : ''}
+  </div>
   <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
 </div>
 `).join('');
@@ -288,8 +287,8 @@ function updateAll(){
     drawChart(tf.key, arr); // Use sampled array for price chart
     drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
 
-    if(tf.key==='10m' && stats){
-      drawGauge(stats.buyVol, stats.sellVol);
+    if(stats){
+      drawGauge(tf.key, stats.buyVol, stats.sellVol);
     }
   });
 }
@@ -385,10 +384,8 @@ function drawVolume(key, arr, tf){
   const sums = bins.map(b => b.buy + b.sell);
   const max = Math.max(1, ...sums);
 
-  const padX = 8;
-  const padTop = 20; // Space for labels at top
-  const padBot = 8;
-  const chartH = h - padTop - padBot;
+  const padX = 8, padY = 8;
+  const chartH = h - 2*padY;
   const barW = (w - 2*padX) / bins.length * 0.7;
   const step = (w - 2*padX) / bins.length;
 
@@ -401,26 +398,26 @@ function drawVolume(key, arr, tf){
     const hT = Math.max(4, (tot/max) * chartH);
     const hBuy = tot ? (b.buy/tot) * hT : 0;
     const hSell = hT - hBuy;
-    const yB = h - padBot;
+    const yB = h - padY;
 
     ctx.fillStyle = dn;
     ctx.fillRect(x - barW/2, yB - hSell, barW, hSell);
     ctx.fillStyle = up;
     ctx.fillRect(x - barW/2, yB - hSell - hBuy, barW, hBuy);
 
-    // Add volume label pills on all charts
-    if(tot > 0){
+    // Add volume label pills on top of bars
+    if(tot > 0.01){
       const label = tot >= 1 ? `₿${tot.toFixed(1)}` : `₿${tot.toFixed(2)}`;
 
-      // Draw pill background
+      // Draw pill background on top of bar
       ctx.font = '9px system-ui';
       const metrics = ctx.measureText(label);
       const pillW = metrics.width + 8;
       const pillH = 14;
       const pillX = x - pillW/2;
-      const pillY = padTop - pillH - 2;
+      const pillY = yB - hT - pillH - 2;
 
-      ctx.fillStyle = 'rgba(0,0,0,.75)';
+      ctx.fillStyle = 'rgba(0,0,0,.85)';
       ctx.beginPath();
       ctx.moveTo(pillX + 7, pillY);
       ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, 7);
@@ -438,10 +435,10 @@ function drawVolume(key, arr, tf){
   });
 }
 
-/* ===== Gauge (10m) ===== */
-let needlePos = 0.5;
-function drawGauge(buyVol, sellVol){
-  const canvas = document.getElementById('biasGauge');
+/* ===== Gauge ===== */
+const needlePos = {};
+function drawGauge(key, buyVol, sellVol){
+  const canvas = document.getElementById(`biasGauge-${key}`);
   if(!canvas) return;
   const ctx = sizeCanvas(canvas);
   if(!ctx) return;
@@ -452,15 +449,17 @@ function drawGauge(buyVol, sellVol){
 
   const tot = buyVol + sellVol;
   const target = tot ? (buyVol/tot) : 0.5;
-  needlePos += (target - needlePos) * 0.25;
+
+  if(!needlePos[key]) needlePos[key] = 0.5;
+  needlePos[key] += (target - needlePos[key]) * 0.25;
 
   const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
   const g = ctx.createLinearGradient(0,0,w,0);
   g.addColorStop(0, up);
-  g.addColorStop(Math.max(0, needlePos-0.001), up);
-  g.addColorStop(Math.min(1, needlePos+0.001), dn);
+  g.addColorStop(Math.max(0, needlePos[key]-0.001), up);
+  g.addColorStop(Math.min(1, needlePos[key]+0.001), dn);
   g.addColorStop(1, dn);
 
   const r = h/2;
@@ -473,9 +472,11 @@ function drawGauge(buyVol, sellVol){
   ctx.arcTo(0,1,w-1,1,r);
   ctx.fill();
 
-  const needle = document.getElementById('needle');
-  const needleValue = document.getElementById('needleValue');
-  const leftPx = Math.round(canvas.getBoundingClientRect().width * needlePos);
+  const needle = document.getElementById(`needle-${key}`);
+  const needleValue = document.getElementById(`needleValue-${key}`);
+  if(!needle || !needleValue) return;
+
+  const leftPx = Math.round(canvas.getBoundingClientRect().width * needlePos[key]);
   needle.style.left = leftPx + 'px';
   const biasPct = tot ? ((buyVol - sellVol)/tot)*100 : 0;
   needleValue.textContent = (biasPct>=0?'+':'') + biasPct.toFixed(0) + '%';
