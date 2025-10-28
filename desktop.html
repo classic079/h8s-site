@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.6</title>
+<title>BTC Stalker - Multi-Timeframe v2.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -72,6 +72,11 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .needleValue{position:absolute;top:-13px;transform:translateX(-50%);
   background:rgba(0,0,0,.8);color:#fff;font-size:10px;padding:2px 6px;
   border-radius:8px;border:1px solid rgba(255,255,255,.25)}
+
+/* Metric pills */
+.metricPills{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:8px 0}
+.metricPill{font-size:11px;padding:3px 8px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.5);color:#cbd5e1;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -81,7 +86,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.6</span>
+      <span class="pill" style="opacity:.6">v2.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -152,6 +157,12 @@ dash.innerHTML = TF.map(t => `
     </div>
     <span class="gLabel sell">Sells</span>
   </div>
+  <div class="metricPills" id="metrics-${t.key}">
+    <span class="metricPill" id="tpm-${t.key}">T/m —</span>
+    <span class="metricPill" id="avg-${t.key}">Avg —</span>
+    <span class="metricPill" id="med-${t.key}">Med —</span>
+    <span class="metricPill" id="vwap-${t.key}">VWAP —</span>
+  </div>
   <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
 </div>
 `).join('');
@@ -177,26 +188,46 @@ function median(arr){
   return n?(n&1?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2):NaN;
 }
 
-function calcStats(arr){
+function calcStats(arr, windowMs){
   if(arr.length===0) return null;
   const prices = arr.map(t=>t.price);
   const hi = Math.max(...prices);
   const lo = Math.min(...prices);
-  let buyVol=0, sellVol=0, buyUsd=0, sellUsd=0;
+  let buyVol=0, sellVol=0, buyUsd=0, sellUsd=0, totalVol=0;
+  const usdTrades = [];
   for(const t of arr){
     const usd = t.price * t.size;
+    usdTrades.push(usd);
+    totalVol += t.size;
     if(t.side==='buy'){buyVol+=t.size; buyUsd+=usd}
     else{sellVol+=t.size; sellUsd+=usd}
   }
   const totalUsd = buyUsd + sellUsd;
   const buyRatio = totalUsd ? (buyUsd/totalUsd)*100 : 50;
+
+  // VWAP (Volume Weighted Average Price)
+  const vwap = totalVol > 0 ? totalUsd / totalVol : 0;
+
+  // Trades per minute
+  const minutes = windowMs / 60000;
+  const tradesPerMin = minutes > 0 ? arr.length / minutes : 0;
+
+  // Avg and Median trade size (USD)
+  const avgTradeUsd = arr.length > 0 ? totalUsd / arr.length : 0;
+  usdTrades.sort((a,b)=>a-b);
+  const medTradeUsd = usdTrades.length > 0 ? usdTrades[Math.floor(usdTrades.length/2)] : 0;
+
   return {
     first: prices[0],
     last: prices[prices.length-1],
     hi, lo,
     buyVol, sellVol,
     buyRatio,
-    count: arr.length
+    count: arr.length,
+    vwap,
+    tradesPerMin,
+    avgTradeUsd,
+    medTradeUsd
   };
 }
 
@@ -265,11 +296,17 @@ function updateAll(){
   TF.forEach(tf => {
     const arr = tf.key==='24h' ? win24h : tf.key==='8h' ? win8h : tf.key==='1h' ? win1h : win10m;
     const volArr = tf.key==='24h' ? win24hVol : tf.key==='8h' ? win8hVol : tf.key==='1h' ? win1hVol : win10mVol;
-    const stats = calcStats(volArr); // Use volume array for stats
+    const stats = calcStats(volArr, tf.win); // Use volume array for stats, pass window size
 
     if(stats){
       document.getElementById(`vol-${tf.key}`).textContent = `Vol ₿${fmtBTC.format(stats.buyVol + stats.sellVol)}`;
       document.getElementById(`hl-${tf.key}`).textContent = `H/L ${fmtUSD0.format(stats.hi)} / ${fmtUSD0.format(stats.lo)}`;
+
+      // Update metric pills
+      document.getElementById(`tpm-${tf.key}`).textContent = `T/m ${stats.tradesPerMin.toFixed(1)}`;
+      document.getElementById(`avg-${tf.key}`).textContent = `Avg ${fmtUSD0.format(stats.avgTradeUsd)}`;
+      document.getElementById(`med-${tf.key}`).textContent = `Med ${fmtUSD0.format(stats.medTradeUsd)}`;
+      document.getElementById(`vwap-${tf.key}`).textContent = `VWAP ${fmtUSD0.format(stats.vwap)}`;
     }
 
     drawChart(tf.key, arr); // Use sampled array for price chart
