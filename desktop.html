@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.7.3b</title>
+<title>BTC Overview — v1.8.0 FIXED</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
@@ -50,7 +50,7 @@
 <div class="wrap">
   <header>
     <div class="metaLeft">
-      <span class="chip" id="ver">v1.7.3b</span>
+      <span class="chip" id="ver">v1.8.0</span>
       <span class="badge" id="histStatus">History: loading…</span>
       <span class="badge" id="liveStatus">Live: starting…</span>
     </div>
@@ -64,9 +64,9 @@
   <section class="grid" id="dashboard"></section>
 </div>
 
-<!-- UI scaffold (small script so it never gets clipped) -->
+<!-- UI scaffold -->
 <script>
-  const APP_VERSION = 'v1.7.3b';
+  const APP_VERSION = 'v1.8.0 FIXED';
   const TF = [
     { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12, ccInt:'m15', bsStep:900 },
     { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12, ccInt:'m5',  bsStep:300 },
@@ -108,7 +108,7 @@
   setInterval(()=> headClock.textContent = new Date().toLocaleTimeString(), 1000);
 </script>
 
-<!-- Logic (separate block to avoid truncation issues) -->
+<!-- Main Logic -->
 <script>
 (function(){
   const histEl = document.getElementById('histStatus');
@@ -151,15 +151,14 @@
     lastHeader=p;
   }
 
-  // bias gauge bits
-  const biasGauge = document.getElementById('biasGauge');
-  const needle = document.getElementById('needle');
-  const needleValue = document.getElementById('needleValue');
-  let needlePos = 0.5;
-  function sizeCanvas(c){ const dpr=Math.min(3,window.devicePixelRatio||1); c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx; }
+  // gauge
+  let needlePos=0.5;
+  const biasGauge=document.getElementById('biasGauge');
+  const needle=document.getElementById('needle');
+  const needleValue=document.getElementById('needleValue');
   function drawGauge(buy,sell){
     if(!biasGauge) return;
-    const ctx=sizeCanvas(biasGauge), w=biasGauge.clientWidth, h=biasGauge.clientHeight;
+    const ctx=biasGauge.getContext('2d'), w=biasGauge.width=biasGauge.offsetWidth, h=biasGauge.height=biasGauge.offsetHeight;
     ctx.clearRect(0,0,w,h);
     const tot=buy+sell, target=tot?(buy/tot):0.5; needlePos += (target-needlePos)*0.25;
     const up=cssVar('--up'), dn=cssVar('--down'), g=ctx.createLinearGradient(0,0,w,0);
@@ -226,87 +225,229 @@
     }
   }
 
-  // light mock so UI never blank
+  // Initial seed with better mock data
   (function seed(){
     const now=Date.now();
     TF.forEach(t=>{
       const s=stateMap[t.key]; let p=lastPriceGlobal;
-      for(let i=12;i>0;i--){ p+=(Math.random()-0.5)*20; s.arr.push({t:now-i*10000,price:p,vol:Math.random()*2}); }
+      for(let i=24;i>0;i--){ 
+        p+=(Math.random()-0.5)*50; 
+        s.arr.push({t:now-i*5000,price:p,vol:Math.random()*5}); 
+      }
       redraw(t.key);
     });
     document.getElementById('headerPrice').textContent = fmtUSD(lastPriceGlobal);
   })();
 
-  // fetch helpers
-  function fetchJSON(url, ms=1500){
-    const ctl=new AbortController(); const tid=setTimeout(()=>ctl.abort(), ms);
-    return fetch(url,{signal:ctl.signal,headers:{Accept:'application/json'}})
-      .then(r=>{ clearTimeout(tid); if(!r.ok) throw new Error('http '+r.status); return r.json(); });
+  // IMPROVED: Fetch helpers with better error handling
+  function fetchJSON(url, ms=3000){
+    const ctl=new AbortController(); 
+    const tid=setTimeout(()=>ctl.abort(), ms);
+    return fetch(url,{
+      signal:ctl.signal,
+      headers:{Accept:'application/json'},
+      mode: 'cors'
+    })
+    .then(r=>{ 
+      clearTimeout(tid); 
+      if(!r.ok) throw new Error('HTTP '+r.status); 
+      return r.json(); 
+    })
+    .catch(err => {
+      clearTimeout(tid);
+      console.error('Fetch error for', url, ':', err);
+      throw err;
+    });
   }
   const good = v => Number.isFinite(v) && v>0;
 
-  // history
+  // IMPROVED: History with fallback chain
   function fetchCoinCap(tf){
     const end=Date.now(), start=end-tf.win-10000;
-    return fetchJSON(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`,3000)
-      .then(j=> (j&&j.data||[]).map(x=>({t:+x.time, price:+x.priceUsd, vol:0})).filter(x=>good(x.price)));
+    return fetchJSON(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`,5000)
+      .then(j=> {
+        if(!j || !j.data) throw new Error('No data');
+        return (j.data||[]).map(x=>({t:+x.time, price:+x.priceUsd, vol:0})).filter(x=>good(x.price));
+      });
   }
+  
   function fetchBitstamp(tf){
     const step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
-    return fetchJSON(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,3000)
-      .then(j=> (j&&j.data&&j.data.ohlc||[]).map(c=>({t:+c.timestamp*1000, price:+c.close, vol:+c.volume||0})).filter(x=>good(x.price)));
+    return fetchJSON(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,5000)
+      .then(j=> {
+        if(!j || !j.data || !j.data.ohlc) throw new Error('No data');
+        return (j.data.ohlc||[]).map(c=>({t:+c.timestamp*1000, price:+c.close, vol:+c.volume||0})).filter(x=>good(x.price));
+      });
   }
+
+  function fetchCoinGecko(tf){
+    // CoinGecko is more CORS-friendly
+    const days = Math.ceil(tf.win / (24*60*60*1000)) || 1;
+    return fetchJSON(`https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,5000)
+      .then(j=> {
+        if(!j || !j.prices) throw new Error('No data');
+        return j.prices.map(([t,p])=>({t, price:p, vol:0})).filter(x=>good(x.price));
+      });
+  }
+
   function getHistory(tf){
-    return fetchCoinCap(tf).then(a=>{
-      if(a.length>3) return {src:'CoinCap',data:a};
-      return fetchBitstamp(tf).then(b=> b.length>3 ? {src:'Bitstamp',data:b} : {src:'mock',data:null})
-                              .catch(()=>({src:'mock',data:null}));
-    }).catch(()=> fetchBitstamp(tf).then(b=> b.length>3 ? {src:'Bitstamp',data:b} : {src:'mock',data:null})
-                                  .catch(()=>({src:'mock',data:null})));
+    console.log('Fetching history for', tf.key);
+    
+    // Try CoinGecko first (usually most reliable with CORS)
+    return fetchCoinGecko(tf)
+      .then(a => {
+        if(a && a.length > 3) {
+          console.log('CoinGecko success for', tf.key);
+          return {src:'CoinGecko', data:a};
+        }
+        throw new Error('Insufficient data');
+      })
+      .catch(() => {
+        console.log('CoinGecko failed, trying CoinCap for', tf.key);
+        return fetchCoinCap(tf)
+          .then(a => {
+            if(a && a.length > 3) {
+              console.log('CoinCap success for', tf.key);
+              return {src:'CoinCap', data:a};
+            }
+            throw new Error('Insufficient data');
+          });
+      })
+      .catch(() => {
+        console.log('CoinCap failed, trying Bitstamp for', tf.key);
+        return fetchBitstamp(tf)
+          .then(b => {
+            if(b && b.length > 3) {
+              console.log('Bitstamp success for', tf.key);
+              return {src:'Bitstamp', data:b};
+            }
+            throw new Error('Insufficient data');
+          });
+      })
+      .catch(() => {
+        console.log('All APIs failed for', tf.key, 'using enhanced mock');
+        return {src:'mock', data:null};
+      });
   }
+
   function preloadHistory(){
     histEl.textContent='History: loading…';
+    console.log('Starting history preload...');
+    
     Promise.all(TF.map(getHistory)).then(res=>{
       const now=Date.now(); const sources={};
       res.forEach((r,i)=>{
         const tf=TF[i], s=stateMap[tf.key];
-        if(r.data){ s.arr=r.data.filter(d=>d.t>=now-tf.win); sources[r.src]=1; if(s.arr.length) lastPriceGlobal=s.arr.at(-1).price; }
-        else { sources.mock=1; let p=lastPriceGlobal; s.arr=[]; const step=Math.max(2000,Math.floor(tf.win/60));
-               for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; s.arr.push({t,price:p,vol:Math.random()*2}); } }
+        if(r.data && r.data.length > 0){ 
+          s.arr=r.data.filter(d=>d.t>=now-tf.win); 
+          sources[r.src]=1; 
+          if(s.arr.length) lastPriceGlobal=s.arr.at(-1).price;
+          console.log(`Loaded ${s.arr.length} points for ${tf.key} from ${r.src}`);
+        }
+        else { 
+          sources.mock=1; 
+          let p=lastPriceGlobal; 
+          s.arr=[]; 
+          const step=Math.max(2000,Math.floor(tf.win/60));
+          for(let t=now-tf.win;t<=now;t+=step){ 
+            p+=(Math.random()-0.5)*30; 
+            s.arr.push({t,price:p,vol:Math.random()*5}); 
+          }
+          console.log(`Using mock data for ${tf.key}`);
+        }
         redraw(tf.key);
       });
-      histEl.textContent='History: '+Object.keys(sources).join(' + ')+' · '+APP_VERSION;
+      const sourceList = Object.keys(sources).join(' + ');
+      histEl.textContent='History: '+sourceList;
+      console.log('History loaded from:', sourceList);
       setHeaderPrice(lastPriceGlobal);
-    }).catch(()=> histEl.textContent='History: error · '+APP_VERSION);
+    }).catch(err => {
+      console.error('History load failed:', err);
+      histEl.textContent='History: error (check console)';
+    });
   }
 
-  // live
+  // IMPROVED: Live polling with better fallbacks
   function onQuote(p,v){
     if(!good(p)) return;
     lastPriceGlobal=p; setHeaderPrice(p);
     const n=Date.now();
     TF.forEach(t=>{
       const s=stateMap[t.key];
-      if(n-s.tLast>=t.sample){ s.arr.push({t:n,price:p,vol: (good(v)?v:0.1) }); s.tLast=n; }
+      if(n-s.tLast>=t.sample){ 
+        s.arr.push({t:n,price:p,vol: (good(v)?v:0.1) }); 
+        s.tLast=n; 
+      }
       redraw(t.key);
     });
   }
+
   function pollLive(){
-    fetchJSON('https://api.coincap.io/v2/assets/bitcoin',1500).then(j=>{
-      const p=parseFloat(j&&j.data&&j.data.priceUsd); if(good(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
-      throw 0;
-    }).catch(()=> fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',1500).then(j=>{
-      const p=parseFloat(j.last), v=parseFloat(j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
-      throw 0;
-    }).catch(()=> fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',1500).then(j=>{
-      const p=parseFloat(j.price||j.last||j.bid||j.ask), v=parseFloat(j.size||j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
-      throw 0;
-    }).catch(()=>{ onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2); liveEl.textContent='Live: mock · '+APP_VERSION; }))));
+    // Try CoinGecko first
+    fetchJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_vol=true',3000)
+      .then(j=>{
+        const p=j?.bitcoin?.usd;
+        const v=j?.bitcoin?.usd_24h_vol || 0.1;
+        if(good(p)){ 
+          onQuote(p, v); 
+          liveEl.textContent='Live: CoinGecko';
+          return; 
+        }
+        throw new Error('Invalid data');
+      })
+      .catch(()=> {
+        // Fallback to CoinCap
+        return fetchJSON('https://api.coincap.io/v2/assets/bitcoin',3000)
+          .then(j=>{
+            const p=parseFloat(j?.data?.priceUsd); 
+            if(good(p)){ 
+              onQuote(p,0.1); 
+              liveEl.textContent='Live: CoinCap';
+              return; 
+            }
+            throw new Error('Invalid data');
+          });
+      })
+      .catch(()=> {
+        // Fallback to Bitstamp
+        return fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',3000)
+          .then(j=>{
+            const p=parseFloat(j.last), v=parseFloat(j.volume||0.1); 
+            if(good(p)){ 
+              onQuote(p,good(v)?v:0.1); 
+              liveEl.textContent='Live: Bitstamp';
+              return; 
+            }
+            throw new Error('Invalid data');
+          });
+      })
+      .catch(()=> {
+        // Final fallback to Coinbase
+        return fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',3000)
+          .then(j=>{
+            const p=parseFloat(j.price||j.last||j.bid||j.ask);
+            const v=parseFloat(j.size||j.volume||0.1); 
+            if(good(p)){ 
+              onQuote(p,good(v)?v:0.1); 
+              liveEl.textContent='Live: Coinbase';
+              return; 
+            }
+            throw new Error('Invalid data');
+          });
+      })
+      .catch(()=>{ 
+        // Use mock data if all APIs fail
+        onQuote(lastPriceGlobal+(Math.random()-0.5)*50,Math.random()*5); 
+        liveEl.textContent='Live: mock (APIs unavailable)';
+        console.warn('All live APIs failed, using mock data');
+      });
   }
 
+  // Start everything
+  console.log('Initializing BTC Dashboard v1.8.0...');
   preloadHistory();
-  pollLive();
-  setInterval(pollLive, 2500);
+  setTimeout(pollLive, 1000); // Give history a moment to load first
+  setInterval(pollLive, 3000); // Poll every 3 seconds
 })();
 </script>
 </body>
