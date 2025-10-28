@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.9</title>
+<title>BTC Stalker - Multi-Timeframe v3.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -86,7 +86,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.9</span>
+      <span class="pill" style="opacity:.6">v3.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -149,7 +149,7 @@ dash.innerHTML = TF.map(t => `
     </div>
   </div>
   <div class="chartBox"><canvas id="chart-${t.key}"></canvas></div>
-  <div class="gaugeRow">
+  ${(t.key==='1h' || t.key==='10m') ? `<div class="gaugeRow">
     <span class="gLabel buy">Buys</span>
     <div class="gaugeWrap">
       <canvas id="biasGauge-${t.key}"></canvas>
@@ -158,7 +158,7 @@ dash.innerHTML = TF.map(t => `
     </div>
     <span class="gLabel sell">Sells</span>
   </div>
-  ${(t.key==='1h' || t.key==='10m') ? `<div class="metricPills" id="metrics-${t.key}">
+  <div class="metricPills" id="metrics-${t.key}">
     <span class="metricPill" id="tpm-${t.key}">T/m —</span>
     <span class="metricPill" id="avg-${t.key}">Avg —</span>
     <span class="metricPill" id="med-${t.key}">Med —</span>
@@ -348,7 +348,8 @@ function updateAll(){
     drawChart(tf.key, arr); // Use sampled array for price chart
     drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
 
-    if(stats){
+    // Only draw gauge for 1h and 10m (where live data is accurate)
+    if(stats && (tf.key === '1h' || tf.key === '10m')){
       drawGauge(tf.key, stats.buyVol, stats.sellVol);
     }
   });
