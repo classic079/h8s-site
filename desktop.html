@@ -159,7 +159,10 @@ dash.innerHTML = TF.map(t => `
 
 /* ===== Canvas helpers ===== */
 function sizeCanvas(c){
-  if(!c) return null;
+  if(!c || !c.getContext) {
+    console.warn('sizeCanvas: invalid canvas element', c);
+    return null;
+  }
   const dpr = Math.max(1, Math.min(devicePixelRatio||1, 3));
   c.width = Math.max(1, c.clientWidth*dpr);
   c.height = Math.max(1, c.clientHeight*dpr);
@@ -630,11 +633,14 @@ async function fetchHistoricalCandles(){
 }
 
 /* ===== Start ===== */
-fetchHistoricalCandles();
-startWS();
-fetch24h();
-setInterval(restFallback, 1200);
-setInterval(fetch24h, 60000);
+// Wait for DOM to be fully ready before drawing
+setTimeout(() => {
+  fetchHistoricalCandles();
+  startWS();
+  fetch24h();
+  setInterval(restFallback, 1200);
+  setInterval(fetch24h, 60000);
+}, 100);
 </script>
 </body>
 </html>
