@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.2</title>
+<title>BTC Stalker - Multi-Timeframe v1.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.2</span>
+      <span class="pill" style="opacity:.6">v1.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -153,7 +153,7 @@ dash.innerHTML = TF.map(t => `
     </div>
     <span class="gLabel sell">Sells</span>
   </div>` : ''}
-  <div class="volBox"><canvas id="vol-${t.key}"></canvas></div>
+  <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
 </div>
 `).join('');
 
@@ -326,7 +326,7 @@ function drawChart(key, arr){
 
 /* ===== Volume bars ===== */
 function drawVolume(key, arr, tf){
-  const canvas = document.getElementById(`vol-${key}`);
+  const canvas = document.getElementById(`volChart-${key}`);
   if(!canvas) return;
   const ctx = sizeCanvas(canvas);
   if(!ctx) return;
