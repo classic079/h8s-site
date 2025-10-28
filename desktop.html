@@ -450,43 +450,38 @@ function drawVolume(key, arr, tf){
       ctx.fillText(label, x, pillY + pillH/2);
     }
 
-    // Add bias pill inside bar showing buy vs sell ratio
-    if(tot > 0.01 && hT > 24){ // Only if bar is tall enough
-      const buyPct = tot ? (b.buy / tot) * 100 : 50;
-      const sellPct = 100 - buyPct;
+    // Add +/- DIFF pill inside bar (actual BTC difference, like mobile.html)
+    if(hT > 26 && tot > 0.0001){
+      const diff = b.buy - b.sell; // Actual BTC difference
+      if(Math.abs(diff) > 0.0001){
+        const diffLabel = `${diff>=0?'+':''}${diff.toFixed(2)}`;
 
-      // Show which side is dominant and by how much
-      let biasLabel, isBuyDominant;
-      if(buyPct > sellPct){
-        isBuyDominant = true;
-        biasLabel = `+${(buyPct - 50).toFixed(0)}%`; // How much over 50%
-      } else {
-        isBuyDominant = false;
-        biasLabel = `-${(sellPct - 50).toFixed(0)}%`; // How much over 50%
+        ctx.font = '10px system-ui';
+        const diffMetrics = ctx.measureText(diffLabel);
+        const diffPillW = diffMetrics.width + 10;
+        const diffPillH = 16;
+        const diffPillX = x - diffPillW/2;
+        const diffPillY = yB - hT/2 - diffPillH/2; // Center of bar
+
+        // Draw pill background (dark with border)
+        ctx.fillStyle = 'rgba(0,0,0,.85)';
+        ctx.strokeStyle = 'rgba(255,255,255,.22)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(diffPillX + 7, diffPillY);
+        ctx.arcTo(diffPillX + diffPillW, diffPillY, diffPillX + diffPillW, diffPillY + diffPillH, 7);
+        ctx.arcTo(diffPillX + diffPillW, diffPillY + diffPillH, diffPillX, diffPillY + diffPillH, 7);
+        ctx.arcTo(diffPillX, diffPillY + diffPillH, diffPillX, diffPillY, 7);
+        ctx.arcTo(diffPillX, diffPillY, diffPillX + diffPillW, diffPillY, 7);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw diff text (colored: teal for +, orange for -)
+        ctx.fillStyle = diff >= 0 ? up : dn;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(diffLabel, x, diffPillY + diffPillH/2);
       }
-
-      ctx.font = '9px system-ui';
-      const biasMetrics = ctx.measureText(biasLabel);
-      const biasPillW = biasMetrics.width + 8;
-      const biasPillH = 14;
-      const biasPillX = x - biasPillW/2;
-      const biasPillY = yB - hT/2 - biasPillH/2; // Center of bar
-
-      // Draw bias pill (teal for buy dominant, orange for sell dominant)
-      ctx.fillStyle = isBuyDominant ? 'rgba(45,212,191,.85)' : 'rgba(245,158,11,.85)';
-      ctx.beginPath();
-      ctx.moveTo(biasPillX + 7, biasPillY);
-      ctx.arcTo(biasPillX + biasPillW, biasPillY, biasPillX + biasPillW, biasPillY + biasPillH, 7);
-      ctx.arcTo(biasPillX + biasPillW, biasPillY + biasPillH, biasPillX, biasPillY + biasPillH, 7);
-      ctx.arcTo(biasPillX, biasPillY + biasPillH, biasPillX, biasPillY, 7);
-      ctx.arcTo(biasPillX, biasPillY, biasPillX + biasPillW, biasPillY, 7);
-      ctx.fill();
-
-      // Draw bias text
-      ctx.fillStyle = 'rgba(0,0,0,.9)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(biasLabel, x, biasPillY + biasPillH/2);
     }
   });
 }
