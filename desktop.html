@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.3</title>
+<title>BTC Stalker - Multi-Timeframe v2.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.3</span>
+      <span class="pill" style="opacity:.6">v2.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -326,21 +326,29 @@ function drawChart(key, arr){
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Line
+  // Line (colored based on price vs average)
   const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
-  ctx.strokeStyle = up;
+  const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ctx.beginPath();
 
-  arr.forEach((t, i) => {
-    const x = padX + (i/(arr.length-1)) * (w - 2*padX);
-    const y = padY + (h - 2*padY) * (1 - (t.price - min)/range);
-    if(i===0) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
-  });
-  ctx.stroke();
+  // Draw line segments, changing color based on whether price is above/below average
+  for(let i = 1; i < arr.length; i++){
+    const t0 = arr[i-1];
+    const t1 = arr[i];
+    const x0 = padX + ((i-1)/(arr.length-1)) * (w - 2*padX);
+    const y0 = padY + (h - 2*padY) * (1 - (t0.price - min)/range);
+    const x1 = padX + (i/(arr.length-1)) * (w - 2*padX);
+    const y1 = padY + (h - 2*padY) * (1 - (t1.price - min)/range);
+
+    // Color based on current price vs average
+    ctx.strokeStyle = t1.price >= avg ? up : dn;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
 
   // Labels
   ctx.fillStyle = 'rgba(255,255,255,.85)';
