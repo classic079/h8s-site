@@ -3,105 +3,123 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BTC Overview — v1.7.3</title>
+<title>BTC Overview — v1.7.3b</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#151823; --panel-2:#10131b; --text:#e5e7eb; --muted:#9aa3b2;
-    --accent:#4da3ff; --up:#2dd4bf; --down:#f59e0b;
-    --gap:10px; --radius:10px;
+    --accent:#4da3ff; --up:#16c784; --down:#ff4d4d; --gap:10px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter, ui-sans-serif, system-ui;overflow-x:hidden}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui;overflow-x:hidden}
   .wrap{max-width:1920px;margin:16px auto 28px;padding:0 24px}
-
   header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-items:center;gap:8px;margin-bottom:10px}
   .metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .metaRight{justify-self:end}
-  .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
+  .chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
   .badge{font-size:12px;color:var(--muted)}
   .pane{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:12px;padding:6px 12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.24)}
   .pane label{color:#cbd5e1;font-weight:700;margin-right:12px}
   #headerPrice{justify-self:center;font-weight:900;font-size:clamp(20px,3.2vw,36px);letter-spacing:.2px;transition:color .18s,filter .18s}
-  #headerPrice.up{color:#16c784;filter:drop-shadow(0 0 6px rgba(22,199,132,.22))}
+  #headerPrice.up{color:var(--up);filter:drop-shadow(0 0 6px rgba(22,199,132,.22))}
   #headerPrice.down{color:#ff4d4d;filter:drop-shadow(0 0 6px rgba(255,77,77,.22))}
   #headerClock{justify-self:end;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
-
   .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
   @media (max-width:1500px){ .grid{grid-template-columns:repeat(2,1fr)} }
   @media (max-width:760px){ .grid{grid-template-columns:1fr} }
-
-  .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:var(--radius);padding:8px;display:flex;flex-direction:column;box-shadow:0 3px 12px rgba(0,0,0,.25)}
+  .col{background:linear-gradient(180deg,var(--panel) 0%,var(--panel-2) 100%);border-radius:10px;padding:8px;display:flex;flex-direction:column;box-shadow:0 3px 12px rgba(0,0,0,.25)}
   .title{display:flex;justify-content:space-between;align-items:center;gap:12px}
   .tf{color:var(--muted);font-weight:800;font-size:12px}
-  .topbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .topbar{display:flex;gap:6px;flex-wrap:wrap}
   .pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
-  .pill.up{background:#16c784;border-color:transparent;color:#06140e}
-  .pill.down{background:#ff4d4d;border-color:transparent;color:#140808}
+  .pill.up{background:var(--up);border-color:transparent;color:#06140e}
+  .pill.down{background:var(--down);border-color:transparent;color:#140808}
   .pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
-
   .chartCard{background:rgba(255,255,255,.02);border-radius:8px;height:210px;margin-top:6px}
   .volumeCard{background:rgba(255,255,255,.02);border-radius:8px;height:170px;margin-top:6px}
-
   .biasRow{display:flex;align-items:center;gap:10px;margin:8px 6px 0}
-  .gLabel{font-size:12px;opacity:.9;user-select:none}
-  .gLabel.buy{color:var(--up)} .gLabel.sell{color:var(--down)}
+  .gLabel{font-size:12px;opacity:.9}
+  .gLabel.buy{color:var(--up)} .gLabel.sell{color:#f59e0b}
   .gaugeWrap{position:relative;flex:1}
   #biasGauge{height:22px;width:100%;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
-  .needle{position:absolute; top:2px; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); transition:left .2s ease}
-  .needleValue{position:absolute; top:-14px; transform:translateX(-50%); background:rgba(0,0,0,.8); color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; border:1px solid rgba(255,255,255,.25)}
+  .needle{position:absolute;top:2px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));transition:left .2s ease}
+  .needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="metaLeft">
+      <span class="chip" id="ver">v1.7.3b</span>
+      <span class="badge" id="histStatus">History: loading…</span>
+      <span class="badge" id="liveStatus">Live: starting…</span>
+    </div>
+    <div class="pane">
+      <label>BTC/USD</label>
+      <div id="headerPrice">$—</div>
+      <div id="headerClock">—:—:—</div>
+    </div>
+    <div class="metaRight"><span class="chip" style="border-color:#2e7d32;color:#b7f5c8">JS: running</span></div>
+  </header>
+  <section class="grid" id="dashboard"></section>
+</div>
+
+<!-- UI scaffold (small script so it never gets clipped) -->
 <script>
-(function(){
-  const APP_VERSION='v1.7.3';
+  const APP_VERSION = 'v1.7.3b';
   const TF = [
     { key:'24h', label:'24 HOURS', win:24*60*60*1000, sample:30000, bin:12, ccInt:'m15', bsStep:900 },
     { key:'8h',  label:'8 HOURS',  win: 8*60*60*1000, sample:15000, bin:12, ccInt:'m5',  bsStep:300 },
     { key:'1h',  label:'1 HOUR',   win: 1*60*60*1000, sample: 5000, bin:12, ccInt:'m1',  bsStep:60  },
     { key:'10m', label:'10 MIN',   win:10*60*1000,    sample: 2000, bin:12, ccInt:'m1',  bsStep:60  }
   ];
+  document.getElementById('ver').textContent = APP_VERSION;
 
   const dash = document.getElementById('dashboard');
+  dash.innerHTML = TF.map(t =>
+    `<div class="col">
+       <div class="title">
+         <div class="tf">${t.label}</div>
+         <div class="topbar">
+           <span class="pill muted" id="tfc-${t.key}">—</span>
+           <span class="pill muted" id="hlc-${t.key}">H/L — / —</span>
+           <span class="pill muted" id="volc-${t.key}">Vol —</span>
+         </div>
+       </div>
+       <div class="chartCard"><canvas id="c-${t.key}"></canvas></div>
+       ${t.key==='10m'
+         ? `<div class="biasRow">
+              <span class="gLabel buy">Buys</span>
+              <div class="gaugeWrap">
+                <canvas id="biasGauge"></canvas>
+                <div id="needle" class="needle" style="left:50%"></div>
+                <div id="needleValue" class="needleValue" style="left:50%">0%</div>
+              </div>
+              <span class="gLabel sell">Sells</span>
+            </div>`
+         : ``}
+       <div class="volumeCard"><canvas id="v-${t.key}"></canvas></div>
+     </div>`
+  ).join('');
+
+  // header clock
+  const headClock = document.getElementById('headerClock');
+  headClock.textContent = new Date().toLocaleTimeString();
+  setInterval(()=> headClock.textContent = new Date().toLocaleTimeString(), 1000);
+</script>
+
+<!-- Logic (separate block to avoid truncation issues) -->
+<script>
+(function(){
   const histEl = document.getElementById('histStatus');
   const liveEl = document.getElementById('liveStatus');
   const headPrice = document.getElementById('headerPrice');
-  const headClock = document.getElementById('headerClock');
-  document.getElementById('ver').textContent = APP_VERSION;
 
-  dash.innerHTML = TF.map(t=>(
-    '<div class="col">'+
-      '<div class="title">'+
-        '<div class="tf">'+t.label+'</div>'+
-        '<div class="topbar">'+
-          '<span class="pill muted" id="tfc-'+t.key+'">—</span>'+
-          '<span class="pill muted" id="hlc-'+t.key+'">H/L — / —</span>'+
-          '<span class="pill muted" id="volc-'+t.key+'">Vol —</span>'+
-        '</div>'+
-      '</div>'+
-      '<div class="chartCard"><canvas id="c-'+t.key+'"></canvas></div>'+
-      (t.key==='10m'
-        ? ('<div class="biasRow">'+
-             '<span class="gLabel buy">Buys</span>'+
-             '<div class="gaugeWrap">'+
-               '<canvas id="biasGauge"></canvas>'+
-               '<div id="needle" class="needle" style="left:50%"></div>'+
-               '<div id="needleValue" class="needleValue" style="left:50%">0%</div>'+
-             '</div>'+
-             '<span class="gLabel sell">Sells</span>'+
-           '</div>')
-        : '')+
-      '<div class="volumeCard"><canvas id="v-'+t.key+'"></canvas></div>'+
-    '</div>'
-  )).join('');
+  const cssVar = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const stateMap = {};
+  let lastPriceGlobal = 65000, lastHeader = null;
 
-  headClock.textContent=new Date().toLocaleTimeString();
-  setInterval(function(){ headClock.textContent=new Date().toLocaleTimeString(); },1000);
-
-  const cssVar = function(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
-  const state = {};
-  let lastPriceGlobal = 65000;
-  let lastHeader = null;
-
+  // charts
   function areaFill(chart,color){
     const ca=chart.chartArea; if(!ca) return null;
     const g=chart.ctx.createLinearGradient(0,ca.top,0,ca.bottom);
@@ -113,7 +131,7 @@
     const smooth=(key==='10m');
     return new Chart(ctx,{
       type:'line',
-      data:{labels:[],datasets:[{data:[],borderColor:cssVar('--accent')||'#4da3ff',borderWidth:smooth?3:2,pointRadius:0,tension:smooth?0.25:0,fill:smooth,backgroundColor:'transparent'}]},
+      data:{labels:[],datasets:[{data:[],borderColor:'#4da3ff',borderWidth:smooth?3:2,pointRadius:0,tension:smooth?0.25:0,fill:smooth,backgroundColor:'transparent'}]},
       options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},
         plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,displayColors:false}},
         scales:{x:{ticks:{display:false},grid:{display:false}},y:{ticks:{color:'#7f8796'},grid:{color:key==='10m'?'transparent':'rgba(255,255,255,.05)'}}}
@@ -123,61 +141,47 @@
     return new Chart(ctx,{type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:[]}]},
       options:{responsive:true,maintainAspectRatio:false,animation:{duration:0},plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7f8796'}},y:{ticks:{display:false}}}});
   }
-
+  function trendColor(arr){ if(arr.length<2) return '#4da3ff'; return (arr[arr.length-1].price>=arr[0].price)?cssVar('--up'):'#ff4d4d'; }
   function fmtUSD(n){ return '$'+(n||0).toLocaleString(undefined,{maximumFractionDigits:2}); }
   function fmtVOL(n){ return (n||0).toLocaleString(undefined,{maximumFractionDigits:3}); }
   function setHeaderPrice(p){
     headPrice.classList.remove('up','down');
     headPrice.textContent=fmtUSD(p);
-    if(lastHeader!=null){
-      if(p>lastHeader) headPrice.classList.add('up');
-      else if(p<lastHeader) headPrice.classList.add('down');
-    }
+    if(lastHeader!=null){ if(p>lastHeader) headPrice.classList.add('up'); else if(p<lastHeader) headPrice.classList.add('down'); }
     lastHeader=p;
   }
-  function trendColor(arr){
-    if(arr.length<2) return cssVar('--accent')||'#4da3ff';
-    return (arr[arr.length-1].price>=arr[0].price)?'#16c784':'#ff4d4d';
-  }
 
-  // bias gauge
-  var biasGauge = document.getElementById('biasGauge');
-  var needle = document.getElementById('needle');
-  var needleValue = document.getElementById('needleValue');
-  var needlePos = 0.5;
-  function sizeCanvas(c){
-    var dpr=Math.min(3,window.devicePixelRatio||1);
-    c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr;
-    var ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx;
-  }
+  // bias gauge bits
+  const biasGauge = document.getElementById('biasGauge');
+  const needle = document.getElementById('needle');
+  const needleValue = document.getElementById('needleValue');
+  let needlePos = 0.5;
+  function sizeCanvas(c){ const dpr=Math.min(3,window.devicePixelRatio||1); c.width=c.clientWidth*dpr; c.height=c.clientHeight*dpr; const ctx=c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx; }
   function drawGauge(buy,sell){
     if(!biasGauge) return;
-    var ctx=sizeCanvas(biasGauge), w=biasGauge.clientWidth, h=biasGauge.clientHeight;
+    const ctx=sizeCanvas(biasGauge), w=biasGauge.clientWidth, h=biasGauge.clientHeight;
     ctx.clearRect(0,0,w,h);
-    var tot=buy+sell, target=tot?(buy/tot):0.5; needlePos += (target-needlePos)*0.25;
-
-    var up=cssVar('--up'), dn=cssVar('--down'), g=ctx.createLinearGradient(0,0,w,0);
+    const tot=buy+sell, target=tot?(buy/tot):0.5; needlePos += (target-needlePos)*0.25;
+    const up=cssVar('--up'), dn=cssVar('--down'), g=ctx.createLinearGradient(0,0,w,0);
     g.addColorStop(0, up); g.addColorStop(Math.max(0,needlePos-0.001), up);
     g.addColorStop(Math.min(1,needlePos+0.001), dn); g.addColorStop(1, dn);
-
-    var r=h/2; ctx.fillStyle=g;
-    ctx.beginPath(); ctx.moveTo(r,1); ctx.lineTo(w-r,1); ctx.arcTo(w-1,1,w-1,r,r); ctx.lineTo(w-1,h-r); ctx.arcTo(w-1,h-1,w-r,h-1,r);
+    const r=h/2;
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.moveTo(r,1); ctx.lineTo(w-r,1);
+    ctx.arcTo(w-1,1,w-1,r,r); ctx.lineTo(w-1,h-r); ctx.arcTo(w-1,h-1,w-r,h-1,r);
     ctx.lineTo(r,h-1); ctx.arcTo(1,h-1,1,h-r,r); ctx.lineTo(1,r); ctx.arcTo(1,1,r,1,r); ctx.fill();
-
     ctx.globalAlpha=.18; ctx.fillStyle=(needlePos>=0.5)?up:dn;
-    var domW=(needlePos>=0.5)?(w*needlePos):(w*(1-needlePos)); var domX=(needlePos>=0.5)?0:(w*needlePos);
+    const domW=(needlePos>=0.5)?(w*needlePos):(w*(1-needlePos)); const domX=(needlePos>=0.5)?0:(w*needlePos);
     ctx.fillRect(domX,1,domW,h-2); ctx.globalAlpha=1;
-
-    var leftPx = Math.round(biasGauge.getBoundingClientRect().width * needlePos);
+    const leftPx = Math.round(biasGauge.getBoundingClientRect().width * needlePos);
     needle.style.left = leftPx+'px';
-    var biasPct = tot ? ((buy - sell)/tot)*100 : 0;
+    const biasPct = tot ? ((buy - sell)/tot)*100 : 0;
     needleValue.textContent = (biasPct>=0?'+':'')+biasPct.toFixed(0)+'%';
     needleValue.style.left = leftPx+'px';
   }
 
-  // data/state
-  const stateMap = {};
-  TF.forEach(function(t){
+  // build charts
+  TF.forEach(t=>{
     stateMap[t.key]={arr:[],tLast:0,
       pc:makeLineChart(document.getElementById('c-'+t.key).getContext('2d'),t.key),
       vc:makeBarChart(document.getElementById('v-'+t.key).getContext('2d'))
@@ -185,169 +189,119 @@
   });
 
   function redraw(key){
-    var tf=TF.filter(function(x){return x.key===key;})[0],
-        b=stateMap[key],
-        now=Date.now();
-    b.arr=b.arr.filter(function(pt){return pt.t>=now-tf.win;});
+    const tf=TF.find(x=>x.key===key), s=stateMap[key], now=Date.now();
+    s.arr=s.arr.filter(pt=>pt.t>=now-tf.win);
+    const labels=s.arr.map(pt=>new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    const prices=s.arr.map(pt=>pt.price), vols=s.arr.map(pt=>pt.vol||0);
 
-    var labels=b.arr.map(function(pt){return new Date(pt.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}),
-        prices=b.arr.map(function(pt){return pt.price;}),
-        vols=b.arr.map(function(pt){return pt.vol||0;});
-
-    var pc=b.pc; pc.data.labels=labels; pc.data.datasets[0].data=prices;
-    var col=trendColor(b.arr); pc.data.datasets[0].borderColor=col;
-    if(key==='10m'){ var fill=areaFill(pc,col.replace('#','rgb(')); if(fill) pc.data.datasets[0].backgroundColor=fill; }
+    const pc=s.pc; pc.data.labels=labels; pc.data.datasets[0].data=prices;
+    const col=trendColor(s.arr); pc.data.datasets[0].borderColor=col;
+    if(key==='10m'){ const fill=areaFill(pc,col.replace('#','rgb(')); if(fill) pc.data.datasets[0].backgroundColor=fill; }
     pc.update('none');
 
-    var tfP=document.getElementById('tfc-'+key),
-        hlP=document.getElementById('hlc-'+key),
-        voP=document.getElementById('volc-'+key);
-
+    const tfP=document.getElementById('tfc-'+key), hlP=document.getElementById('hlc-'+key), voP=document.getElementById('volc-'+key);
     if(prices.length){
-      var first=prices[0], last=prices[prices.length-1], delta=last-first, pct=first? (delta/first)*100 : 0;
-      tfP.textContent=(delta>=0?'▲':'▼')+' '+fmtUSD(Math.abs(delta))+' ('+Math.abs(pct).toFixed(2)+'%)';
+      const first=prices[0], last=prices.at(-1), delta=last-first, pct=first?(delta/first)*100:0;
+      tfP.textContent=(delta>=0?'▲ ':'▼ ')+fmtUSD(Math.abs(delta))+' ('+Math.abs(pct).toFixed(2)+'%)';
       tfP.className='pill '+(delta>=0?'up':'down');
-      hlP.textContent='H/L '+fmtUSD(Math.max.apply(null,prices))+' / '+fmtUSD(Math.min.apply(null,prices));
-      voP.textContent='Vol '+fmtVOL(vols.reduce(function(s,v){return s+(+v||0);},0));
+      hlP.textContent='H/L '+fmtUSD(Math.max(...prices))+' / '+fmtUSD(Math.min(...prices));
+      voP.textContent='Vol '+fmtVOL(vols.reduce((a,b)=>a+(+b||0),0));
     }else{
       tfP.textContent='—'; tfP.className='pill muted'; hlP.textContent='H/L — / —'; voP.textContent='Vol —';
     }
 
-    // volume/bias bins
-    var bins=tf.bin, start=now-tf.win, w=tf.win/bins;
-    var ag=[]; for(var i=0;i<bins;i++){ ag.push({start:start+i*w,vol:0,first:null,last:null}); }
-    b.arr.forEach(function(pt){
-      var idx=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w)));
-      var bin=ag[idx]; bin.vol+=(pt.vol||0); if(bin.first===null) bin.first=pt.price; bin.last=pt.price;
-    });
+    // aggregate volume bins + bias
+    const bins=tf.bin, start=now-tf.win, w=tf.win/bins, ag=[...Array(bins)].map((_,i)=>({start:start+i*w,vol:0,first:null,last:null}));
+    s.arr.forEach(pt=>{ const i=Math.min(bins-1,Math.max(0,Math.floor((pt.t-start)/w))); const b=ag[i]; b.vol+=(pt.vol||0); if(b.first===null) b.first=pt.price; b.last=pt.price; });
 
-    var vc=b.vc;
-    vc.data.labels=ag.map(function(x){return new Date(x.start).toLocaleTimeString([],{minute:'2-digit'});});
-    vc.data.datasets[0].data=ag.map(function(x){return x.vol;});
-    vc.data.datasets[0].backgroundColor=ag.map(function(x){
-      if(x.first===null) return '#7f8796';
-      return (x.last>=x.first)?cssVar('--up'):cssVar('--down');
-    });
+    const vc=s.vc;
+    vc.data.labels=ag.map(x=>new Date(x.start).toLocaleTimeString([],{minute:'2-digit'}));
+    vc.data.datasets[0].data=ag.map(x=>x.vol);
+    vc.data.datasets[0].backgroundColor=ag.map(x=> x.first===null ? '#7f8796' : (x.last>=x.first?cssVar('--up'):cssVar('--down')) );
     vc.update('none');
 
     if(key==='10m'){
-      var buy=0,sell=0;
-      ag.forEach(function(x){ if(x.first!==null){ if(x.last>=x.first) buy+=x.vol; else sell+=x.vol; } });
+      let buy=0,sell=0; ag.forEach(x=>{ if(x.first!==null){ (x.last>=x.first?buy:sell)+=x.vol; } });
       drawGauge(buy,sell);
     }
   }
 
-  // light mock seed so UI never blank
+  // light mock so UI never blank
   (function seed(){
-    var now=Date.now();
-    TF.forEach(function(t){
-      var st=stateMap[t.key]; var p=lastPriceGlobal;
-      for(var i=12;i>0;i--){ p+=(Math.random()-0.5)*20; st.arr.push({t:now-i*10000,price:p,vol:Math.random()*2}); }
+    const now=Date.now();
+    TF.forEach(t=>{
+      const s=stateMap[t.key]; let p=lastPriceGlobal;
+      for(let i=12;i>0;i--){ p+=(Math.random()-0.5)*20; s.arr.push({t:now-i*10000,price:p,vol:Math.random()*2}); }
       redraw(t.key);
     });
-    setHeaderPrice(lastPriceGlobal);
+    document.getElementById('headerPrice').textContent = fmtUSD(lastPriceGlobal);
   })();
 
   // fetch helpers
-  function fetchJSON(url, ms){
-    if(ms===void 0) ms=1500;
-    var ctl=new AbortController(); var tid=setTimeout(function(){ctl.abort();}, ms);
+  function fetchJSON(url, ms=1500){
+    const ctl=new AbortController(); const tid=setTimeout(()=>ctl.abort(), ms);
     return fetch(url,{signal:ctl.signal,headers:{Accept:'application/json'}})
-      .then(function(r){ clearTimeout(tid); if(!r.ok) throw new Error('http '+r.status); return r.json(); });
+      .then(r=>{ clearTimeout(tid); if(!r.ok) throw new Error('http '+r.status); return r.json(); });
   }
-
-  function okNum(v){ return Number.isFinite(v) && v>0; }
+  const good = v => Number.isFinite(v) && v>0;
 
   // history
   function fetchCoinCap(tf){
-    var end=Date.now(), start=end-tf.win-10000;
-    return fetchJSON('https://api.coincap.io/v2/assets/bitcoin/history?interval='+tf.ccInt+'&start='+start+'&end='+end,3000)
-      .then(function(j){
-        var d=(j&&j.data)||[];
-        return d.map(function(x){ return {t:+x.time, price:+x.priceUsd, vol:0}; }).filter(function(x){ return okNum(x.price); });
-      });
+    const end=Date.now(), start=end-tf.win-10000;
+    return fetchJSON(`https://api.coincap.io/v2/assets/bitcoin/history?interval=${tf.ccInt}&start=${start}&end=${end}`,3000)
+      .then(j=> (j&&j.data||[]).map(x=>({t:+x.time, price:+x.priceUsd, vol:0})).filter(x=>good(x.price)));
   }
   function fetchBitstamp(tf){
-    var step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
-    return fetchJSON('https://www.bitstamp.net/api/v2/ohlc/btcusd/?step='+step+'&limit='+limit,3000)
-      .then(function(j){
-        var arr=(j&&j.data&&j.data.ohlc)||[];
-        return arr.map(function(c){ return {t:+c.timestamp*1000, price:+c.close, vol:+c.volume||0}; }).filter(function(x){ return okNum(x.price); });
-      });
+    const step=tf.bsStep, limit=Math.min(2000,Math.ceil(tf.win/1000/step)+5);
+    return fetchJSON(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=${step}&limit=${limit}`,3000)
+      .then(j=> (j&&j.data&&j.data.ohlc||[]).map(c=>({t:+c.timestamp*1000, price:+c.close, vol:+c.volume||0})).filter(x=>good(x.price)));
   }
   function getHistory(tf){
-    return fetchCoinCap(tf).then(function(a){
+    return fetchCoinCap(tf).then(a=>{
       if(a.length>3) return {src:'CoinCap',data:a};
-      return fetchBitstamp(tf).then(function(b){
-        if(b.length>3) return {src:'Bitstamp',data:b};
-        return {src:'mock',data:null};
-      }).catch(function(){ return {src:'mock',data:null}; });
-    }).catch(function(){
-      return fetchBitstamp(tf).then(function(b){
-        if(b.length>3) return {src:'Bitstamp',data:b};
-        return {src:'mock',data:null};
-      }).catch(function(){ return {src:'mock',data:null}; });
-    });
+      return fetchBitstamp(tf).then(b=> b.length>3 ? {src:'Bitstamp',data:b} : {src:'mock',data:null})
+                              .catch(()=>({src:'mock',data:null}));
+    }).catch(()=> fetchBitstamp(tf).then(b=> b.length>3 ? {src:'Bitstamp',data:b} : {src:'mock',data:null})
+                                  .catch(()=>({src:'mock',data:null})));
   }
   function preloadHistory(){
     histEl.textContent='History: loading…';
-    Promise.all(TF.map(getHistory)).then(function(res){
-      var now=Date.now(); var sources={};
-      res.forEach(function(r,i){
-        var tf=TF[i], st=stateMap[tf.key];
-        if(r.data){ st.arr=r.data.filter(function(d){return d.t>=now-tf.win;}); sources[r.src]=1; if(st.arr.length) lastPriceGlobal=st.arr[st.arr.length-1].price; }
-        else{
-          sources.mock=1;
-          var p=lastPriceGlobal; st.arr=[];
-          var step=Math.max(2000,Math.floor(tf.win/60));
-          for(var t=now-tf.win; t<=now; t+=step){ p+=(Math.random()-0.5)*15; st.arr.push({t:t,price:p,vol:Math.random()*2}); }
-        }
+    Promise.all(TF.map(getHistory)).then(res=>{
+      const now=Date.now(); const sources={};
+      res.forEach((r,i)=>{
+        const tf=TF[i], s=stateMap[tf.key];
+        if(r.data){ s.arr=r.data.filter(d=>d.t>=now-tf.win); sources[r.src]=1; if(s.arr.length) lastPriceGlobal=s.arr.at(-1).price; }
+        else { sources.mock=1; let p=lastPriceGlobal; s.arr=[]; const step=Math.max(2000,Math.floor(tf.win/60));
+               for(let t=now-tf.win;t<=now;t+=step){ p+=(Math.random()-0.5)*15; s.arr.push({t,price:p,vol:Math.random()*2}); } }
         redraw(tf.key);
       });
-      var srcList=Object.keys(sources).join(' + ');
-      histEl.textContent='History: '+srcList+' · '+APP_VERSION;
+      histEl.textContent='History: '+Object.keys(sources).join(' + ')+' · '+APP_VERSION;
       setHeaderPrice(lastPriceGlobal);
-    }).catch(function(){
-      histEl.textContent='History: error · '+APP_VERSION;
-    });
+    }).catch(()=> histEl.textContent='History: error · '+APP_VERSION);
   }
 
   // live
   function onQuote(p,v){
-    if(!Number.isFinite(p)) return;
+    if(!good(p)) return;
     lastPriceGlobal=p; setHeaderPrice(p);
-    var n=Date.now();
-    TF.forEach(function(t){
-      var s=stateMap[t.key];
-      if(n-s.tLast>=t.sample){ s.arr.push({t:n,price:p,vol: (Number.isFinite(v)&&v>0)?v:0.1 }); s.tLast=n; }
+    const n=Date.now();
+    TF.forEach(t=>{
+      const s=stateMap[t.key];
+      if(n-s.tLast>=t.sample){ s.arr.push({t:n,price:p,vol: (good(v)?v:0.1) }); s.tLast=n; }
       redraw(t.key);
     });
   }
   function pollLive(){
-    var good=function(v){return Number.isFinite(v)&&v>0;};
-    // CoinCap
-    fetchJSON('https://api.coincap.io/v2/assets/bitcoin',1500).then(function(j){
-      var p=parseFloat(j&&j.data&&j.data.priceUsd);
-      if(good(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
-      throw new Error('bad');
-    }).catch(function(){
-      // Bitstamp
-      fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',1500).then(function(j){
-        var p=parseFloat(j.last), v=parseFloat(j.volume||0.1);
-        if(good(p)){ onQuote(p, good(v)?v:0.1 ); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
-        throw new Error('bad');
-      }).catch(function(){
-        // Coinbase
-        fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',1500).then(function(j){
-          var p=parseFloat(j.price||j.last||j.bid||j.ask), v=parseFloat(j.size||j.volume||0.1);
-          if(good(p)){ onQuote(p, good(v)?v:0.1 ); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
-          throw new Error('bad');
-        }).catch(function(){
-          onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2);
-          liveEl.textContent='Live: mock · '+APP_VERSION;
-        });
-      });
-    });
+    fetchJSON('https://api.coincap.io/v2/assets/bitcoin',1500).then(j=>{
+      const p=parseFloat(j&&j.data&&j.data.priceUsd); if(good(p)){ onQuote(p,0.1); liveEl.textContent='Live: CoinCap · '+APP_VERSION; return; }
+      throw 0;
+    }).catch(()=> fetchJSON('https://www.bitstamp.net/api/v2/ticker/btcusd/',1500).then(j=>{
+      const p=parseFloat(j.last), v=parseFloat(j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Bitstamp · '+APP_VERSION; return; }
+      throw 0;
+    }).catch(()=> fetchJSON('https://api.exchange.coinbase.com/products/BTC-USD/ticker',1500).then(j=>{
+      const p=parseFloat(j.price||j.last||j.bid||j.ask), v=parseFloat(j.size||j.volume||0.1); if(good(p)){ onQuote(p,good(v)?v:0.1); liveEl.textContent='Live: Coinbase · '+APP_VERSION; return; }
+      throw 0;
+    }).catch(()=>{ onQuote(lastPriceGlobal+(Math.random()-0.5)*20,Math.random()*2); liveEl.textContent='Live: mock · '+APP_VERSION; }))));
   }
 
   preloadHistory();
@@ -355,24 +309,5 @@
   setInterval(pollLive, 2500);
 })();
 </script>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <div class="metaLeft">
-      <span class="chip" id="ver">v1.7.3</span>
-      <span class="badge" id="histStatus">History: loading…</span>
-      <span class="badge" id="liveStatus">Live: starting…</span>
-    </div>
-    <div class="pane">
-      <label>BTC/USD</label>
-      <div id="headerPrice">$—</div>
-      <div id="headerClock">—:—:—</div>
-    </div>
-    <div class="metaRight"><span class="chip" style="border-color:#2e7d32;color:#b7f5c8">JS: running</span></div>
-  </header>
-
-  <section class="grid" id="dashboard"></section>
-</div>
 </body>
 </html>
