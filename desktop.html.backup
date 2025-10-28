@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC Overview - v3.1 SMOOTH REAL-TIME</title>
+<style>
+:root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui;overflow-x:hidden}
+.wrap{max-width:1920px;margin:16px auto 28px;padding:0 24px}
+header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-items:center;gap:8px;margin-bottom:10px}
+.metaLeft,.metaRight{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.metaRight{justify-self:end}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1}
+.chip.connected{border-color:#2e7d32;color:#b7f5c8}
+.chip.live{border-color:#ff6b35;color:#ffd4c4;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.badge{font-size:12px;color:var(--muted)}
+.pane{background:linear-gradient(180deg,var(--panel),var(--panel-2));border-radius:12px;padding:6px 12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;box-shadow:0 3px 10px rgba(0,0,0,.24)}
+.pane label{color:#cbd5e1;font-weight:700;margin-right:12px}
+#headerPrice{justify-self:center;font-weight:900;font-size:clamp(20px,3.2vw,36px);letter-spacing:.2px;transition:color .18s}
+#headerPrice.up{color:var(--up)}
+#headerPrice.down{color:var(--down)}
+#headerClock{justify-self:end;color:var(--muted);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:1500px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.col{background:linear-gradient(180deg,var(--panel),var(--panel-2));border-radius:10px;padding:8px;display:flex;flex-direction:column;box-shadow:0 3px 12px rgba(0,0,0,.25)}
+.title{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.tf{color:var(--muted);font-weight:800;font-size:12px}
+.topbar{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid #27324a;background:#0b1220;color:#cbd5e1;white-space:nowrap}
+.pill.up{background:var(--up);border-color:transparent;color:#06140e}
+.pill.down{background:var(--down);border-color:transparent;color:#140808}
+.pill.muted{background:#0b1220;color:#cbd5e1;border:1px solid #27324a}
+.chartCard{background:rgba(255,255,255,.02);border-radius:8px;height:210px;margin-top:6px}
+.volumeCard{background:rgba(255,255,255,.02);border-radius:8px;height:170px;margin-top:6px}
+.biasRow{display:flex;align-items:center;gap:10px;margin:8px 6px 0}
+.gLabel{font-size:12px;opacity:.9}
+.gLabel.buy{color:var(--up)}.gLabel.sell{color:#f59e0b}
+.gaugeWrap{position:relative;flex:1}
+#biasGauge{height:22px;width:100%;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.needle{position:absolute;top:2px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid #fff;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));transition:left .2s}
+.needleValue{position:absolute;top:-14px;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;border:1px solid rgba(255,255,255,.25)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+<!-- BACKUP OF ORIGINAL desktop.html v3.1 -->
+</body>
+</html>
