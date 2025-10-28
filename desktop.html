@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Overview - v2.2 REAL HISTORY</title>
+<title>BTC Overview - v2.3 BINANCE</title>
 <style>
 :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
 *{box-sizing:border-box}
@@ -47,7 +47,7 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 <div class="wrap">
 <header>
 <div class="metaLeft">
-<span class="chip">v2.2 REAL HISTORY</span>
+<span class="chip">v2.3 BINANCE</span>
 <span class="badge" id="histStatus">History: Loading...</span>
 <span class="badge" id="liveStatus">Live: Starting...</span>
 </div>
@@ -63,10 +63,10 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 
 <script>
 const TF = [
-  {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12, histMins: 1440},
-  {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12, histMins: 480},
-  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12, histMins: 60},
-  {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12, histMins: 10}
+  {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12, binanceInterval: '1h', binanceLimit: 24},
+  {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12, binanceInterval: '15m', binanceLimit: 32},
+  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12, binanceInterval: '1m', binanceLimit: 60},
+  {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12, binanceInterval: '1m', binanceLimit: 10}
 ];
 
 const dash = document.getElementById('dashboard');
@@ -331,49 +331,38 @@ function redraw(key) {
   }
 }
 
-// Fetch real historical data from CoinGecko
-async function fetchHistoricalData(tf) {
+// Fetch historical data from Binance (no rate limits, no auth needed)
+async function fetchBinanceHistory(tf) {
   try {
-    const minutes = tf.histMins;
-    let days;
-    if (minutes <= 60) days = 1;
-    else if (minutes <= 480) days = 1;
-    else days = 1;
-    
-    const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=minute`;
-    console.log(`Fetching history for ${tf.key}: ${url}`);
+    const url = `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf.binanceInterval}&limit=${tf.binanceLimit}`;
+    console.log(`Fetching Binance history for ${tf.key}: ${url}`);
     
     const response = await fetch(url);
     const data = await response.json();
     
-    if (data && data.prices && data.prices.length > 0) {
-      const now = Date.now();
-      const cutoff = now - tf.win;
+    if (Array.isArray(data) && data.length > 0) {
+      // Binance klines format: [openTime, open, high, low, close, volume, closeTime, ...]
+      const points = data.map(k => ({
+        t: k[0],  // Open time
+        price: parseFloat(k[4]),  // Close price
+        vol: parseFloat(k[5])  // Volume
+      }));
       
-      // Filter and format the data
-      const points = data.prices
-        .filter(([t, p]) => t >= cutoff)
-        .map(([t, p]) => ({
-          t: t,
-          price: p,
-          vol: Math.random() * 5 + 2 // Volume data not accurate from this endpoint
-        }));
-      
-      console.log(`Got ${points.length} historical points for ${tf.key}`);
+      console.log(`Got ${points.length} Binance points for ${tf.key}, first: $${points[0].price}, last: $${points[points.length-1].price}`);
       return points;
     }
-    throw new Error('No price data');
+    throw new Error('No Binance data');
   } catch (e) {
-    console.error(`Failed to fetch history for ${tf.key}:`, e);
+    console.error(`Failed to fetch Binance history for ${tf.key}:`, e);
     return null;
   }
 }
 
 async function loadHistoricalData() {
-  histEl.textContent = 'History: Loading real data...';
-  console.log('Loading historical data...');
+  histEl.textContent = 'History: Loading from Binance...';
+  console.log('Loading historical data from Binance...');
   
-  const results = await Promise.all(TF.map(tf => fetchHistoricalData(tf)));
+  const results = await Promise.all(TF.map(tf => fetchBinanceHistory(tf)));
   
   let successCount = 0;
   results.forEach((points, i) => {
@@ -386,17 +375,18 @@ async function loadHistoricalData() {
         lastPriceGlobal = points[points.length - 1].price;
       }
       successCount++;
-      console.log(`Loaded ${points.length} points for ${tf.key}`);
+      console.log(`Loaded ${points.length} points for ${tf.key}, current price: $${points[points.length-1].price}`);
     }
     
     redraw(tf.key);
   });
   
   if (successCount > 0) {
-    histEl.textContent = `History: Loaded (${successCount}/4 timeframes)`;
+    histEl.textContent = `History: Loaded from Binance (${successCount}/4)`;
     historyLoaded = true;
     if (lastPriceGlobal) {
       setHeaderPrice(lastPriceGlobal);
+      console.log(`Set initial price to $${lastPriceGlobal}`);
     }
   } else {
     histEl.textContent = 'History: Failed to load';
@@ -406,9 +396,8 @@ async function loadHistoricalData() {
 function onQuote(p, v) {
   if (!Number.isFinite(p) || p <= 0) return;
   
-  // Only update if history is loaded, or if this is significantly different
   if (!historyLoaded) {
-    console.log('Waiting for history to load before live updates');
+    console.log('Waiting for history before live updates');
     return;
   }
   
@@ -429,37 +418,31 @@ function onQuote(p, v) {
   });
 }
 
-function fetchPrice() {
-  fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+// Get current price from Binance ticker
+function fetchBinancePrice() {
+  fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT')
     .then(r => r.json())
     .then(j => {
-      if (j && j.bitcoin && j.bitcoin.usd) {
-        onQuote(j.bitcoin.usd, 0.1);
-        liveEl.textContent = 'Live: CoinGecko ✓';
+      if (j && j.lastPrice) {
+        const price = parseFloat(j.lastPrice);
+        const vol = parseFloat(j.volume);
+        onQuote(price, vol);
+        liveEl.textContent = 'Live: Binance ✓';
       }
     })
-    .catch(() => {
-      fetch('https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD')
-        .then(r => r.json())
-        .then(j => {
-          if (j && j.USD) {
-            onQuote(j.USD, 0.1);
-            liveEl.textContent = 'Live: CryptoCompare ✓';
-          }
-        })
-        .catch(() => {
-          liveEl.textContent = 'Live: API error';
-        });
+    .catch(e => {
+      console.error('Binance price fetch failed:', e);
+      liveEl.textContent = 'Live: Error';
     });
 }
 
-console.log('BTC Dashboard v2.2 starting...');
+console.log('BTC Dashboard v2.3 starting with Binance API...');
 
 // Load historical data first, then start live updates
 loadHistoricalData().then(() => {
-  console.log('Historical data loaded, starting live updates');
-  setTimeout(fetchPrice, 1000);
-  setInterval(fetchPrice, 5000);
+  console.log('Historical data loaded from Binance, starting live updates');
+  setTimeout(fetchBinancePrice, 1000);
+  setInterval(fetchBinancePrice, 3000);
 });
 </script>
 </body>
