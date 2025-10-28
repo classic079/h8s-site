@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Overview - v2.1 FIXED</title>
+<title>BTC Overview - v2.2 REAL HISTORY</title>
 <style>
 :root{--bg:#0e0f13;--panel:#151823;--panel-2:#10131b;--text:#e5e7eb;--muted:#9aa3b2;--up:#16c784;--down:#ff4d4d}
 *{box-sizing:border-box}
@@ -47,8 +47,8 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 <div class="wrap">
 <header>
 <div class="metaLeft">
-<span class="chip">v2.1 FIXED</span>
-<span class="badge" id="histStatus">History: Ready</span>
+<span class="chip">v2.2 REAL HISTORY</span>
+<span class="badge" id="histStatus">History: Loading...</span>
 <span class="badge" id="liveStatus">Live: Starting...</span>
 </div>
 <div class="pane">
@@ -63,10 +63,10 @@ header{display:grid;grid-template-columns:1fr minmax(360px,720px) 1fr;align-item
 
 <script>
 const TF = [
-  {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12},
-  {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12},
-  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12},
-  {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12}
+  {key:'24h', label:'24 HOURS', win:86400000, sample:30000, bin:12, histMins: 1440},
+  {key:'8h', label:'8 HOURS', win:28800000, sample:15000, bin:12, histMins: 480},
+  {key:'1h', label:'1 HOUR', win:3600000, sample:5000, bin:12, histMins: 60},
+  {key:'10m', label:'10 MIN', win:600000, sample:2000, bin:12, histMins: 10}
 ];
 
 const dash = document.getElementById('dashboard');
@@ -108,8 +108,9 @@ const histEl = document.getElementById('histStatus');
 const liveEl = document.getElementById('liveStatus');
 const headPrice = document.getElementById('headerPrice');
 const stateMap = {};
-let lastPriceGlobal = 95000;
+let lastPriceGlobal = null;
 let lastHeader = null;
+let historyLoaded = false;
 
 function cssVar(v) {
   return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -330,32 +331,87 @@ function redraw(key) {
   }
 }
 
-function seedData() {
-  const now = Date.now();
-  TF.forEach(t => {
-    const s = stateMap[t.key];
-    let p = lastPriceGlobal;
-    const points = 48;
-    const step = t.win / points;
-    for (let i = points; i > 0; i--) {
-      p += (Math.random() - 0.48) * 100;
-      p = Math.max(lastPriceGlobal * 0.95, Math.min(lastPriceGlobal * 1.05, p));
-      s.arr.push({
-        t: now - i * step,
-        price: p,
-        vol: Math.random() * 10 + 5
-      });
+// Fetch real historical data from CoinGecko
+async function fetchHistoricalData(tf) {
+  try {
+    const minutes = tf.histMins;
+    let days;
+    if (minutes <= 60) days = 1;
+    else if (minutes <= 480) days = 1;
+    else days = 1;
+    
+    const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=${days}&interval=minute`;
+    console.log(`Fetching history for ${tf.key}: ${url}`);
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data && data.prices && data.prices.length > 0) {
+      const now = Date.now();
+      const cutoff = now - tf.win;
+      
+      // Filter and format the data
+      const points = data.prices
+        .filter(([t, p]) => t >= cutoff)
+        .map(([t, p]) => ({
+          t: t,
+          price: p,
+          vol: Math.random() * 5 + 2 // Volume data not accurate from this endpoint
+        }));
+      
+      console.log(`Got ${points.length} historical points for ${tf.key}`);
+      return points;
     }
-    redraw(t.key);
-  });
-  setHeaderPrice(lastPriceGlobal);
-  histEl.textContent = 'History: Loaded';
+    throw new Error('No price data');
+  } catch (e) {
+    console.error(`Failed to fetch history for ${tf.key}:`, e);
+    return null;
+  }
 }
 
-seedData();
+async function loadHistoricalData() {
+  histEl.textContent = 'History: Loading real data...';
+  console.log('Loading historical data...');
+  
+  const results = await Promise.all(TF.map(tf => fetchHistoricalData(tf)));
+  
+  let successCount = 0;
+  results.forEach((points, i) => {
+    const tf = TF[i];
+    const s = stateMap[tf.key];
+    
+    if (points && points.length > 0) {
+      s.arr = points;
+      if (lastPriceGlobal === null && points.length > 0) {
+        lastPriceGlobal = points[points.length - 1].price;
+      }
+      successCount++;
+      console.log(`Loaded ${points.length} points for ${tf.key}`);
+    }
+    
+    redraw(tf.key);
+  });
+  
+  if (successCount > 0) {
+    histEl.textContent = `History: Loaded (${successCount}/4 timeframes)`;
+    historyLoaded = true;
+    if (lastPriceGlobal) {
+      setHeaderPrice(lastPriceGlobal);
+    }
+  } else {
+    histEl.textContent = 'History: Failed to load';
+  }
+}
 
 function onQuote(p, v) {
   if (!Number.isFinite(p) || p <= 0) return;
+  
+  // Only update if history is loaded, or if this is significantly different
+  if (!historyLoaded) {
+    console.log('Waiting for history to load before live updates');
+    return;
+  }
+  
   lastPriceGlobal = p;
   setHeaderPrice(p);
   const n = Date.now();
@@ -392,17 +448,19 @@ function fetchPrice() {
           }
         })
         .catch(() => {
-          const change = (Math.random() - 0.5) * 50;
-          lastPriceGlobal += change;
-          onQuote(lastPriceGlobal, Math.random() * 10);
-          liveEl.textContent = 'Live: Simulated';
+          liveEl.textContent = 'Live: API error';
         });
     });
 }
 
-console.log('BTC Dashboard v2.1 starting...');
-setTimeout(fetchPrice, 1000);
-setInterval(fetchPrice, 5000);
+console.log('BTC Dashboard v2.2 starting...');
+
+// Load historical data first, then start live updates
+loadHistoricalData().then(() => {
+  console.log('Historical data loaded, starting live updates');
+  setTimeout(fetchPrice, 1000);
+  setInterval(fetchPrice, 5000);
+});
 </script>
 </body>
 </html>
