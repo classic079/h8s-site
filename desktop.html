@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.8</title>
+<title>BTC Stalker - Multi-Timeframe v1.9</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.8</span>
+      <span class="pill" style="opacity:.6">v1.9</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -385,15 +385,15 @@ function drawVolume(key, arr, tf){
   const sums = bins.map(b => b.buy + b.sell);
   const max = Math.max(1, ...sums);
 
-  const padX = 8, padY = 8;
-  const chartH = h - 2*padY;
+  const padX = 8;
+  const padTop = 20; // Space for labels at top
+  const padBot = 8;
+  const chartH = h - padTop - padBot;
   const barW = (w - 2*padX) / bins.length * 0.7;
   const step = (w - 2*padX) / bins.length;
 
   const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
-
-  const showLabels = (key === '24h' || key === '8h'); // Only show labels on 24h and 8h
 
   bins.forEach((b, i) => {
     const x = padX + i*step + step/2;
@@ -401,21 +401,39 @@ function drawVolume(key, arr, tf){
     const hT = Math.max(4, (tot/max) * chartH);
     const hBuy = tot ? (b.buy/tot) * hT : 0;
     const hSell = hT - hBuy;
-    const yB = h - padY;
+    const yB = h - padBot;
 
     ctx.fillStyle = dn;
     ctx.fillRect(x - barW/2, yB - hSell, barW, hSell);
     ctx.fillStyle = up;
     ctx.fillRect(x - barW/2, yB - hSell - hBuy, barW, hBuy);
 
-    // Add volume labels on top for 24h and 8h
-    if(showLabels && tot > 0){
+    // Add volume label pills on all charts
+    if(tot > 0){
       const label = tot >= 1 ? `₿${tot.toFixed(1)}` : `₿${tot.toFixed(2)}`;
-      ctx.fillStyle = 'rgba(255,255,255,.85)';
-      ctx.font = '10px system-ui';
+
+      // Draw pill background
+      ctx.font = '9px system-ui';
+      const metrics = ctx.measureText(label);
+      const pillW = metrics.width + 8;
+      const pillH = 14;
+      const pillX = x - pillW/2;
+      const pillY = padTop - pillH - 2;
+
+      ctx.fillStyle = 'rgba(0,0,0,.75)';
+      ctx.beginPath();
+      ctx.moveTo(pillX + 7, pillY);
+      ctx.arcTo(pillX + pillW, pillY, pillX + pillW, pillY + pillH, 7);
+      ctx.arcTo(pillX + pillW, pillY + pillH, pillX, pillY + pillH, 7);
+      ctx.arcTo(pillX, pillY + pillH, pillX, pillY, 7);
+      ctx.arcTo(pillX, pillY, pillX + pillW, pillY, 7);
+      ctx.fill();
+
+      // Draw label text
+      ctx.fillStyle = 'rgba(255,255,255,.95)';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(label, x, yB - hT - 2);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x, pillY + pillH/2);
     }
   });
 }
