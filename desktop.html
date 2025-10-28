@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.7</title>
+<title>BTC Stalker - Multi-Timeframe v2.8</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -86,7 +86,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.7</span>
+      <span class="pill" style="opacity:.6">v2.8</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -128,6 +128,7 @@ const pct1 = new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 let lastPrice = null;
 let win24h = [], win8h = [], win1h = [], win10m = [];
 let win24hVol = [], win8hVol = [], win1hVol = [], win10mVol = []; // Separate volume tracking
+let win24hLive = [], win8hLive = [], win1hLive = [], win10mLive = []; // Live trades only (for avg/median)
 let last24hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0;
 const SAMPLE_INTERVALS = {
   '24h': 300000,  // 5 minutes
@@ -194,10 +195,8 @@ function calcStats(arr, windowMs){
   const hi = Math.max(...prices);
   const lo = Math.min(...prices);
   let buyVol=0, sellVol=0, buyUsd=0, sellUsd=0, totalVol=0;
-  const usdTrades = [];
   for(const t of arr){
     const usd = t.price * t.size;
-    usdTrades.push(usd);
     totalVol += t.size;
     if(t.side==='buy'){buyVol+=t.size; buyUsd+=usd}
     else{sellVol+=t.size; sellUsd+=usd}
@@ -212,11 +211,6 @@ function calcStats(arr, windowMs){
   const minutes = windowMs / 60000;
   const tradesPerMin = minutes > 0 ? arr.length / minutes : 0;
 
-  // Avg and Median trade size (USD)
-  const avgTradeUsd = arr.length > 0 ? totalUsd / arr.length : 0;
-  usdTrades.sort((a,b)=>a-b);
-  const medTradeUsd = usdTrades.length > 0 ? usdTrades[Math.floor(usdTrades.length/2)] : 0;
-
   return {
     first: prices[0],
     last: prices[prices.length-1],
@@ -225,10 +219,29 @@ function calcStats(arr, windowMs){
     buyRatio,
     count: arr.length,
     vwap,
-    tradesPerMin,
-    avgTradeUsd,
-    medTradeUsd
+    tradesPerMin
   };
+}
+
+// Calculate avg/median from LIVE trades only (not historical candles)
+function calcLiveTradeStats(liveArr){
+  if(liveArr.length === 0) return null;
+
+  const usdTrades = [];
+  for(const t of liveArr){
+    const usd = t.price * t.size;
+    usdTrades.push(usd);
+  }
+
+  // Avg trade size (USD)
+  const totalUsd = usdTrades.reduce((sum, val) => sum + val, 0);
+  const avgTradeUsd = usdTrades.length > 0 ? totalUsd / usdTrades.length : 0;
+
+  // Median trade size (USD)
+  usdTrades.sort((a,b)=>a-b);
+  const medTradeUsd = usdTrades.length > 0 ? usdTrades[Math.floor(usdTrades.length/2)] : 0;
+
+  return { avgTradeUsd, medTradeUsd };
 }
 
 /* ===== Trade ingestion ===== */
@@ -274,6 +287,12 @@ function onTrade(t){
   win1hVol.push(trade);
   win10mVol.push(trade);
 
+  // Add to LIVE trade arrays (for avg/median calculation)
+  win24hLive.push(trade);
+  win8hLive.push(trade);
+  win1hLive.push(trade);
+  win10mLive.push(trade);
+
   prune();
   updateAll();
 }
@@ -289,6 +308,11 @@ function prune(){
   win8hVol = win8hVol.filter(t => t.time >= now - 28800000);
   win1hVol = win1hVol.filter(t => t.time >= now - 3600000);
   win10mVol = win10mVol.filter(t => t.time >= now - 600000);
+
+  win24hLive = win24hLive.filter(t => t.time >= now - 86400000);
+  win8hLive = win8hLive.filter(t => t.time >= now - 28800000);
+  win1hLive = win1hLive.filter(t => t.time >= now - 3600000);
+  win10mLive = win10mLive.filter(t => t.time >= now - 600000);
 }
 
 /* ===== Update stats & charts ===== */
@@ -296,7 +320,10 @@ function updateAll(){
   TF.forEach(tf => {
     const arr = tf.key==='24h' ? win24h : tf.key==='8h' ? win8h : tf.key==='1h' ? win1h : win10m;
     const volArr = tf.key==='24h' ? win24hVol : tf.key==='8h' ? win8hVol : tf.key==='1h' ? win1hVol : win10mVol;
+    const liveArr = tf.key==='24h' ? win24hLive : tf.key==='8h' ? win8hLive : tf.key==='1h' ? win1hLive : win10mLive;
+
     const stats = calcStats(volArr, tf.win); // Use volume array for stats, pass window size
+    const liveStats = calcLiveTradeStats(liveArr); // Calculate avg/median from live trades only
 
     if(stats){
       document.getElementById(`vol-${tf.key}`).textContent = `Vol ₿${fmtBTC.format(stats.buyVol + stats.sellVol)}`;
@@ -304,9 +331,16 @@ function updateAll(){
 
       // Update metric pills
       document.getElementById(`tpm-${tf.key}`).textContent = `T/m ${stats.tradesPerMin.toFixed(1)}`;
-      document.getElementById(`avg-${tf.key}`).textContent = `Avg ${fmtUSD0.format(stats.avgTradeUsd)}`;
-      document.getElementById(`med-${tf.key}`).textContent = `Med ${fmtUSD0.format(stats.medTradeUsd)}`;
       document.getElementById(`vwap-${tf.key}`).textContent = `VWAP ${fmtUSD0.format(stats.vwap)}`;
+
+      // Show avg/median from live trades only
+      if(liveStats && liveArr.length > 0){
+        document.getElementById(`avg-${tf.key}`).textContent = `Avg ${fmtUSD0.format(liveStats.avgTradeUsd)}`;
+        document.getElementById(`med-${tf.key}`).textContent = `Med ${fmtUSD0.format(liveStats.medTradeUsd)}`;
+      } else {
+        document.getElementById(`avg-${tf.key}`).textContent = `Avg —`;
+        document.getElementById(`med-${tf.key}`).textContent = `Med —`;
+      }
     }
 
     drawChart(tf.key, arr); // Use sampled array for price chart
