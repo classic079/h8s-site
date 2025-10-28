@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v2.8</title>
+<title>BTC Stalker - Multi-Timeframe v2.9</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -86,7 +86,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v2.8</span>
+      <span class="pill" style="opacity:.6">v2.9</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -158,12 +158,12 @@ dash.innerHTML = TF.map(t => `
     </div>
     <span class="gLabel sell">Sells</span>
   </div>
-  <div class="metricPills" id="metrics-${t.key}">
+  ${(t.key==='1h' || t.key==='10m') ? `<div class="metricPills" id="metrics-${t.key}">
     <span class="metricPill" id="tpm-${t.key}">T/m —</span>
     <span class="metricPill" id="avg-${t.key}">Avg —</span>
     <span class="metricPill" id="med-${t.key}">Med —</span>
     <span class="metricPill" id="vwap-${t.key}">VWAP —</span>
-  </div>
+  </div>` : ''}
   <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
 </div>
 `).join('');
@@ -329,17 +329,19 @@ function updateAll(){
       document.getElementById(`vol-${tf.key}`).textContent = `Vol ₿${fmtBTC.format(stats.buyVol + stats.sellVol)}`;
       document.getElementById(`hl-${tf.key}`).textContent = `H/L ${fmtUSD0.format(stats.hi)} / ${fmtUSD0.format(stats.lo)}`;
 
-      // Update metric pills
-      document.getElementById(`tpm-${tf.key}`).textContent = `T/m ${stats.tradesPerMin.toFixed(1)}`;
-      document.getElementById(`vwap-${tf.key}`).textContent = `VWAP ${fmtUSD0.format(stats.vwap)}`;
+      // Update metric pills (only for 1h and 10m)
+      if(tf.key === '1h' || tf.key === '10m'){
+        document.getElementById(`tpm-${tf.key}`).textContent = `T/m ${stats.tradesPerMin.toFixed(1)}`;
+        document.getElementById(`vwap-${tf.key}`).textContent = `VWAP ${fmtUSD0.format(stats.vwap)}`;
 
-      // Show avg/median from live trades only
-      if(liveStats && liveArr.length > 0){
-        document.getElementById(`avg-${tf.key}`).textContent = `Avg ${fmtUSD0.format(liveStats.avgTradeUsd)}`;
-        document.getElementById(`med-${tf.key}`).textContent = `Med ${fmtUSD0.format(liveStats.medTradeUsd)}`;
-      } else {
-        document.getElementById(`avg-${tf.key}`).textContent = `Avg —`;
-        document.getElementById(`med-${tf.key}`).textContent = `Med —`;
+        // Show avg/median from live trades only
+        if(liveStats && liveArr.length > 0){
+          document.getElementById(`avg-${tf.key}`).textContent = `Avg ${fmtUSD0.format(liveStats.avgTradeUsd)}`;
+          document.getElementById(`med-${tf.key}`).textContent = `Med ${fmtUSD0.format(liveStats.medTradeUsd)}`;
+        } else {
+          document.getElementById(`avg-${tf.key}`).textContent = `Avg —`;
+          document.getElementById(`med-${tf.key}`).textContent = `Med —`;
+        }
       }
     }
 
