@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v1.7</title>
+<title>BTC Stalker - Multi-Timeframe v1.8</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -81,7 +81,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v1.7</span>
+      <span class="pill" style="opacity:.6">v1.8</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -99,8 +99,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <script>
 /* ===== Config ===== */
 const TF = [
-  {key:'24h', label:'24 HOURS', win:86400000, bins:24, binSize:3600000},
-  {key:'8h',  label:'8 HOURS',  win:28800000, bins:16, binSize:1800000},
+  {key:'24h', label:'24 HOURS', win:86400000, bins:12, binSize:7200000},  // 12 bars x 2hr each
+  {key:'8h',  label:'8 HOURS',  win:28800000, bins:12, binSize:2400000},  // 12 bars x 40min each
   {key:'1h',  label:'1 HOUR',   win:3600000,  bins:12, binSize:300000},
   {key:'10m', label:'10 MIN',   win:600000,   bins:10, binSize:60000}
 ];
@@ -393,6 +393,8 @@ function drawVolume(key, arr, tf){
   const up = getComputedStyle(document.documentElement).getPropertyValue('--up').trim();
   const dn = getComputedStyle(document.documentElement).getPropertyValue('--down').trim();
 
+  const showLabels = (key === '24h' || key === '8h'); // Only show labels on 24h and 8h
+
   bins.forEach((b, i) => {
     const x = padX + i*step + step/2;
     const tot = b.buy + b.sell;
@@ -405,6 +407,16 @@ function drawVolume(key, arr, tf){
     ctx.fillRect(x - barW/2, yB - hSell, barW, hSell);
     ctx.fillStyle = up;
     ctx.fillRect(x - barW/2, yB - hSell - hBuy, barW, hBuy);
+
+    // Add volume labels on top for 24h and 8h
+    if(showLabels && tot > 0){
+      const label = tot >= 1 ? `₿${tot.toFixed(1)}` : `₿${tot.toFixed(2)}`;
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, x, yB - hT - 2);
+    }
   });
 }
 
