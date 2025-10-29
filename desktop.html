@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.6</title>
+<title>BTC Stalker - Multi-Timeframe v6.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -91,8 +91,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .topItem .usd{font-weight:800;color:#fff;flex:0 0 auto}
 .topItem .btc{color:rgba(233,254,247,.85);flex:0 0 auto}
 .topItem .t{color:rgba(233,254,247,.65);flex:0 0 auto;font-size:12px}
-.topItem.newTrade{animation:blinkTrade 5s ease-out}
-.topItem.megaTrade{animation:blinkMega 10s ease-out}
+.topItem.newTrade{animation:blinkTrade var(--blink-duration, 5s) ease-out}
 @keyframes blinkTrade{
   0%{background:rgba(255,255,255,.3);transform:scale(1.06)}
   10%{background:rgba(255,255,255,.2)}
@@ -103,19 +102,6 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   70%{background:rgba(255,255,255,.08)}
   100%{background:transparent;transform:scale(1)}
 }
-@keyframes blinkMega{
-  0%{background:rgba(255,255,255,.4);transform:scale(1.08);box-shadow:0 0 20px rgba(255,255,255,.5)}
-  8%{background:rgba(255,255,255,.3)}
-  16%{background:rgba(255,255,255,.4)}
-  24%{background:rgba(255,255,255,.3)}
-  32%{background:rgba(255,255,255,.4)}
-  40%{background:rgba(255,255,255,.3)}
-  48%{background:rgba(255,255,255,.4)}
-  56%{background:rgba(255,255,255,.25)}
-  70%{background:rgba(255,255,255,.15)}
-  85%{background:rgba(255,255,255,.08)}
-  100%{background:transparent;transform:scale(1);box-shadow:none}
-}
 </style>
 </head>
 <body>
@@ -125,7 +111,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.6</span>
+      <span class="pill" style="opacity:.6">v6.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -470,11 +456,11 @@ function updateTopTrades(key, liveArr){
     buyList.innerHTML = top10Buys.length > 0
       ? top10Buys.map(t => {
           const isNew = enableBlink && !prevBuyTimes.has(t.time) && prevBuys.length > 0;
-          // Mega trade if 10+ BTC
-          const isMega = t.size >= 10;
-          const tradeClass = isNew ? (isMega ? ' megaTrade' : ' newTrade') : '';
+          // Calculate blink duration: 10 seconds per BTC
+          const blinkDuration = Math.round(t.size * 10);
+          const styleAttr = isNew ? ` style="--blink-duration: ${blinkDuration}s"` : '';
           return `
-        <li class="topItem buy${tradeClass}">
+        <li class="topItem buy${isNew ? ' newTrade' : ''}"${styleAttr}>
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
           <span class="btc">(${fmtBTC.format(t.size)} BTC)</span>
           <span class="t">${formatTime(t.time)}</span>
@@ -489,11 +475,11 @@ function updateTopTrades(key, liveArr){
     sellList.innerHTML = top10Sells.length > 0
       ? top10Sells.map(t => {
           const isNew = enableBlink && !prevSellTimes.has(t.time) && prevSells.length > 0;
-          // Mega trade if 10+ BTC
-          const isMega = t.size >= 10;
-          const tradeClass = isNew ? (isMega ? ' megaTrade' : ' newTrade') : '';
+          // Calculate blink duration: 10 seconds per BTC
+          const blinkDuration = Math.round(t.size * 10);
+          const styleAttr = isNew ? ` style="--blink-duration: ${blinkDuration}s"` : '';
           return `
-        <li class="topItem sell${tradeClass}">
+        <li class="topItem sell${isNew ? ' newTrade' : ''}"${styleAttr}>
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
           <span class="btc">(${fmtBTC.format(t.size)} BTC)</span>
           <span class="t">${formatTime(t.time)}</span>
