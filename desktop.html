@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v4.3</title>
+<title>BTC Stalker - Multi-Timeframe v4.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v4.3</span>
+      <span class="pill" style="opacity:.6">v4.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -912,31 +912,23 @@ function updateClock(){
 
 /* ===== Fetch Gold/Silver prices ===== */
 async function fetchMetalPrices(){
-  try{
-    // Use goldapi.io free endpoint
-    const r = await fetch('https://www.goldapi.io/api/XAU/USD');
-    if(r.ok){
-      const data = await r.json();
-      console.log('Gold API response:', data);
-      if(data && data.price){
-        goldPrice.textContent = `Gold $${Math.round(data.price)}`;
-      }
-    }
+  // For now, just use static prices since free metal APIs are unreliable
+  // You can manually update these periodically or pay for a real API
+  goldPrice.textContent = 'Gold $2,650';
+  silverPrice.textContent = 'Silver $30.50';
 
-    // Fetch silver separately
-    const r2 = await fetch('https://www.goldapi.io/api/XAG/USD');
-    if(r2.ok){
-      const data2 = await r2.json();
-      console.log('Silver API response:', data2);
-      if(data2 && data2.price){
-        silverPrice.textContent = `Silver $${data2.price.toFixed(2)}`;
-      }
+  // Optional: Try to fetch real prices in background (won't break if it fails)
+  try{
+    const r = await fetch('https://api.metals.live/v1/spot/gold,silver');
+    const data = await r.json();
+    if(data && Array.isArray(data)){
+      const gold = data.find(m => m.metal === 'gold');
+      const silver = data.find(m => m.metal === 'silver');
+      if(gold && gold.price) goldPrice.textContent = `Gold $${Math.round(gold.price)}`;
+      if(silver && silver.price) silverPrice.textContent = `Silver $${silver.price.toFixed(2)}`;
     }
   }catch(e){
-    console.log('Metal prices error:', e);
-    // Use static fallback values based on approximate current prices
-    goldPrice.textContent = 'Gold $2,650';
-    silverPrice.textContent = 'Silver $30.50';
+    // Silently fail - static prices already set
   }
 }
 
