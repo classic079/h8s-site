@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.4</title>
+<title>BTC Stalker - Multi-Timeframe v7.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -160,7 +160,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.4</span>
+      <span class="pill" style="opacity:.6">v7.5</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -201,8 +201,16 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="settingsSection">
       <h3>Visible Charts</h3>
       <div class="settingOption">
+        <span>30 Day</span>
+        <input type="checkbox" id="chart30d" checked>
+      </div>
+      <div class="settingOption">
         <span>24 Hour</span>
         <input type="checkbox" id="chart24h" checked>
+      </div>
+      <div class="settingOption">
+        <span>12 Hour</span>
+        <input type="checkbox" id="chart12h">
       </div>
       <div class="settingOption">
         <span>8 Hour</span>
@@ -215,6 +223,14 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <div class="settingOption">
         <span>10 Minute</span>
         <input type="checkbox" id="chart10m" checked>
+      </div>
+      <div class="settingOption">
+        <span>5 Minute</span>
+        <input type="checkbox" id="chart5m" checked>
+      </div>
+      <div class="settingOption">
+        <span>1 Minute</span>
+        <input type="checkbox" id="chart1m">
       </div>
     </div>
 
@@ -240,10 +256,14 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <script>
 /* ===== Config ===== */
 const TF = [
+  {key:'30d', label:'30 DAYS',  win:2592000000, bins:30, binSize:86400000},  // 30 bars x 1 day each
   {key:'24h', label:'24 HOURS', win:86400000, bins:12, binSize:7200000},  // 12 bars x 2hr each
+  {key:'12h', label:'12 HOURS', win:43200000, bins:12, binSize:3600000},  // 12 bars x 1hr each
   {key:'8h',  label:'8 HOURS',  win:28800000, bins:12, binSize:2400000},  // 12 bars x 40min each
   {key:'1h',  label:'1 HOUR',   win:3600000,  bins:12, binSize:300000},
-  {key:'10m', label:'10 MIN',   win:600000,   bins:10, binSize:60000}
+  {key:'10m', label:'10 MIN',   win:600000,   bins:10, binSize:60000},
+  {key:'5m',  label:'5 MIN',    win:300000,   bins:10, binSize:30000},    // 10 bars x 30sec each
+  {key:'1m',  label:'1 MIN',    win:60000,    bins:12, binSize:5000}      // 12 bars x 5sec each
 ];
 
 /* ===== Elements ===== */
@@ -265,15 +285,19 @@ const pct1 = new Intl.NumberFormat(undefined,{maximumFractionDigits:1});
 
 /* ===== State ===== */
 let lastPrice = null;
-let win24h = [], win8h = [], win1h = [], win10m = [];
-let win24hVol = [], win8hVol = [], win1hVol = [], win10mVol = []; // Separate volume tracking
-let win24hLive = [], win8hLive = [], win1hLive = [], win10mLive = []; // Live trades only (for avg/median)
-let last24hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0;
+let win30d = [], win24h = [], win12h = [], win8h = [], win1h = [], win10m = [], win5m = [], win1m = [];
+let win30dVol = [], win24hVol = [], win12hVol = [], win8hVol = [], win1hVol = [], win10mVol = [], win5mVol = [], win1mVol = [];
+let win30dLive = [], win24hLive = [], win12hLive = [], win8hLive = [], win1hLive = [], win10mLive = [], win5mLive = [], win1mLive = [];
+let last30dSample = 0, last24hSample = 0, last12hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0, last5mSample = 0, last1mSample = 0;
 const SAMPLE_INTERVALS = {
-  '24h': 300000,  // 5 minutes
-  '8h': 120000,   // 2 minutes
-  '1h': 60000,    // 1 minute
-  '10m': 500      // 0.5 seconds
+  '30d': 3600000,  // 1 hour
+  '24h': 300000,   // 5 minutes
+  '12h': 120000,   // 2 minutes
+  '8h': 120000,    // 2 minutes
+  '1h': 60000,     // 1 minute
+  '10m': 500,      // 0.5 seconds
+  '5m': 300,       // 0.3 seconds
+  '1m': 100        // 0.1 seconds
 };
 
 /* ===== Build DOM ===== */
@@ -415,35 +439,39 @@ function onTrade(t){
   // Sample at different rates for price charts
   const now = Date.now();
   const trade = {price:p, size:s, side, time};
+  const lastSamples = {
+    '30d': last30dSample, '24h': last24hSample, '12h': last12hSample, '8h': last8hSample,
+    '1h': last1hSample, '10m': last10mSample, '5m': last5mSample, '1m': last1mSample
+  };
 
-  if(now - last24hSample >= SAMPLE_INTERVALS['24h']){
-    win24h.push(trade);
-    last24hSample = now;
-  }
-  if(now - last8hSample >= SAMPLE_INTERVALS['8h']){
-    win8h.push(trade);
-    last8hSample = now;
-  }
-  if(now - last1hSample >= SAMPLE_INTERVALS['1h']){
-    win1h.push(trade);
-    last1hSample = now;
-  }
-  if(now - last10mSample >= SAMPLE_INTERVALS['10m']){
-    win10m.push(trade);
-    last10mSample = now;
-  }
+  if(now - last30dSample >= SAMPLE_INTERVALS['30d']){ win30d.push(trade); last30dSample = now; }
+  if(now - last24hSample >= SAMPLE_INTERVALS['24h']){ win24h.push(trade); last24hSample = now; }
+  if(now - last12hSample >= SAMPLE_INTERVALS['12h']){ win12h.push(trade); last12hSample = now; }
+  if(now - last8hSample >= SAMPLE_INTERVALS['8h']){ win8h.push(trade); last8hSample = now; }
+  if(now - last1hSample >= SAMPLE_INTERVALS['1h']){ win1h.push(trade); last1hSample = now; }
+  if(now - last10mSample >= SAMPLE_INTERVALS['10m']){ win10m.push(trade); last10mSample = now; }
+  if(now - last5mSample >= SAMPLE_INTERVALS['5m']){ win5m.push(trade); last5mSample = now; }
+  if(now - last1mSample >= SAMPLE_INTERVALS['1m']){ win1m.push(trade); last1mSample = now; }
 
   // Add ALL trades to volume windows (no sampling)
+  win30dVol.push(trade);
   win24hVol.push(trade);
+  win12hVol.push(trade);
   win8hVol.push(trade);
   win1hVol.push(trade);
   win10mVol.push(trade);
+  win5mVol.push(trade);
+  win1mVol.push(trade);
 
   // Add to LIVE trade arrays (for avg/median calculation)
+  win30dLive.push(trade);
   win24hLive.push(trade);
+  win12hLive.push(trade);
   win8hLive.push(trade);
   win1hLive.push(trade);
   win10mLive.push(trade);
+  win5mLive.push(trade);
+  win1mLive.push(trade);
 
   prune();
   updateAll();
@@ -451,28 +479,44 @@ function onTrade(t){
 
 function prune(){
   const now = Date.now();
+  win30d = win30d.filter(t => t.time >= now - 2592000000);
   win24h = win24h.filter(t => t.time >= now - 86400000);
+  win12h = win12h.filter(t => t.time >= now - 43200000);
   win8h = win8h.filter(t => t.time >= now - 28800000);
   win1h = win1h.filter(t => t.time >= now - 3600000);
   win10m = win10m.filter(t => t.time >= now - 600000);
+  win5m = win5m.filter(t => t.time >= now - 300000);
+  win1m = win1m.filter(t => t.time >= now - 60000);
 
+  win30dVol = win30dVol.filter(t => t.time >= now - 2592000000);
   win24hVol = win24hVol.filter(t => t.time >= now - 86400000);
+  win12hVol = win12hVol.filter(t => t.time >= now - 43200000);
   win8hVol = win8hVol.filter(t => t.time >= now - 28800000);
   win1hVol = win1hVol.filter(t => t.time >= now - 3600000);
   win10mVol = win10mVol.filter(t => t.time >= now - 600000);
+  win5mVol = win5mVol.filter(t => t.time >= now - 300000);
+  win1mVol = win1mVol.filter(t => t.time >= now - 60000);
 
+  win30dLive = win30dLive.filter(t => t.time >= now - 2592000000);
   win24hLive = win24hLive.filter(t => t.time >= now - 86400000);
+  win12hLive = win12hLive.filter(t => t.time >= now - 43200000);
   win8hLive = win8hLive.filter(t => t.time >= now - 28800000);
   win1hLive = win1hLive.filter(t => t.time >= now - 3600000);
   win10mLive = win10mLive.filter(t => t.time >= now - 600000);
+  win5mLive = win5mLive.filter(t => t.time >= now - 300000);
+  win1mLive = win1mLive.filter(t => t.time >= now - 60000);
 }
 
 /* ===== Update stats & charts ===== */
 function updateAll(){
+  const winMap = { '30d': win30d, '24h': win24h, '12h': win12h, '8h': win8h, '1h': win1h, '10m': win10m, '5m': win5m, '1m': win1m };
+  const volMap = { '30d': win30dVol, '24h': win24hVol, '12h': win12hVol, '8h': win8hVol, '1h': win1hVol, '10m': win10mVol, '5m': win5mVol, '1m': win1mVol };
+  const liveMap = { '30d': win30dLive, '24h': win24hLive, '12h': win12hLive, '8h': win8hLive, '1h': win1hLive, '10m': win10mLive, '5m': win5mLive, '1m': win1mLive };
+
   TF.forEach(tf => {
-    const arr = tf.key==='24h' ? win24h : tf.key==='8h' ? win8h : tf.key==='1h' ? win1h : win10m;
-    const volArr = tf.key==='24h' ? win24hVol : tf.key==='8h' ? win8hVol : tf.key==='1h' ? win1hVol : win10mVol;
-    const liveArr = tf.key==='24h' ? win24hLive : tf.key==='8h' ? win8hLive : tf.key==='1h' ? win1hLive : win10mLive;
+    const arr = winMap[tf.key];
+    const volArr = volMap[tf.key];
+    const liveArr = liveMap[tf.key];
 
     const stats = calcStats(volArr, tf.win); // Use volume array for stats, pass window size
     const liveStats = calcLiveTradeStats(liveArr); // Calculate avg/median from live trades only
@@ -522,10 +566,14 @@ function updateAll(){
 
 /* ===== Track previous top trades to detect new entries ===== */
 const prevTopTrades = {
+  '30d': {buys: [], sells: []},
   '24h': {buys: [], sells: []},
+  '12h': {buys: [], sells: []},
   '8h': {buys: [], sells: []},
   '1h': {buys: [], sells: []},
-  '10m': {buys: [], sells: []}
+  '10m': {buys: [], sells: []},
+  '5m': {buys: [], sells: []},
+  '1m': {buys: [], sells: []}
 };
 let startTime = Date.now();
 const BLINK_DELAY = 300000; // 5 minutes in milliseconds
@@ -696,10 +744,10 @@ function drawVolume(key, arr, tf){
   const now = Date.now();
   let bins, currentBinIdx;
 
-  // For 10m chart, lock to minute boundaries
-  if(key === '10m'){
-    const currentMinute = Math.floor(now / 60000) * 60000; // Round down to current minute
-    const start = currentMinute - tf.win + 60000; // Start 10 minutes ago, but from next minute boundary
+  // For short timeframes (10m, 5m, 1m), lock to their bin boundaries
+  if(key === '10m' || key === '5m' || key === '1m'){
+    const currentBoundary = Math.floor(now / tf.binSize) * tf.binSize;
+    const start = currentBoundary - tf.win + tf.binSize;
 
     bins = Array.from({length: tf.bins}, (_,i) => ({
       ts: start + i*tf.binSize,
@@ -711,14 +759,14 @@ function drawVolume(key, arr, tf){
       const binStart = Math.floor(t.time / tf.binSize) * tf.binSize;
       const idx = Math.floor((binStart - start) / tf.binSize);
 
-      // Only count trades in completed minutes (not current minute)
-      if(idx >= 0 && idx < tf.bins && binStart < currentMinute){
+      // Only count trades in completed bins (not current bin)
+      if(idx >= 0 && idx < tf.bins && binStart < currentBoundary){
         if(t.side==='buy') bins[idx].buy += t.size;
         else bins[idx].sell += t.size;
       }
     });
 
-    currentBinIdx = -1; // Not used for 10m
+    currentBinIdx = -1; // Not used for locked timeframes
   } else {
     // Other timeframes use sliding window
     const start = now - tf.win;
@@ -1184,7 +1232,7 @@ async function fetchMetalPrices(){
 /* ===== Settings Modal ===== */
 const settings = {
   theme: 'dark',
-  charts: { '24h': true, '8h': true, '1h': true, '10m': true },
+  charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false },
   alerts: { volSpike: true, tradeBlink: true }
 };
 
@@ -1205,16 +1253,16 @@ function applySettings(){
   document.getElementById('themeLightCheck').textContent = settings.theme === 'light' ? '✓ Active' : '';
 
   // Apply chart visibility
-  document.getElementById('col-24h').style.display = settings.charts['24h'] ? '' : 'none';
-  document.getElementById('col-8h').style.display = settings.charts['8h'] ? '' : 'none';
-  document.getElementById('col-1h').style.display = settings.charts['1h'] ? '' : 'none';
-  document.getElementById('col-10m').style.display = settings.charts['10m'] ? '' : 'none';
+  TF.forEach(tf => {
+    const col = document.getElementById(`col-${tf.key}`);
+    if(col) col.style.display = settings.charts[tf.key] ? '' : 'none';
+  });
 
   // Update checkboxes
-  document.getElementById('chart24h').checked = settings.charts['24h'];
-  document.getElementById('chart8h').checked = settings.charts['8h'];
-  document.getElementById('chart1h').checked = settings.charts['1h'];
-  document.getElementById('chart10m').checked = settings.charts['10m'];
+  TF.forEach(tf => {
+    const checkbox = document.getElementById(`chart${tf.key}`);
+    if(checkbox) checkbox.checked = settings.charts[tf.key];
+  });
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
 }
@@ -1235,10 +1283,10 @@ function closeSettings(){
 
 function saveSettings(){
   // Read checkbox values
-  settings.charts['24h'] = document.getElementById('chart24h').checked;
-  settings.charts['8h'] = document.getElementById('chart8h').checked;
-  settings.charts['1h'] = document.getElementById('chart1h').checked;
-  settings.charts['10m'] = document.getElementById('chart10m').checked;
+  TF.forEach(tf => {
+    const checkbox = document.getElementById(`chart${tf.key}`);
+    if(checkbox) settings.charts[tf.key] = checkbox.checked;
+  });
   settings.alerts.volSpike = document.getElementById('alertVolSpike').checked;
   settings.alerts.tradeBlink = document.getElementById('alertTradeBlink').checked;
 
