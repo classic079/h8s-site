@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.8</title>
+<title>BTC Stalker - Multi-Timeframe v8.9</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -131,16 +131,16 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .topItem .t{color:var(--muted);flex:0 0 auto;font-size:12px;opacity:.75}
 .topItem.newTrade{animation:blinkTrade var(--blink-duration, 5s) linear}
 @keyframes blinkTrade{
-  0%{background:rgba(255,255,0,.6);transform:scale(1.08);box-shadow:0 0 20px rgba(255,255,0,.8)}
-  5%{background:rgba(255,255,0,.4);transform:scale(1.06)}
-  10%{background:rgba(255,255,0,.6);transform:scale(1.08)}
-  15%{background:rgba(255,255,0,.4);transform:scale(1.06)}
-  20%{background:rgba(255,255,0,.6);transform:scale(1.08)}
-  25%{background:rgba(255,255,0,.4);transform:scale(1.06)}
-  30%{background:rgba(255,255,0,.6);transform:scale(1.08)}
-  40%{background:rgba(255,255,0,.5);transform:scale(1.05)}
-  60%{background:rgba(255,255,0,.35);transform:scale(1.03)}
-  80%{background:rgba(255,255,0,.2);transform:scale(1.01)}
+  0%{background:rgba(255,255,0,.7);transform:scale(1.1);box-shadow:0 0 25px rgba(255,255,0,.9)}
+  8%{background:rgba(255,255,0,.5);transform:scale(1.08)}
+  16%{background:rgba(255,255,0,.7);transform:scale(1.1)}
+  24%{background:rgba(255,255,0,.5);transform:scale(1.08)}
+  32%{background:rgba(255,255,0,.7);transform:scale(1.1)}
+  40%{background:rgba(255,255,0,.5);transform:scale(1.08)}
+  48%{background:rgba(255,255,0,.7);transform:scale(1.1)}
+  56%{background:rgba(255,255,0,.5);transform:scale(1.06)}
+  70%{background:rgba(255,255,0,.35);transform:scale(1.04)}
+  85%{background:rgba(255,255,0,.2);transform:scale(1.02)}
   100%{background:transparent;transform:scale(1);box-shadow:none}
 }
 .volBox.spikeAlert{animation:volSpike 3s ease-out}
@@ -165,7 +165,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.8</span>
+      <span class="pill" style="opacity:.6">v8.9</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
