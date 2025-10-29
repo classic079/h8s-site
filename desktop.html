@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v12.1</title>
+<title>BTC Stalker - Multi-Timeframe v12.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v12.1</span>
+      <span class="pill" style="opacity:.6">v12.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -243,9 +243,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <span>📊 Most Popular (Top 20 by Volume)</span>
         <span id="polymarketModePopularCheck"></span>
       </div>
-      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('trending')">
-        <span>🔥 Trending (24hr Activity)</span>
-        <span id="polymarketModeTrendingCheck"></span>
+      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('action')">
+        <span>⚡ Today's Action (Sports, Ending Soon, Featured)</span>
+        <span id="polymarketModeActionCheck"></span>
       </div>
     </div>
 
@@ -1477,40 +1477,69 @@ async function fetchPolymarketData(){
     const activeMarkets = markets.filter(m => m.active !== false);
 
     let top20;
-    if(settings.polymarketMode === 'trending'){
-      // Trending: Focus on recent activity (24hr volume as % of total volume)
-      const trendingMarkets = activeMarkets.map(m => {
-        const totalVol = parseFloat(m.volume || 1);
+    if(settings.polymarketMode === 'action'){
+      // Today's Action: Sports, ending soon, featured, high 24hr activity
+      const now = new Date();
+      const todayEnd = new Date(now);
+      todayEnd.setHours(23, 59, 59, 999);
+      const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+      const actionMarkets = activeMarkets.map(m => {
+        let actionScore = 0;
+        const tags = [];
+
+        // 1. Sports markets (highest priority)
+        if(m.category?.toLowerCase() === 'sports'){
+          actionScore += 100000;
+          tags.push('sports');
+        }
+
+        // 2. Markets ending soon (today or within 48 hours)
+        if(m.endDate){
+          const endDate = new Date(m.endDate);
+          if(endDate >= now && endDate <= todayEnd){
+            actionScore += 50000; // Ending today - very high priority
+            tags.push('today');
+          } else if(endDate > todayEnd && endDate <= twoDaysFromNow){
+            actionScore += 30000; // Ending within 48 hours
+            tags.push('soon');
+          }
+        }
+
+        // 3. Featured markets
+        if(m.featured === true){
+          actionScore += 40000;
+          tags.push('featured');
+        }
+
+        // 4. High 24hr volume (secondary factor)
         const vol24 = parseFloat(m.volume24hr || 0);
-        const vol1hr = parseFloat(m.volume1hr || 0);
+        actionScore += vol24 * 0.01;
 
-        // Calculate trending score: ratio of recent to total volume
-        // Markets with high recent activity relative to their size are "trending"
-        const vol24Ratio = vol24 / Math.max(totalVol, 1);
-        const vol1hrRatio = vol1hr / Math.max(totalVol, 1);
-
-        // Also factor in absolute 24hr volume and price volatility
-        const priceChange = Math.abs(parseFloat(m.oneDayPriceChange || 0));
-        const hourChange = Math.abs(parseFloat(m.oneHourPriceChange || 0));
-
-        // Trend score: weighted combination favoring recent activity spikes
-        const trendScore = (vol24Ratio * 1000000) + (vol1hrRatio * 2000000) +
-                          (vol24 * 0.1) + (priceChange * 50000) + (hourChange * 100000);
-
-        return { ...m, trendScore, vol24Ratio };
+        return { ...m, actionScore, actionTags: tags };
       });
 
-      // Sort by trend score (highest first)
-      trendingMarkets.sort((a,b) => b.trendScore - a.trendScore);
-      top20 = trendingMarkets.slice(0, 20);
+      // Filter to markets with at least one action tag, then sort by score
+      const filteredMarkets = actionMarkets.filter(m => m.actionTags.length > 0);
+      filteredMarkets.sort((a,b) => b.actionScore - a.actionScore);
 
-      console.log(`🔥 Found ${top20.length} trending markets`);
+      // If we don't have 20 action markets, fill with high 24hr volume markets
+      if(filteredMarkets.length < 20){
+        const remaining = activeMarkets
+          .filter(m => !filteredMarkets.find(f => f.id === m.id))
+          .sort((a,b) => parseFloat(b.volume24hr || 0) - parseFloat(a.volume24hr || 0))
+          .slice(0, 20 - filteredMarkets.length);
+        top20 = [...filteredMarkets, ...remaining];
+      } else {
+        top20 = filteredMarkets.slice(0, 20);
+      }
+
+      console.log(`⚡ Found ${filteredMarkets.length} action markets (${top20.length} total)`);
       if(top20.length > 0){
-        console.log('Top 3 trending:', top20.slice(0,3).map(m => ({
+        console.log('Top 3 action:', top20.slice(0,3).map(m => ({
           q: m.question?.substring(0,50),
-          score: m.trendScore.toFixed(0),
-          vol24: m.volume24hr,
-          ratio: (m.vol24Ratio * 100).toFixed(2) + '%'
+          tags: m.actionTags,
+          score: m.actionScore?.toFixed(0)
         })));
       }
     } else {
@@ -1607,7 +1636,7 @@ async function fetchPolymarketData(){
       `;
     }).join('');
 
-    const modeText = settings.polymarketMode === 'trending' ? 'trending' : 'most popular';
+    const modeText = settings.polymarketMode === 'action' ? "today's action" : 'most popular';
     console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
   }catch(e){
     console.error('Polymarket fetch error:', e);
@@ -1621,7 +1650,7 @@ const settings = {
   theme: 'dark',
   charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false, 'polymarket': false },
   alerts: { volSpike: true, tradeBlink: true },
-  polymarketMode: 'popular' // 'popular' or 'trending'
+  polymarketMode: 'popular' // 'popular' or 'action'
 };
 
 function loadSettings(){
@@ -1653,7 +1682,7 @@ function applySettings(){
     // Update mode label
     const modeLabel = document.getElementById('polymarketModeLabel');
     if(modeLabel){
-      modeLabel.textContent = settings.polymarketMode === 'trending' ? 'Trending' : 'Most Popular';
+      modeLabel.textContent = settings.polymarketMode === 'action' ? "Today's Action" : 'Most Popular';
     }
     // Fetch data if enabled
     if(settings.charts.polymarket) fetchPolymarketData();
@@ -1669,7 +1698,7 @@ function applySettings(){
 
   // Update Polymarket mode checkmarks
   document.getElementById('polymarketModePopularCheck').textContent = settings.polymarketMode === 'popular' ? '✓ Active' : '';
-  document.getElementById('polymarketModeTrendingCheck').textContent = settings.polymarketMode === 'trending' ? '✓ Active' : '';
+  document.getElementById('polymarketModeActionCheck').textContent = settings.polymarketMode === 'action' ? '✓ Active' : '';
 
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
