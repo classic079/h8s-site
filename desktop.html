@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v12.0</title>
+<title>BTC Stalker - Multi-Timeframe v12.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -1478,13 +1478,26 @@ async function fetchPolymarketData(){
 
     let top20;
     if(settings.polymarketMode === 'trending'){
-      // Trending: Calculate trend score based on 24hr volume and price changes
+      // Trending: Focus on recent activity (24hr volume as % of total volume)
       const trendingMarkets = activeMarkets.map(m => {
+        const totalVol = parseFloat(m.volume || 1);
         const vol24 = parseFloat(m.volume24hr || 0);
+        const vol1hr = parseFloat(m.volume1hr || 0);
+
+        // Calculate trending score: ratio of recent to total volume
+        // Markets with high recent activity relative to their size are "trending"
+        const vol24Ratio = vol24 / Math.max(totalVol, 1);
+        const vol1hrRatio = vol1hr / Math.max(totalVol, 1);
+
+        // Also factor in absolute 24hr volume and price volatility
         const priceChange = Math.abs(parseFloat(m.oneDayPriceChange || 0));
-        // Trend score: combination of 24hr volume and price movement
-        const trendScore = vol24 + (priceChange * 10000); // Weight price changes heavily
-        return { ...m, trendScore };
+        const hourChange = Math.abs(parseFloat(m.oneHourPriceChange || 0));
+
+        // Trend score: weighted combination favoring recent activity spikes
+        const trendScore = (vol24Ratio * 1000000) + (vol1hrRatio * 2000000) +
+                          (vol24 * 0.1) + (priceChange * 50000) + (hourChange * 100000);
+
+        return { ...m, trendScore, vol24Ratio };
       });
 
       // Sort by trend score (highest first)
@@ -1492,6 +1505,14 @@ async function fetchPolymarketData(){
       top20 = trendingMarkets.slice(0, 20);
 
       console.log(`🔥 Found ${top20.length} trending markets`);
+      if(top20.length > 0){
+        console.log('Top 3 trending:', top20.slice(0,3).map(m => ({
+          q: m.question?.substring(0,50),
+          score: m.trendScore.toFixed(0),
+          vol24: m.volume24hr,
+          ratio: (m.vol24Ratio * 100).toFixed(2) + '%'
+        })));
+      }
     } else {
       // Most popular: Sort by volume (highest first) and take top 20
       activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
