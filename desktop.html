@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.6</title>
+<title>BTC Stalker - Multi-Timeframe v7.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -160,7 +160,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.6</span>
+      <span class="pill" style="opacity:.6">v7.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -592,10 +592,10 @@ function updateTopTrades(key, liveArr){
     usd: t.price * t.size
   }));
 
-  // Sort by USD value, show more for 24h/8h to fill space
+  // Sort by USD value, show more for longer timeframes to fill space
   buys.sort((a,b) => b.usd - a.usd);
   sells.sort((a,b) => b.usd - a.usd);
-  const limit = (key === '24h' || key === '8h') ? 13 : 10;
+  const limit = (key === '30d' || key === '24h' || key === '12h' || key === '8h') ? 13 : 10;
   const top10Buys = buys.slice(0, limit);
   const top10Sells = sells.slice(0, limit);
 
