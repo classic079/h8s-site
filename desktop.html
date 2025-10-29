@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.0</title>
+<title>BTC Stalker - Multi-Timeframe v7.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -59,6 +59,13 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .settingOption{display:flex;justify-content:space-between;align-items:center;padding:10px;
   border-radius:8px;background:rgba(255,255,255,.03);margin-bottom:8px}
 .settingOption:hover{background:rgba(255,255,255,.06)}
+.settingOption input[type="checkbox"]{cursor:pointer;width:18px;height:18px}
+.settingsActions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s}
+.btnPrimary{background:var(--up);color:#000}
+.btnPrimary:hover{opacity:.9;transform:scale(1.02)}
+.btnSecondary{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.btnSecondary:hover{background:rgba(255,255,255,.15)}
 
 /* Grid */
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -143,7 +150,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.0</span>
+      <span class="pill" style="opacity:.6">v7.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -185,19 +192,19 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <h3>Visible Charts</h3>
       <div class="settingOption">
         <span>24 Hour</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="chart24h" checked>
       </div>
       <div class="settingOption">
         <span>8 Hour</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="chart8h" checked>
       </div>
       <div class="settingOption">
         <span>1 Hour</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="chart1h" checked>
       </div>
       <div class="settingOption">
         <span>10 Minute</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="chart10m" checked>
       </div>
     </div>
 
@@ -205,12 +212,17 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <h3>Alerts</h3>
       <div class="settingOption">
         <span>Volume Spike Alerts</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="alertVolSpike" checked>
       </div>
       <div class="settingOption">
         <span>Large Trade Blink</span>
-        <input type="checkbox" checked>
+        <input type="checkbox" id="alertTradeBlink" checked>
       </div>
+    </div>
+
+    <div class="settingsActions">
+      <button class="btn btnSecondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn btnPrimary" onclick="saveSettings()">Save</button>
     </div>
   </div>
 </div>
@@ -478,8 +490,8 @@ function updateAll(){
     drawChart(tf.key, arr); // Use sampled array for price chart
     const spikeDetected = drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
 
-    // Flash volume box if spike detected (only for 10m)
-    if(tf.key === '10m' && spikeDetected){
+    // Flash volume box if spike detected (only for 10m and if alerts enabled)
+    if(tf.key === '10m' && spikeDetected && settings.alerts.volSpike){
       const volBox = document.querySelector(`#col-${tf.key} .volBox`);
       if(volBox){
         volBox.classList.remove('spikeAlert');
@@ -543,8 +555,8 @@ function updateTopTrades(key, liveArr){
     return d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true}).toLowerCase();
   };
 
-  // Check if we're past the initial 5 minute delay
-  const enableBlink = (Date.now() - startTime) >= BLINK_DELAY;
+  // Check if we're past the initial 5 minute delay and alerts are enabled
+  const enableBlink = settings.alerts.tradeBlink && (Date.now() - startTime) >= BLINK_DELAY;
 
   // Update buy list
   const buyList = document.getElementById(`topBuys-${key}`);
@@ -1160,7 +1172,39 @@ async function fetchMetalPrices(){
 }
 
 /* ===== Settings Modal ===== */
+const settings = {
+  charts: { '24h': true, '8h': true, '1h': true, '10m': true },
+  alerts: { volSpike: true, tradeBlink: true }
+};
+
+function loadSettings(){
+  const saved = localStorage.getItem('btcStalkerSettings');
+  if(saved){
+    try{
+      Object.assign(settings, JSON.parse(saved));
+    }catch(e){}
+  }
+  applySettings();
+}
+
+function applySettings(){
+  // Apply chart visibility
+  document.getElementById('col-24h').style.display = settings.charts['24h'] ? '' : 'none';
+  document.getElementById('col-8h').style.display = settings.charts['8h'] ? '' : 'none';
+  document.getElementById('col-1h').style.display = settings.charts['1h'] ? '' : 'none';
+  document.getElementById('col-10m').style.display = settings.charts['10m'] ? '' : 'none';
+
+  // Update checkboxes
+  document.getElementById('chart24h').checked = settings.charts['24h'];
+  document.getElementById('chart8h').checked = settings.charts['8h'];
+  document.getElementById('chart1h').checked = settings.charts['1h'];
+  document.getElementById('chart10m').checked = settings.charts['10m'];
+  document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
+  document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
+}
+
 function openSettings(){
+  applySettings(); // Sync checkboxes with current settings
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -1168,9 +1212,29 @@ function closeSettings(){
   document.getElementById('settingsModal').classList.remove('open');
 }
 
+function saveSettings(){
+  // Read checkbox values
+  settings.charts['24h'] = document.getElementById('chart24h').checked;
+  settings.charts['8h'] = document.getElementById('chart8h').checked;
+  settings.charts['1h'] = document.getElementById('chart1h').checked;
+  settings.charts['10m'] = document.getElementById('chart10m').checked;
+  settings.alerts.volSpike = document.getElementById('alertVolSpike').checked;
+  settings.alerts.tradeBlink = document.getElementById('alertTradeBlink').checked;
+
+  // Save to localStorage
+  localStorage.setItem('btcStalkerSettings', JSON.stringify(settings));
+
+  // Apply the settings
+  applySettings();
+
+  // Close modal
+  closeSettings();
+}
+
 /* ===== Start ===== */
 // Wait for DOM to be fully ready before drawing
 setTimeout(() => {
+  loadSettings(); // Load saved settings
   fetchHistoricalCandles();
   startWS();
   fetch24h();
