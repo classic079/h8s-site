@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.3</title>
+<title>BTC Stalker - Multi-Timeframe v8.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -165,7 +165,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.3</span>
+      <span class="pill" style="opacity:.6">v8.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -563,8 +563,8 @@ function updateAll(){
     drawChart(tf.key, arr); // Use sampled array for price chart
     const spikeDetected = drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
 
-    // Flash volume box if spike detected (only for 10m and if alerts enabled)
-    if(tf.key === '10m' && spikeDetected && settings.alerts.volSpike){
+    // Flash volume box if spike detected (for short timeframes and if alerts enabled)
+    if((tf.key === '10m' || tf.key === '5m' || tf.key === '1m') && spikeDetected && settings.alerts.volSpike){
       const volBox = document.querySelector(`#col-${tf.key} .volBox`);
       if(volBox){
         volBox.classList.remove('spikeAlert');
