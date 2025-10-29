@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.9</title>
+<title>BTC Stalker - Multi-Timeframe v6.9.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -121,7 +121,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.9</span>
+      <span class="pill" style="opacity:.6">v6.9.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -596,13 +596,14 @@ function drawVolume(key, arr, tf){
 
   // Create bins locked to absolute time boundaries
   const now = Date.now();
+  let bins, currentBinIdx;
 
   // For 10m chart, lock to minute boundaries
   if(key === '10m'){
     const currentMinute = Math.floor(now / 60000) * 60000; // Round down to current minute
     const start = currentMinute - tf.win + 60000; // Start 10 minutes ago, but from next minute boundary
 
-    const bins = Array.from({length: tf.bins}, (_,i) => ({
+    bins = Array.from({length: tf.bins}, (_,i) => ({
       ts: start + i*tf.binSize,
       buy: 0,
       sell: 0
@@ -619,17 +620,17 @@ function drawVolume(key, arr, tf){
       }
     });
 
-    var currentBinIdx = -1; // Not used for 10m
+    currentBinIdx = -1; // Not used for 10m
   } else {
     // Other timeframes use sliding window
     const start = now - tf.win;
-    const bins = Array.from({length: tf.bins}, (_,i) => ({
+    bins = Array.from({length: tf.bins}, (_,i) => ({
       ts: start + i*tf.binSize,
       buy: 0,
       sell: 0
     }));
 
-    const currentBinIdx = Math.floor((now - start) / tf.binSize);
+    currentBinIdx = Math.floor((now - start) / tf.binSize);
 
     arr.forEach(t => {
       const idx = Math.min(tf.bins-1, Math.max(0, Math.floor((t.time - start) / tf.binSize)));
