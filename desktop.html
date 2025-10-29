@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.2</title>
+<title>BTC Stalker - Multi-Timeframe v8.2.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -162,7 +162,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.2</span>
+      <span class="pill" style="opacity:.6">v8.2.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -676,7 +676,8 @@ function updateTopTrades(key, liveArr){
 
   // Save top trades to Firebase (async, non-blocking)
   // Only persist longer timeframes (skip 5m and 1m - too volatile)
-  if(key !== '5m' && key !== '1m'){
+  // Don't save if we're currently loading from Firebase (prevents infinite loop)
+  if(key !== '5m' && key !== '1m' && !isLoadingFromFirebase){
     saveTopTradesToFirebase(key, top10Buys, top10Sells);
   }
 }
@@ -724,17 +725,25 @@ async function loadTopTradesFromFirebase(){
 }
 
 /* ===== Firebase: Setup real-time listeners ===== */
+let isLoadingFromFirebase = false; // Prevent infinite update loops
+
 function setupFirebaseListeners(){
   // Listen for changes to top trades in real-time
   db.ref('topTrades').on('value', (snapshot) => {
     const data = snapshot.val();
     if(!data) return;
 
+    // Set flag to prevent save loop
+    isLoadingFromFirebase = true;
+
     // Merge updated trades from Firebase
     mergeFirebaseTradesWithLive(data);
 
-    // Update the display
+    // Update the display (but don't save back to Firebase)
     updateAll();
+
+    // Clear flag after a short delay
+    setTimeout(() => { isLoadingFromFirebase = false; }, 100);
   });
 
   console.log('✅ Firebase real-time sync enabled');
