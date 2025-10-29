@@ -1444,10 +1444,16 @@ async function fetchPolymarketData(){
   if(!settings.charts.polymarket) return; // Skip if not enabled
 
   try{
+    console.log('🎲 Fetching Polymarket data...');
     const r = await fetch('https://gamma-api.polymarket.com/markets');
-    if(!r.ok) return;
+    console.log('Polymarket response status:', r.status, r.statusText);
+    if(!r.ok) {
+      console.error('Polymarket API returned error:', r.status);
+      throw new Error(`API returned ${r.status}`);
+    }
 
     const markets = await r.json();
+    console.log('Polymarket markets fetched:', markets.length);
 
     // Filter for markets expiring today
     const today = new Date();
