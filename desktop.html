@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v4.5</title>
+<title>BTC Stalker - Multi-Timeframe v4.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v4.5</span>
+      <span class="pill" style="opacity:.6">v4.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -910,32 +910,39 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices ===== */
+/* ===== Fetch Gold/Silver prices via Yahoo Finance ===== */
 async function fetchMetalPrices(){
   try{
-    // Try goldpricez.com - free API
-    const rGold = await fetch('https://www.goldpricez.com/api/rates/gold/usd', {mode: 'cors'});
-    if(rGold.ok){
-      const dataGold = await rGold.json();
-      console.log('Gold response:', dataGold);
-      if(dataGold && dataGold.price){
-        goldPrice.textContent = `Gold $${Math.round(dataGold.price)}`;
-      }
-    }
+    // Yahoo Finance query API (unofficial but working)
+    // GC=F = Gold Futures, SI=F = Silver Futures
+    const symbols = 'GC=F,SI=F';
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
 
-    const rSilver = await fetch('https://www.goldpricez.com/api/rates/silver/usd', {mode: 'cors'});
-    if(rSilver.ok){
-      const dataSilver = await rSilver.json();
-      console.log('Silver response:', dataSilver);
-      if(dataSilver && dataSilver.price){
-        silverPrice.textContent = `Silver $${dataSilver.price.toFixed(2)}`;
+    const r = await fetch(url);
+    if(r.ok){
+      const data = await r.json();
+      console.log('Yahoo Finance response:', data);
+
+      if(data.quoteResponse && data.quoteResponse.result){
+        const results = data.quoteResponse.result;
+
+        // Find gold (GC=F)
+        const gold = results.find(q => q.symbol === 'GC=F');
+        if(gold && gold.regularMarketPrice){
+          goldPrice.textContent = `Gold $${Math.round(gold.regularMarketPrice)}`;
+        }
+
+        // Find silver (SI=F)
+        const silver = results.find(q => q.symbol === 'SI=F');
+        if(silver && silver.regularMarketPrice){
+          silverPrice.textContent = `Silver $${silver.regularMarketPrice.toFixed(2)}`;
+        }
       }
     }
   }catch(e){
-    console.log('Gold/Silver API error:', e);
-    // If API fails, show that we're trying to load
-    goldPrice.textContent = 'Gold (API unavailable)';
-    silverPrice.textContent = 'Silver (API unavailable)';
+    console.log('Yahoo Finance API error:', e);
+    goldPrice.textContent = 'Gold --';
+    silverPrice.textContent = 'Silver --';
   }
 }
 
