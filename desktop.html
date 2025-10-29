@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.8</title>
+<title>BTC Stalker - Multi-Timeframe v8.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -151,6 +151,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   100%{box-shadow:none;transform:scale(1)}
 }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
 <span id="connPill" class="pill conn-warn">Connecting…</span>
@@ -160,7 +162,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.8</span>
+      <span class="pill" style="opacity:.6">v8.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -254,6 +256,20 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 </div>
 
 <script>
+/* ===== Firebase Setup ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyAy7bMRwm98jdSgg40KUvXPuUONd8o6KLc",
+  authDomain: "btc-stalker.firebaseapp.com",
+  databaseURL: "https://btc-stalker-default-rtdb.firebaseio.com",
+  projectId: "btc-stalker",
+  storageBucket: "btc-stalker.firebasestorage.app",
+  messagingSenderId: "127552164700",
+  appId: "1:127552164700:web:c2e56579b4946b7d44e799"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 /* ===== Config ===== */
 const TF = [
   {key:'30d', label:'30 DAYS',  win:2592000000, bins:30, binSize:86400000},  // 30 bars x 1 day each
@@ -657,6 +673,87 @@ function updateTopTrades(key, liveArr){
   // Store current top trade times for next comparison
   prevTopTrades[key].buys = top10Buys.map(t => t.time);
   prevTopTrades[key].sells = top10Sells.map(t => t.time);
+
+  // Save top trades to Firebase (async, non-blocking)
+  saveTopTradesToFirebase(key, top10Buys, top10Sells);
+}
+
+/* ===== Firebase: Save top trades ===== */
+function saveTopTradesToFirebase(key, buys, sells){
+  try{
+    // Save top 13 buys and sells for this timeframe
+    const data = {
+      buys: buys.map(t => ({
+        price: t.price,
+        size: t.size,
+        usd: t.usd,
+        time: t.time
+      })),
+      sells: sells.map(t => ({
+        price: t.price,
+        size: t.size,
+        usd: t.usd,
+        time: t.time
+      })),
+      lastUpdate: Date.now()
+    };
+    db.ref(`topTrades/${key}`).set(data);
+  }catch(e){
+    console.error('Failed to save to Firebase:', e);
+  }
+}
+
+/* ===== Firebase: Load top trades on startup ===== */
+async function loadTopTradesFromFirebase(){
+  try{
+    const snapshot = await db.ref('topTrades').once('value');
+    const data = snapshot.val();
+    if(!data) return;
+
+    // Merge Firebase data with live trade windows
+    TF.forEach(tf => {
+      const key = tf.key;
+      if(data[key]){
+        const fbBuys = data[key].buys || [];
+        const fbSells = data[key].sells || [];
+
+        // Get the appropriate live window
+        const liveMap = {
+          '30d': win30dLive, '24h': win24hLive, '12h': win12hLive, '8h': win8hLive,
+          '1h': win1hLive, '10m': win10mLive, '5m': win5mLive, '1m': win1mLive
+        };
+        const liveArr = liveMap[key];
+
+        // Add Firebase trades to live window if not already present
+        fbBuys.forEach(t => {
+          if(!liveArr.find(live => live.time === t.time)){
+            liveArr.push({
+              price: t.price,
+              size: t.size,
+              side: 'buy',
+              time: t.time
+            });
+          }
+        });
+
+        fbSells.forEach(t => {
+          if(!liveArr.find(live => live.time === t.time)){
+            liveArr.push({
+              price: t.price,
+              size: t.size,
+              side: 'sell',
+              time: t.time
+            });
+          }
+        });
+      }
+    });
+
+    console.log('✅ Loaded top trades from Firebase');
+    updateAll(); // Update display with merged data
+  }catch(e){
+    console.error('Failed to load from Firebase:', e);
+  }
 }
 
 /* ===== Chart drawing (simple line) ===== */
@@ -1304,6 +1401,7 @@ function saveSettings(){
 // Wait for DOM to be fully ready before drawing
 setTimeout(() => {
   loadSettings(); // Load saved settings
+  loadTopTradesFromFirebase(); // Load persisted top trades
   fetchHistoricalCandles();
   startWS();
   fetch24h();
