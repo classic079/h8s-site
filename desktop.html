@@ -1443,11 +1443,11 @@ function saveSettings(){
 
 /* ===== Start ===== */
 // Wait for DOM to be fully ready before drawing
-setTimeout(() => {
+setTimeout(async () => {
   loadSettings(); // Load saved settings
-  loadTopTradesFromFirebase(); // Load persisted top trades
+  await loadTopTradesFromFirebase(); // Load persisted top trades FIRST
   // setupFirebaseListeners(); // DISABLED - causing infinite loop, need better approach
-  fetchHistoricalCandles();
+  fetchHistoricalCandles(); // Then fetch historical data (which will merge with Firebase data)
   startWS();
   fetch24h();
   fetchMetalPrices();
