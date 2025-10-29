@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.1</title>
+<title>BTC Stalker - Multi-Timeframe v7.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -11,6 +11,13 @@
   --up:#2dd4bf; --down:#f59e0b;
   --grid:rgba(255,255,255,.08);
   --glow:0 0 0 1px rgba(255,255,255,.06), 0 18px 40px rgba(0,0,0,.45);
+}
+:root[data-theme="light"]{
+  --bg:#f5f7fa; --panel:#ffffff; --panel-2:#f8f9fb;
+  --text:#1a1d23; --muted:#64748b;
+  --up:#059669; --down:#dc2626;
+  --grid:rgba(0,0,0,.08);
+  --glow:0 0 0 1px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08);
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
@@ -150,7 +157,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.1</span>
+      <span class="pill" style="opacity:.6">v7.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -178,13 +185,13 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 
     <div class="settingsSection">
       <h3>Theme</h3>
-      <div class="settingOption">
-        <span>Dark Mode</span>
-        <span>✓ Active</span>
+      <div class="settingOption" style="cursor:pointer" onclick="selectTheme('dark')">
+        <span>🌙 Dark Mode</span>
+        <span id="themeDarkCheck"></span>
       </div>
-      <div class="settingOption" style="opacity:.5">
-        <span>Light Mode</span>
-        <span>Coming Soon</span>
+      <div class="settingOption" style="cursor:pointer" onclick="selectTheme('light')">
+        <span>☀️ Light Mode</span>
+        <span id="themeLightCheck"></span>
       </div>
     </div>
 
@@ -1173,6 +1180,7 @@ async function fetchMetalPrices(){
 
 /* ===== Settings Modal ===== */
 const settings = {
+  theme: 'dark',
   charts: { '24h': true, '8h': true, '1h': true, '10m': true },
   alerts: { volSpike: true, tradeBlink: true }
 };
@@ -1188,6 +1196,11 @@ function loadSettings(){
 }
 
 function applySettings(){
+  // Apply theme
+  document.documentElement.setAttribute('data-theme', settings.theme);
+  document.getElementById('themeDarkCheck').textContent = settings.theme === 'dark' ? '✓ Active' : '';
+  document.getElementById('themeLightCheck').textContent = settings.theme === 'light' ? '✓ Active' : '';
+
   // Apply chart visibility
   document.getElementById('col-24h').style.display = settings.charts['24h'] ? '' : 'none';
   document.getElementById('col-8h').style.display = settings.charts['8h'] ? '' : 'none';
@@ -1201,6 +1214,11 @@ function applySettings(){
   document.getElementById('chart10m').checked = settings.charts['10m'];
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
+}
+
+function selectTheme(theme){
+  settings.theme = theme;
+  applySettings();
 }
 
 function openSettings(){
