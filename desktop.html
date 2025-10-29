@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.1</title>
+<title>BTC Stalker - Multi-Timeframe v8.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -162,7 +162,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.1</span>
+      <span class="pill" style="opacity:.6">v8.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -675,13 +675,16 @@ function updateTopTrades(key, liveArr){
   prevTopTrades[key].sells = top10Sells.map(t => t.time);
 
   // Save top trades to Firebase (async, non-blocking)
-  saveTopTradesToFirebase(key, top10Buys, top10Sells);
+  // Only persist longer timeframes (skip 5m and 1m - too volatile)
+  if(key !== '5m' && key !== '1m'){
+    saveTopTradesToFirebase(key, top10Buys, top10Sells);
+  }
 }
 
 /* ===== Firebase: Save top trades ===== */
 function saveTopTradesToFirebase(key, buys, sells){
   try{
-    // Save top 13 buys and sells for this timeframe
+    // Save top buys and sells for longer timeframes only
     const data = {
       buys: buys.map(t => ({
         price: t.price,
