@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v9.3</title>
+<title>BTC Stalker - Multi-Timeframe v9.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v9.3</span>
+      <span class="pill" style="opacity:.6">v9.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -633,8 +633,8 @@ function updateTopTrades(key, liveArr){
     buyList.innerHTML = top10Buys.length > 0
       ? top10Buys.map(t => {
           const isNew = enableBlink && !prevBuyTimes.has(t.time) && prevBuys.length > 0;
-          // Calculate blink duration: 10 seconds per BTC
-          const blinkDuration = Math.round(t.size * 10);
+          // Calculate blink duration: 10 seconds per BTC, minimum 5 seconds
+          const blinkDuration = Math.max(5, Math.round(t.size * 10));
           const styleAttr = isNew ? ` style="--blink-duration: ${blinkDuration}s"` : '';
           return `
         <li class="topItem buy${isNew ? ' newTrade' : ''}"${styleAttr}>
@@ -652,8 +652,8 @@ function updateTopTrades(key, liveArr){
     sellList.innerHTML = top10Sells.length > 0
       ? top10Sells.map(t => {
           const isNew = enableBlink && !prevSellTimes.has(t.time) && prevSells.length > 0;
-          // Calculate blink duration: 10 seconds per BTC
-          const blinkDuration = Math.round(t.size * 10);
+          // Calculate blink duration: 10 seconds per BTC, minimum 5 seconds
+          const blinkDuration = Math.max(5, Math.round(t.size * 10));
           const styleAttr = isNew ? ` style="--blink-duration: ${blinkDuration}s"` : '';
           return `
         <li class="topItem sell${isNew ? ' newTrade' : ''}"${styleAttr}>
