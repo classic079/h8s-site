@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v4.4</title>
+<title>BTC Stalker - Multi-Timeframe v4.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v4.4</span>
+      <span class="pill" style="opacity:.6">v4.5</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -912,23 +912,30 @@ function updateClock(){
 
 /* ===== Fetch Gold/Silver prices ===== */
 async function fetchMetalPrices(){
-  // For now, just use static prices since free metal APIs are unreliable
-  // You can manually update these periodically or pay for a real API
-  goldPrice.textContent = 'Gold $2,650';
-  silverPrice.textContent = 'Silver $30.50';
-
-  // Optional: Try to fetch real prices in background (won't break if it fails)
   try{
-    const r = await fetch('https://api.metals.live/v1/spot/gold,silver');
-    const data = await r.json();
-    if(data && Array.isArray(data)){
-      const gold = data.find(m => m.metal === 'gold');
-      const silver = data.find(m => m.metal === 'silver');
-      if(gold && gold.price) goldPrice.textContent = `Gold $${Math.round(gold.price)}`;
-      if(silver && silver.price) silverPrice.textContent = `Silver $${silver.price.toFixed(2)}`;
+    // Try goldpricez.com - free API
+    const rGold = await fetch('https://www.goldpricez.com/api/rates/gold/usd', {mode: 'cors'});
+    if(rGold.ok){
+      const dataGold = await rGold.json();
+      console.log('Gold response:', dataGold);
+      if(dataGold && dataGold.price){
+        goldPrice.textContent = `Gold $${Math.round(dataGold.price)}`;
+      }
+    }
+
+    const rSilver = await fetch('https://www.goldpricez.com/api/rates/silver/usd', {mode: 'cors'});
+    if(rSilver.ok){
+      const dataSilver = await rSilver.json();
+      console.log('Silver response:', dataSilver);
+      if(dataSilver && dataSilver.price){
+        silverPrice.textContent = `Silver $${dataSilver.price.toFixed(2)}`;
+      }
     }
   }catch(e){
-    // Silently fail - static prices already set
+    console.log('Gold/Silver API error:', e);
+    // If API fails, show that we're trying to load
+    goldPrice.textContent = 'Gold (API unavailable)';
+    silverPrice.textContent = 'Silver (API unavailable)';
   }
 }
 
