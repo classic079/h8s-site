@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v11.4</title>
+<title>BTC Stalker - Multi-Timeframe v11.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v11.4</span>
+      <span class="pill" style="opacity:.6">v11.5</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -234,6 +234,18 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <div class="settingOption">
         <span>🎲 Polymarket</span>
         <input type="checkbox" id="chartPolymarket">
+      </div>
+    </div>
+
+    <div class="settingsSection">
+      <h3>Polymarket Mode</h3>
+      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('popular')">
+        <span>📊 Most Popular (Top 20 by Volume)</span>
+        <span id="polymarketModePopularCheck"></span>
+      </div>
+      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('expiring')">
+        <span>⏰ Expiring Today (Next 24 Hours)</span>
+        <span id="polymarketModeExpiringCheck"></span>
       </div>
     </div>
 
@@ -367,7 +379,7 @@ dash.innerHTML += `
   <div class="colHeader">
     <div class="tfLabel">🎲 POLYMARKET</div>
     <div class="statPills">
-      <span class="statPill">Top 20 by Volume</span>
+      <span class="statPill" id="polymarketModeLabel">Most Popular</span>
     </div>
   </div>
   <div style="background:var(--panel-2);border-radius:10px;padding:12px;max-height:600px;overflow-y:auto">
@@ -1464,16 +1476,32 @@ async function fetchPolymarketData(){
     // Filter for active markets only
     const activeMarkets = markets.filter(m => m.active !== false);
 
-    // Sort by volume (highest first) and take top 20
-    activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
-    const top20 = activeMarkets.slice(0, 20);
+    let top20;
+    if(settings.polymarketMode === 'expiring'){
+      // Filter for markets expiring in next 24 hours
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const expiringMarkets = activeMarkets.filter(m => {
+        if(!m.endDate) return false;
+        const endDate = new Date(m.endDate);
+        return endDate >= now && endDate <= tomorrow;
+      });
+      // Sort by end date (soonest first)
+      expiringMarkets.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
+      top20 = expiringMarkets.slice(0, 20);
+    } else {
+      // Most popular: Sort by volume (highest first) and take top 20
+      activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
+      top20 = activeMarkets.slice(0, 20);
+    }
 
     // Display
     const listEl = document.getElementById('polymarketList');
     if(!listEl) return;
 
     if(top20.length === 0){
-      listEl.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">No markets expiring today</div>';
+      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 24 hours' : 'No markets available';
+      listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">${msg}</div>`;
       return;
     }
 
@@ -1514,17 +1542,19 @@ async function fetchPolymarketData(){
           <div style="color:var(--muted);min-width:20px">${idx+1}.</div>
           <div style="flex:1">
             <div style="font-weight:600;margin-bottom:4px;line-height:1.3">${m.question || 'Unknown'}</div>
-            <div style="display:flex;gap:12px;font-size:11px;color:var(--muted)">
+            <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
               <span>Vol: ${volStr}</span>
               <span style="color:${prob >= 50 ? 'var(--up)' : 'var(--down)'}">${prob}% Yes</span>
               ${m.category ? `<span>${m.category}</span>` : ''}
+              ${settings.polymarketMode === 'expiring' && m.endDate ? `<span>Ends: ${new Date(m.endDate).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}</span>` : ''}
             </div>
           </div>
         </div>
       `;
     }).join('');
 
-    console.log(`✅ Loaded ${top20.length} Polymarket markets expiring today`);
+    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 24h' : 'most popular';
+    console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
   }catch(e){
     console.error('Polymarket fetch error:', e);
     const listEl = document.getElementById('polymarketList');
@@ -1536,7 +1566,8 @@ async function fetchPolymarketData(){
 const settings = {
   theme: 'dark',
   charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false, 'polymarket': false },
-  alerts: { volSpike: true, tradeBlink: true }
+  alerts: { volSpike: true, tradeBlink: true },
+  polymarketMode: 'popular' // 'popular' or 'expiring'
 };
 
 function loadSettings(){
@@ -1561,10 +1592,15 @@ function applySettings(){
     if(col) col.style.display = settings.charts[tf.key] ? '' : 'none';
   });
 
-  // Apply Polymarket visibility
+  // Apply Polymarket visibility and mode
   const polymarketCol = document.getElementById('col-polymarket');
   if(polymarketCol){
     polymarketCol.style.display = settings.charts.polymarket ? '' : 'none';
+    // Update mode label
+    const modeLabel = document.getElementById('polymarketModeLabel');
+    if(modeLabel){
+      modeLabel.textContent = settings.polymarketMode === 'expiring' ? 'Expiring Today' : 'Most Popular';
+    }
     // Fetch data if enabled
     if(settings.charts.polymarket) fetchPolymarketData();
   }
@@ -1577,12 +1613,21 @@ function applySettings(){
   const polymarketCheck = document.getElementById('chartPolymarket');
   if(polymarketCheck) polymarketCheck.checked = settings.charts.polymarket;
 
+  // Update Polymarket mode checkmarks
+  document.getElementById('polymarketModePopularCheck').textContent = settings.polymarketMode === 'popular' ? '✓ Active' : '';
+  document.getElementById('polymarketModeExpiringCheck').textContent = settings.polymarketMode === 'expiring' ? '✓ Active' : '';
+
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
 }
 
 function selectTheme(theme){
   settings.theme = theme;
+  applySettings();
+}
+
+function selectPolymarketMode(mode){
+  settings.polymarketMode = mode;
   applySettings();
 }
 
