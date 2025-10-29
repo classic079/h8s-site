@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v11.7</title>
+<title>BTC Stalker - Multi-Timeframe v12.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -243,9 +243,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <span>📊 Most Popular (Top 20 by Volume)</span>
         <span id="polymarketModePopularCheck"></span>
       </div>
-      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('expiring')">
-        <span>⏰ Expiring Soon (Next 30 Days)</span>
-        <span id="polymarketModeExpiringCheck"></span>
+      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('trending')">
+        <span>🔥 Trending (24hr Activity)</span>
+        <span id="polymarketModeTrendingCheck"></span>
       </div>
     </div>
 
@@ -1477,25 +1477,21 @@ async function fetchPolymarketData(){
     const activeMarkets = markets.filter(m => m.active !== false);
 
     let top20;
-    if(settings.polymarketMode === 'expiring'){
-      // Filter for markets expiring in next 30 days
-      const now = new Date();
-      const monthFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const expiringMarkets = activeMarkets.filter(m => {
-        if(!m.endDate) return false;
-        const endDate = new Date(m.endDate);
-        return endDate >= now && endDate <= monthFromNow;
+    if(settings.polymarketMode === 'trending'){
+      // Trending: Calculate trend score based on 24hr volume and price changes
+      const trendingMarkets = activeMarkets.map(m => {
+        const vol24 = parseFloat(m.volume24hr || 0);
+        const priceChange = Math.abs(parseFloat(m.oneDayPriceChange || 0));
+        // Trend score: combination of 24hr volume and price movement
+        const trendScore = vol24 + (priceChange * 10000); // Weight price changes heavily
+        return { ...m, trendScore };
       });
 
-      // Debug logging
-      console.log(`🔍 Found ${expiringMarkets.length} markets expiring in next 30 days out of ${activeMarkets.length} total active markets`);
-      if(expiringMarkets.length > 0){
-        console.log('First 3 expiring:', expiringMarkets.slice(0, 3).map(m => ({q: m.question, end: m.endDate})));
-      }
+      // Sort by trend score (highest first)
+      trendingMarkets.sort((a,b) => b.trendScore - a.trendScore);
+      top20 = trendingMarkets.slice(0, 20);
 
-      // Sort by end date (soonest first)
-      expiringMarkets.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
-      top20 = expiringMarkets.slice(0, 20);
+      console.log(`🔥 Found ${top20.length} trending markets`);
     } else {
       // Most popular: Sort by volume (highest first) and take top 20
       activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
@@ -1507,60 +1503,90 @@ async function fetchPolymarketData(){
     if(!listEl) return;
 
     if(top20.length === 0){
-      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 30 days' : 'No markets available';
-      listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">${msg}</div>`;
+      listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">No markets available</div>`;
       return;
     }
 
+    // Display markets with rich cards (similar to Polymarket UI)
     listEl.innerHTML = top20.map((m, idx) => {
       const vol = parseFloat(m.volume || 0);
       const volStr = vol >= 1000000 ? `$${(vol/1000000).toFixed(1)}M` : vol >= 1000 ? `$${(vol/1000).toFixed(0)}K` : `$${vol.toFixed(0)}`;
 
-      // Try multiple ways to extract price/probability
-      let price = 0.5; // default to 50%
+      // Parse outcomes and prices
+      let outcomes = [];
+      let outcomePrices = [];
 
-      // Try outcomePrices (can be array or JSON string)
+      if(m.outcomes){
+        outcomes = typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : m.outcomes;
+      }
+
       if(m.outcomePrices){
-        let prices = m.outcomePrices;
-        // If it's a string, parse it as JSON
-        if(typeof prices === 'string'){
-          try{ prices = JSON.parse(prices); }catch(e){}
+        outcomePrices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+      }
+
+      // Build outcome display (like Polymarket's cards)
+      let outcomeHTML = '';
+      if(outcomes.length > 0 && outcomePrices.length > 0){
+        // For binary markets, show both outcomes
+        if(outcomes.length === 2){
+          const yesPrice = (parseFloat(outcomePrices[0]) * 100).toFixed(0);
+          const noPrice = (parseFloat(outcomePrices[1]) * 100).toFixed(0);
+          outcomeHTML = `
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <div style="flex:1;background:rgba(45,212,191,.15);border:1px solid rgba(45,212,191,.3);border-radius:6px;padding:6px 8px;text-align:center">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:2px">${outcomes[0]}</div>
+                <div style="font-size:14px;font-weight:700;color:var(--up)">${yesPrice}¢</div>
+              </div>
+              <div style="flex:1;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px 8px;text-align:center">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:2px">${outcomes[1]}</div>
+                <div style="font-size:14px;font-weight:700;color:var(--down)">${noPrice}¢</div>
+              </div>
+            </div>
+          `;
+        } else {
+          // For multiple choice, show top 3 outcomes
+          outcomeHTML = `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`;
+          for(let i = 0; i < Math.min(3, outcomes.length); i++){
+            const price = (parseFloat(outcomePrices[i]) * 100).toFixed(0);
+            outcomeHTML += `
+              <div style="background:rgba(255,255,255,.05);border-radius:4px;padding:4px 8px;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:11px">${outcomes[i]}</span>
+                <span style="font-size:12px;font-weight:600;color:${price >= 50 ? 'var(--up)' : 'var(--muted)'}">${price}¢</span>
+              </div>
+            `;
+          }
+          if(outcomes.length > 3){
+            outcomeHTML += `<div style="font-size:10px;color:var(--muted);text-align:center">+${outcomes.length - 3} more</div>`;
+          }
+          outcomeHTML += `</div>`;
         }
-        // Now extract first price
-        if(Array.isArray(prices) && prices.length > 0){
-          price = parseFloat(prices[0]);
-        }
       }
 
-      // Fallback to lastTradePrice if outcomePrices failed
-      if((isNaN(price) || price < 0 || price > 1) && m.lastTradePrice){
-        price = parseFloat(m.lastTradePrice);
-      }
+      // Show image if available
+      const imageHTML = m.image ? `
+        <div style="width:100%;height:120px;border-radius:8px;overflow:hidden;margin-bottom:8px;background:rgba(0,0,0,.3)">
+          <img src="${m.image}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'">
+        </div>
+      ` : '';
 
-      // Ensure price is valid, default to 50% if not
-      if(isNaN(price) || price < 0 || price > 1){
-        price = 0.5;
-      }
-
-      const prob = (price * 100).toFixed(0);
+      // Show LIVE badge for very active markets (volume24hr > 50k)
+      const vol24 = parseFloat(m.volume24hr || 0);
+      const liveBadge = vol24 > 50000 ? '<span style="display:inline-block;padding:2px 6px;background:#ff4d4d;color:#fff;font-size:9px;font-weight:700;border-radius:3px;margin-left:6px">LIVE</span>' : '';
 
       return `
-        <div style="padding:8px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;gap:8px;align-items:start">
-          <div style="color:var(--muted);min-width:20px">${idx+1}.</div>
-          <div style="flex:1">
-            <div style="font-weight:600;margin-bottom:4px;line-height:1.3">${m.question || 'Unknown'}</div>
-            <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
-              <span>Vol: ${volStr}</span>
-              <span style="color:${prob >= 50 ? 'var(--up)' : 'var(--down)'}">${prob}% Yes</span>
-              ${m.category ? `<span>${m.category}</span>` : ''}
-              ${settings.polymarketMode === 'expiring' && m.endDate ? `<span>Ends: ${new Date(m.endDate).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}</span>` : ''}
-            </div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+          ${imageHTML}
+          <div style="font-weight:600;font-size:13px;line-height:1.3;margin-bottom:6px">${m.question || 'Unknown'}${liveBadge}</div>
+          <div style="display:flex;gap:8px;font-size:10px;color:var(--muted);margin-bottom:4px">
+            <span>${volStr} Vol.</span>
+            ${m.category ? `<span>• ${m.category}</span>` : ''}
           </div>
+          ${outcomeHTML}
         </div>
       `;
     }).join('');
 
-    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 30 days' : 'most popular';
+    const modeText = settings.polymarketMode === 'trending' ? 'trending' : 'most popular';
     console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
   }catch(e){
     console.error('Polymarket fetch error:', e);
@@ -1574,7 +1600,7 @@ const settings = {
   theme: 'dark',
   charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false, 'polymarket': false },
   alerts: { volSpike: true, tradeBlink: true },
-  polymarketMode: 'popular' // 'popular' or 'expiring'
+  polymarketMode: 'popular' // 'popular' or 'trending'
 };
 
 function loadSettings(){
@@ -1606,7 +1632,7 @@ function applySettings(){
     // Update mode label
     const modeLabel = document.getElementById('polymarketModeLabel');
     if(modeLabel){
-      modeLabel.textContent = settings.polymarketMode === 'expiring' ? 'Expiring Soon' : 'Most Popular';
+      modeLabel.textContent = settings.polymarketMode === 'trending' ? 'Trending' : 'Most Popular';
     }
     // Fetch data if enabled
     if(settings.charts.polymarket) fetchPolymarketData();
@@ -1622,7 +1648,7 @@ function applySettings(){
 
   // Update Polymarket mode checkmarks
   document.getElementById('polymarketModePopularCheck').textContent = settings.polymarketMode === 'popular' ? '✓ Active' : '';
-  document.getElementById('polymarketModeExpiringCheck').textContent = settings.polymarketMode === 'expiring' ? '✓ Active' : '';
+  document.getElementById('polymarketModeTrendingCheck').textContent = settings.polymarketMode === 'trending' ? '✓ Active' : '';
 
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
