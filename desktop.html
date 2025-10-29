@@ -589,6 +589,15 @@ const prevTopTrades = {
   '1m': {buys: [], sells: []}
 };
 
+/* ===== Helper: Compare two arrays for equality ===== */
+function arraysEqual(a, b){
+  if(a.length !== b.length) return false;
+  for(let i = 0; i < a.length; i++){
+    if(a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 /* ===== Update top trades ===== */
 function updateTopTrades(key, liveArr){
   if(!liveArr || liveArr.length === 0) return;
@@ -671,15 +680,19 @@ function updateTopTrades(key, liveArr){
       : '<li class="topItem" style="opacity:.5">No sells yet</li>';
   }
 
+  // Check if top trades list has actually changed
+  const buysChanged = !arraysEqual(prevTopTrades[key].buys, top10Buys.map(t => t.time));
+  const sellsChanged = !arraysEqual(prevTopTrades[key].sells, top10Sells.map(t => t.time));
+
   // Store current top trade times for next comparison
   prevTopTrades[key].buys = top10Buys.map(t => t.time);
   prevTopTrades[key].sells = top10Sells.map(t => t.time);
 
-  // Save top trades to Firebase (async, non-blocking)
+  // Save top trades to Firebase ONLY if the list changed (async, non-blocking)
   // Only persist 1h and longer timeframes (skip 10m, 5m, 1m - too volatile/resource intensive)
   // Don't save if we're currently loading from Firebase (prevents infinite loop)
-  if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h') && !isLoadingFromFirebase){
-    console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase`);
+  if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h') && !isLoadingFromFirebase && (buysChanged || sellsChanged)){
+    console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
     saveTopTradesToFirebase(key, top10Buys, top10Sells);
   }
 }
