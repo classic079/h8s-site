@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.9.1</title>
+<title>BTC Stalker - Multi-Timeframe v7.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -38,6 +38,27 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .conn-ok{color:var(--up);border-color:var(--up)}
 .conn-warn{color:#fbbf24;border-color:#fbbf24}
 .conn-err{color:#fb7185;border-color:#fb7185}
+
+/* Settings button */
+.settingsBtn{cursor:pointer;transition:all .2s;user-select:none}
+.settingsBtn:hover{opacity:1;transform:scale(1.05);border-color:rgba(255,255,255,.4)}
+.settingsBtn:active{transform:scale(0.98)}
+
+/* Settings modal */
+.settingsModal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);
+  display:none;align-items:center;justify-content:center;z-index:100}
+.settingsModal.open{display:flex}
+.settingsContent{background:var(--panel);border-radius:16px;padding:24px;
+  max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1)}
+.settingsHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.settingsHeader h2{margin:0;font-size:20px}
+.closeBtn{cursor:pointer;font-size:24px;opacity:.7;transition:opacity .2s}
+.closeBtn:hover{opacity:1}
+.settingsSection{margin-bottom:20px}
+.settingsSection h3{font-size:14px;margin:0 0 10px;opacity:.8;text-transform:uppercase;letter-spacing:.5px}
+.settingOption{display:flex;justify-content:space-between;align-items:center;padding:10px;
+  border-radius:8px;background:rgba(255,255,255,.03);margin-bottom:8px}
+.settingOption:hover{background:rgba(255,255,255,.06)}
 
 /* Grid */
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -120,8 +141,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <div class="wrap">
   <header>
     <div class="headerLeft">
+      <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.9.1</span>
+      <span class="pill" style="opacity:.6">v7.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -137,6 +159,60 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   </header>
 
   <section class="grid" id="dashboard"></section>
+</div>
+
+<!-- Settings Modal -->
+<div class="settingsModal" id="settingsModal" onclick="if(event.target === this) closeSettings()">
+  <div class="settingsContent">
+    <div class="settingsHeader">
+      <h2>Settings</h2>
+      <span class="closeBtn" onclick="closeSettings()">&times;</span>
+    </div>
+
+    <div class="settingsSection">
+      <h3>Theme</h3>
+      <div class="settingOption">
+        <span>Dark Mode</span>
+        <span>✓ Active</span>
+      </div>
+      <div class="settingOption" style="opacity:.5">
+        <span>Light Mode</span>
+        <span>Coming Soon</span>
+      </div>
+    </div>
+
+    <div class="settingsSection">
+      <h3>Visible Charts</h3>
+      <div class="settingOption">
+        <span>24 Hour</span>
+        <input type="checkbox" checked>
+      </div>
+      <div class="settingOption">
+        <span>8 Hour</span>
+        <input type="checkbox" checked>
+      </div>
+      <div class="settingOption">
+        <span>1 Hour</span>
+        <input type="checkbox" checked>
+      </div>
+      <div class="settingOption">
+        <span>10 Minute</span>
+        <input type="checkbox" checked>
+      </div>
+    </div>
+
+    <div class="settingsSection">
+      <h3>Alerts</h3>
+      <div class="settingOption">
+        <span>Volume Spike Alerts</span>
+        <input type="checkbox" checked>
+      </div>
+      <div class="settingOption">
+        <span>Large Trade Blink</span>
+        <input type="checkbox" checked>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1081,6 +1157,15 @@ async function fetchMetalPrices(){
   }catch(e){
     console.log('Price fetch error:', e);
   }
+}
+
+/* ===== Settings Modal ===== */
+function openSettings(){
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettings(){
+  document.getElementById('settingsModal').classList.remove('open');
 }
 
 /* ===== Start ===== */
