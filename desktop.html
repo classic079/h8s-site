@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v9.2</title>
+<title>BTC Stalker - Multi-Timeframe v9.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v9.2</span>
+      <span class="pill" style="opacity:.6">v9.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -920,12 +920,12 @@ function drawVolume(key, arr, tf){
   // Calculate average volume and check for spikes
   let isSpike = false;
   if(key === '10m' || key === '5m' || key === '1m'){
-    // For locked timeframes, use all completed bars (last bar is most recent completed)
-    const completedSums = sums.filter(s => s > 0);
+    // For locked timeframes, check second-to-last bar (most recently completed)
+    const completedSums = sums.slice(0, -1).filter(s => s > 0); // Exclude last (current) bar
     if(completedSums.length > 1){
       const avgVol = completedSums.reduce((a,b) => a+b, 0) / completedSums.length;
-      const mostRecentVol = sums[sums.length - 1]; // Last bar is most recent
-      isSpike = mostRecentVol >= (avgVol * 1.5);
+      const mostRecentVol = sums[sums.length - 2]; // Second-to-last bar is most recently completed
+      isSpike = mostRecentVol > 0 && mostRecentVol >= (avgVol * 1.5);
     }
   } else {
     // For sliding windows, exclude current incomplete bin
