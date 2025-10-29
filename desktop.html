@@ -597,6 +597,11 @@ function arraysEqual(a, b){
 function updateTopTrades(key, liveArr){
   if(!liveArr || liveArr.length === 0) return;
 
+  // Debug: show raw liveArr length
+  if(key === '30d'){
+    console.log(`🔍 30d liveArr has ${liveArr.length} total trades (before filtering by side)`);
+  }
+
   // Separate buys and sells, calculate USD value
   const buys = liveArr.filter(t => t.side === 'buy').map(t => ({
     ...t,
