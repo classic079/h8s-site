@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v3.1</title>
+<title>BTC Stalker - Multi-Timeframe v3.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -79,15 +79,15 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.5);color:#cbd5e1;white-space:nowrap}
 
 /* Top trades */
-.topTrades{margin-top:10px;padding:8px;background:rgba(0,0,0,.2);border-radius:8px}
-.topHeader{font-size:11px;font-weight:700;margin-bottom:6px;opacity:.9;text-align:center}
-.topGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.topCol{padding:4px;border-radius:6px}
-.topCol.buyCol{background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.2)}
-.topCol.sellCol{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2)}
-.topColTitle{font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:4px;text-align:center}
-.topList{list-style:none;margin:0;padding:0;font-size:10px}
-.topItem{padding:3px 4px;border-radius:4px;margin-bottom:2px;font-variant-numeric:tabular-nums}
+.topTrades{margin-top:10px;padding:8px}
+.topHeader{font-size:11px;font-weight:700;margin-bottom:8px;opacity:.9}
+.topGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.topCol{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 6px 4px}
+.topCol h4{margin:2px 6px 6px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.buyCol{background:color-mix(in oklab, var(--up) 12%, transparent);border-color:color-mix(in oklab, var(--up) 35%, transparent)}
+.sellCol{background:color-mix(in oklab, var(--down) 12%, transparent);border-color:color-mix(in oklab, var(--down) 35%, transparent)}
+.topList{list-style:none;margin:0;padding:0;font-variant-numeric:tabular-nums}
+.topItem{padding:6px 6px;border-radius:8px;font-size:11px}
 .topItem.buy{color:var(--up)}.topItem.sell{color:var(--down)}
 </style>
 </head>
@@ -98,7 +98,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v3.1</span>
+      <span class="pill" style="opacity:.6">v3.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -181,11 +181,11 @@ dash.innerHTML = TF.map(t => `
     <div class="topHeader">Top 10 Trades</div>
     <div class="topGrid">
       <div class="topCol buyCol">
-        <div class="topColTitle">Buys</div>
+        <h4>Buys</h4>
         <ul class="topList" id="topBuys-${t.key}"></ul>
       </div>
       <div class="topCol sellCol">
-        <div class="topColTitle">Sells</div>
+        <h4>Sells</h4>
         <ul class="topList" id="topSells-${t.key}"></ul>
       </div>
     </div>
