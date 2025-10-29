@@ -1445,8 +1445,8 @@ async function fetchPolymarketData(){
 
   try{
     console.log('🎲 Fetching Polymarket data...');
-    // Use CORS proxy to avoid CORS errors
-    const r = await fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets');
+    // Use CORS proxy to avoid CORS errors, fetch only active markets
+    const r = await fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false');
     console.log('Polymarket response status:', r.status, r.statusText);
     if(!r.ok) {
       console.error('Polymarket API returned error:', r.status);
@@ -1456,21 +1456,12 @@ async function fetchPolymarketData(){
     const markets = await r.json();
     console.log('Polymarket markets fetched:', markets.length);
 
-    // Filter for markets expiring today
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const expiringToday = markets.filter(m => {
-      if(!m.endDate) return false;
-      const endDate = new Date(m.endDate);
-      return endDate >= today && endDate < tomorrow;
-    });
+    // Filter for active markets only
+    const activeMarkets = markets.filter(m => m.active !== false);
 
     // Sort by volume (highest first) and take top 20
-    expiringToday.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
-    const top20 = expiringToday.slice(0, 20);
+    activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
+    const top20 = activeMarkets.slice(0, 20);
 
     // Display
     const listEl = document.getElementById('polymarketList');
