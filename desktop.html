@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.1</title>
+<title>BTC Stalker - Multi-Timeframe v6.2</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -91,6 +91,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .topItem .usd{font-weight:800;color:#fff;flex:0 0 auto}
 .topItem .btc{color:rgba(233,254,247,.85);flex:0 0 auto}
 .topItem .t{color:rgba(233,254,247,.65);flex:0 0 auto;font-size:12px}
+.topItem.newTrade{animation:blinkTrade 1.5s ease-out}
+@keyframes blinkTrade{0%{background:rgba(255,255,255,.25);transform:scale(1.05)}20%{background:rgba(255,255,255,.15)}40%{background:rgba(255,255,255,.25)}60%{background:rgba(255,255,255,.15)}80%{background:rgba(255,255,255,.05)}100%{background:transparent;transform:scale(1)}}
 </style>
 </head>
 <body>
@@ -100,7 +102,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.1</span>
+      <span class="pill" style="opacity:.6">v6.2</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -391,6 +393,14 @@ function updateAll(){
   });
 }
 
+/* ===== Track previous top trades to detect new entries ===== */
+const prevTopTrades = {
+  '24h': {buys: [], sells: []},
+  '8h': {buys: [], sells: []},
+  '1h': {buys: [], sells: []},
+  '10m': {buys: [], sells: []}
+};
+
 /* ===== Update top trades ===== */
 function updateTopTrades(key, liveArr){
   if(!liveArr || liveArr.length === 0) return;
@@ -412,6 +422,14 @@ function updateTopTrades(key, liveArr){
   const top10Buys = buys.slice(0, limit);
   const top10Sells = sells.slice(0, limit);
 
+  // Check for new entries by comparing timestamps
+  const prevBuys = prevTopTrades[key].buys;
+  const prevSells = prevTopTrades[key].sells;
+  const newBuyTimes = new Set(top10Buys.map(t => t.time));
+  const newSellTimes = new Set(top10Sells.map(t => t.time));
+  const prevBuyTimes = new Set(prevBuys);
+  const prevSellTimes = new Set(prevSells);
+
   // Format time helper
   const formatTime = (ms) => {
     const d = new Date(ms);
@@ -422,12 +440,15 @@ function updateTopTrades(key, liveArr){
   const buyList = document.getElementById(`topBuys-${key}`);
   if(buyList){
     buyList.innerHTML = top10Buys.length > 0
-      ? top10Buys.map(t => `
-        <li class="topItem buy">
+      ? top10Buys.map(t => {
+          const isNew = !prevBuyTimes.has(t.time) && prevBuys.length > 0;
+          return `
+        <li class="topItem buy${isNew ? ' newTrade' : ''}">
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
           <span class="btc">(${fmtBTC.format(t.size)} BTC)</span>
           <span class="t">${formatTime(t.time)}</span>
-        </li>`).join('')
+        </li>`;
+        }).join('')
       : '<li class="topItem" style="opacity:.5">No buys yet</li>';
   }
 
@@ -435,14 +456,21 @@ function updateTopTrades(key, liveArr){
   const sellList = document.getElementById(`topSells-${key}`);
   if(sellList){
     sellList.innerHTML = top10Sells.length > 0
-      ? top10Sells.map(t => `
-        <li class="topItem sell">
+      ? top10Sells.map(t => {
+          const isNew = !prevSellTimes.has(t.time) && prevSells.length > 0;
+          return `
+        <li class="topItem sell${isNew ? ' newTrade' : ''}">
           <span class="usd">${fmtUSD0.format(t.usd)}</span>
           <span class="btc">(${fmtBTC.format(t.size)} BTC)</span>
           <span class="t">${formatTime(t.time)}</span>
-        </li>`).join('')
+        </li>`;
+        }).join('')
       : '<li class="topItem" style="opacity:.5">No sells yet</li>';
   }
+
+  // Store current top trade times for next comparison
+  prevTopTrades[key].buys = top10Buys.map(t => t.time);
+  prevTopTrades[key].sells = top10Sells.map(t => t.time);
 }
 
 /* ===== Chart drawing (simple line) ===== */
