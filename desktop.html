@@ -802,28 +802,29 @@ function mergeFirebaseTradesWithLive(data){
 
       console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from Firebase`);
 
-      // Add Firebase trades to live window if not already present
+      // Replace liveArr contents with Firebase data (don't merge - replace entirely)
+      // This ensures we get exactly what's in Firebase without duplicates
+      liveArr.length = 0; // Clear array
+
+      // Add all Firebase buys
       fbBuys.forEach(t => {
-        if(!liveArr.find(live => live.time === t.time)){
-          liveArr.push({
-            price: t.price,
-            size: t.size,
-            side: 'buy',
-            time: t.time
-          });
-        }
+        liveArr.push({
+          price: t.price,
+          size: t.size,
+          side: 'buy',
+          time: t.time
+        });
       });
 
+      // Add all Firebase sells
       fbSells.forEach(t => {
-        if(!liveArr.find(live => live.time === t.time)){
-          liveArr.push({
-            price: t.price,
-            size: t.size,
-            side: 'sell',
-            time: t.time,
-            usd: t.usd || (t.price * t.size) // Ensure USD is calculated
-          });
-        }
+        liveArr.push({
+          price: t.price,
+          size: t.size,
+          side: 'sell',
+          time: t.time,
+          usd: t.usd || (t.price * t.size) // Ensure USD is calculated
+        });
       });
 
       // Debug: Show the actual trades being loaded
