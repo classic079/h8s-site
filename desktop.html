@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v5.2</title>
+<title>BTC Stalker - Multi-Timeframe v5.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v5.2</span>
+      <span class="pill" style="opacity:.6">v5.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -910,58 +910,39 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via Finnhub ===== */
+/* ===== Fetch Gold/Silver prices via Alpha Vantage ===== */
 async function fetchMetalPrices(){
-  const API_KEY = 'd40m7b9r01qqo3qio430d40m7b9r01qqo3qio43g';
+  const API_KEY = 'GPWUB69TT3E0GXHW'; // Alpha Vantage free tier key
 
   try{
-    // Fetch Gold using TVC forex symbol
-    const rGold = await fetch(`https://finnhub.io/api/v1/quote?symbol=TVC:GOLD&token=${API_KEY}`);
+    // Fetch Gold spot price (XAU/USD)
+    const rGold = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${API_KEY}`);
     if(rGold.ok){
       const dataGold = await rGold.json();
       console.log('Gold response:', dataGold);
-      if(dataGold && dataGold.c && dataGold.c !== 0){
-        goldPrice.textContent = `Gold $${Math.round(dataGold.c)}`;
-      } else {
-        console.log('Gold: No valid data, trying alternative...');
-        // Try COMEX gold futures as fallback
-        const rGold2 = await fetch(`https://finnhub.io/api/v1/quote?symbol=COMEX:GC&token=${API_KEY}`);
-        if(rGold2.ok){
-          const dataGold2 = await rGold2.json();
-          console.log('Gold futures response:', dataGold2);
-          if(dataGold2 && dataGold2.c && dataGold2.c !== 0){
-            goldPrice.textContent = `Gold $${Math.round(dataGold2.c)}`;
-          }
+      if(dataGold && dataGold['Realtime Currency Exchange Rate']){
+        const rate = parseFloat(dataGold['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+        if(rate && rate > 0){
+          // Gold is quoted per troy ounce, so multiply by ounces to get per oz price
+          goldPrice.textContent = `Gold $${Math.round(rate)}`;
         }
       }
-    } else {
-      console.log('Gold fetch failed:', rGold.status);
     }
 
-    // Fetch Silver using TVC forex symbol
-    const rSilver = await fetch(`https://finnhub.io/api/v1/quote?symbol=TVC:SILVER&token=${API_KEY}`);
+    // Fetch Silver spot price (XAG/USD)
+    const rSilver = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAG&to_currency=USD&apikey=${API_KEY}`);
     if(rSilver.ok){
       const dataSilver = await rSilver.json();
       console.log('Silver response:', dataSilver);
-      if(dataSilver && dataSilver.c && dataSilver.c !== 0){
-        silverPrice.textContent = `Silver $${dataSilver.c.toFixed(2)}`;
-      } else {
-        console.log('Silver: No valid data, trying alternative...');
-        // Try COMEX silver futures as fallback
-        const rSilver2 = await fetch(`https://finnhub.io/api/v1/quote?symbol=COMEX:SI&token=${API_KEY}`);
-        if(rSilver2.ok){
-          const dataSilver2 = await rSilver2.json();
-          console.log('Silver futures response:', dataSilver2);
-          if(dataSilver2 && dataSilver2.c && dataSilver2.c !== 0){
-            silverPrice.textContent = `Silver $${dataSilver2.c.toFixed(2)}`;
-          }
+      if(dataSilver && dataSilver['Realtime Currency Exchange Rate']){
+        const rate = parseFloat(dataSilver['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+        if(rate && rate > 0){
+          silverPrice.textContent = `Silver $${rate.toFixed(2)}`;
         }
       }
-    } else {
-      console.log('Silver fetch failed:', rSilver.status);
     }
   }catch(e){
-    console.log('Finnhub API error:', e);
+    console.log('Alpha Vantage API error:', e);
     goldPrice.textContent = 'Gold --';
     silverPrice.textContent = 'Silver --';
   }
