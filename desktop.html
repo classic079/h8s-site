@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v11.5</title>
+<title>BTC Stalker - Multi-Timeframe v11.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -57,7 +57,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   display:none;align-items:center;justify-content:center;z-index:100}
 .settingsModal.open{display:flex}
 .settingsContent{background:var(--panel);border-radius:16px;padding:24px;
-  max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1)}
+  max-width:500px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1)}
 .settingsHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
 .settingsHeader h2{margin:0;font-size:20px}
 .closeBtn{cursor:pointer;font-size:24px;opacity:.7;transition:opacity .2s}
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v11.5</span>
+      <span class="pill" style="opacity:.6">v11.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -244,7 +244,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <span id="polymarketModePopularCheck"></span>
       </div>
       <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('expiring')">
-        <span>⏰ Expiring Today (Next 24 Hours)</span>
+        <span>⏰ Expiring Soon (Next 7 Days)</span>
         <span id="polymarketModeExpiringCheck"></span>
       </div>
     </div>
@@ -1478,14 +1478,21 @@ async function fetchPolymarketData(){
 
     let top20;
     if(settings.polymarketMode === 'expiring'){
-      // Filter for markets expiring in next 24 hours
+      // Filter for markets expiring in next 7 days (expanded from 24h)
       const now = new Date();
-      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const expiringMarkets = activeMarkets.filter(m => {
         if(!m.endDate) return false;
         const endDate = new Date(m.endDate);
-        return endDate >= now && endDate <= tomorrow;
+        return endDate >= now && endDate <= weekFromNow;
       });
+
+      // Debug logging
+      console.log(`🔍 Found ${expiringMarkets.length} markets expiring in next 7 days out of ${activeMarkets.length} total active markets`);
+      if(expiringMarkets.length > 0){
+        console.log('First 3 expiring:', expiringMarkets.slice(0, 3).map(m => ({q: m.question, end: m.endDate})));
+      }
+
       // Sort by end date (soonest first)
       expiringMarkets.sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
       top20 = expiringMarkets.slice(0, 20);
@@ -1500,7 +1507,7 @@ async function fetchPolymarketData(){
     if(!listEl) return;
 
     if(top20.length === 0){
-      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 24 hours' : 'No markets available';
+      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 7 days' : 'No markets available';
       listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">${msg}</div>`;
       return;
     }
@@ -1553,7 +1560,7 @@ async function fetchPolymarketData(){
       `;
     }).join('');
 
-    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 24h' : 'most popular';
+    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 7 days' : 'most popular';
     console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
   }catch(e){
     console.error('Polymarket fetch error:', e);
@@ -1599,7 +1606,7 @@ function applySettings(){
     // Update mode label
     const modeLabel = document.getElementById('polymarketModeLabel');
     if(modeLabel){
-      modeLabel.textContent = settings.polymarketMode === 'expiring' ? 'Expiring Today' : 'Most Popular';
+      modeLabel.textContent = settings.polymarketMode === 'expiring' ? 'Expiring Soon' : 'Most Popular';
     }
     // Fetch data if enabled
     if(settings.charts.polymarket) fetchPolymarketData();
