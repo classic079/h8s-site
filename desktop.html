@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v3.5</title>
+<title>BTC Stalker - Multi-Timeframe v3.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -87,10 +87,10 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .buyCol{background:color-mix(in oklab, var(--up) 12%, transparent);border-color:color-mix(in oklab, var(--up) 35%, transparent)}
 .sellCol{background:color-mix(in oklab, var(--down) 12%, transparent);border-color:color-mix(in oklab, var(--down) 35%, transparent)}
 .topList{list-style:none;margin:0;padding:0;font-variant-numeric:tabular-nums}
-.topItem{padding:6px 6px;border-radius:8px;font-size:12px;display:flex;gap:8px;align-items:baseline}
+.topItem{padding:7px 6px;border-radius:8px;font-size:13px;display:flex;gap:8px;align-items:baseline}
 .topItem .usd{font-weight:800;color:#fff;flex:0 0 auto}
 .topItem .btc{color:rgba(233,254,247,.85);flex:0 0 auto}
-.topItem .t{color:rgba(233,254,247,.65);flex:0 0 auto;font-size:11px}
+.topItem .t{color:rgba(233,254,247,.65);flex:0 0 auto;font-size:12px}
 </style>
 </head>
 <body>
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v3.5</span>
+      <span class="pill" style="opacity:.6">v3.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -180,7 +180,7 @@ dash.innerHTML = TF.map(t => `
   </div>` : ''}
   <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
   <div class="topTrades">
-    <div class="topHeader">Top 10 Trades</div>
+    <div class="topHeader">Top Trades</div>
     <div class="topGrid">
       <div class="topCol buyCol">
         <h4>Buys</h4>
@@ -399,11 +399,12 @@ function updateTopTrades(key, liveArr){
     usd: t.price * t.size
   }));
 
-  // Sort by USD value, take top 10
+  // Sort by USD value, show more for 24h/8h to fill space
   buys.sort((a,b) => b.usd - a.usd);
   sells.sort((a,b) => b.usd - a.usd);
-  const top10Buys = buys.slice(0, 10);
-  const top10Sells = sells.slice(0, 10);
+  const limit = (key === '24h' || key === '8h') ? 20 : 10;
+  const top10Buys = buys.slice(0, limit);
+  const top10Sells = sells.slice(0, limit);
 
   // Format time helper
   const formatTime = (ms) => {
