@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v5.4</title>
+<title>BTC Stalker - Multi-Timeframe v5.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v5.4</span>
+      <span class="pill" style="opacity:.6">v5.5</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -910,49 +910,38 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via GoldAPI.io ===== */
+/* ===== Fetch Gold/Silver prices via Alpha Vantage ===== */
 async function fetchMetalPrices(){
-  // Using public goldapi.io demo key - limited rate but works for testing
-  const API_KEY = 'goldapi-2dmkddk1ch1qbvh-io';
+  const API_KEY = 'B5RIF8RIXA2X5BFF';
 
   try{
-    // Fetch both metals from single endpoint
-    const r = await fetch(`https://www.goldapi.io/api/XAU/USD,XAG/USD`, {
-      headers: {
-        'x-access-token': API_KEY,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if(r.ok){
-      const data = await r.json();
-      console.log('Metals response:', data);
-
-      // Gold price
-      if(data.price){
-        goldPrice.textContent = `Gold $${Math.round(data.price)}`;
-      }
-
-      // For silver, we need separate call
-      const rSilver = await fetch(`https://www.goldapi.io/api/XAG/USD`, {
-        headers: {
-          'x-access-token': API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if(rSilver.ok){
-        const dataSilver = await rSilver.json();
-        console.log('Silver response:', dataSilver);
-        if(dataSilver.price){
-          silverPrice.textContent = `Silver $${dataSilver.price.toFixed(2)}`;
+    // Fetch Gold spot price (XAU/USD)
+    const rGold = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${API_KEY}`);
+    if(rGold.ok){
+      const dataGold = await rGold.json();
+      console.log('Gold response:', dataGold);
+      if(dataGold && dataGold['Realtime Currency Exchange Rate']){
+        const rate = parseFloat(dataGold['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+        if(rate && rate > 0){
+          goldPrice.textContent = `Gold $${Math.round(rate)}`;
         }
       }
-    } else {
-      console.log('GoldAPI fetch failed:', r.status);
+    }
+
+    // Fetch Silver spot price (XAG/USD)
+    const rSilver = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAG&to_currency=USD&apikey=${API_KEY}`);
+    if(rSilver.ok){
+      const dataSilver = await rSilver.json();
+      console.log('Silver response:', dataSilver);
+      if(dataSilver && dataSilver['Realtime Currency Exchange Rate']){
+        const rate = parseFloat(dataSilver['Realtime Currency Exchange Rate']['5. Exchange Rate']);
+        if(rate && rate > 0){
+          silverPrice.textContent = `Silver $${rate.toFixed(2)}`;
+        }
+      }
     }
   }catch(e){
-    console.log('GoldAPI error:', e);
+    console.log('Alpha Vantage API error:', e);
     goldPrice.textContent = 'Gold --';
     silverPrice.textContent = 'Silver --';
   }
