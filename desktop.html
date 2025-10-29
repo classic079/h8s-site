@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.2</title>
+<title>BTC Stalker - Multi-Timeframe v7.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -39,6 +39,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;
   border-radius:999px;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.22);
   font-size:15px;white-space:nowrap;color:#fff;opacity:.92}
+[data-theme="light"] .pill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
 .pill.flash{animation:flashy .4s ease-out}
 @keyframes flashy{0%{opacity:.5}60%{opacity:1}100%{opacity:.92}}
 #connPill{position:fixed;left:12px;bottom:12px;z-index:50}
@@ -121,11 +122,13 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .topCol h4{margin:2px 6px 6px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
 .buyCol{background:color-mix(in oklab, var(--up) 12%, transparent);border-color:color-mix(in oklab, var(--up) 35%, transparent)}
 .sellCol{background:color-mix(in oklab, var(--down) 12%, transparent);border-color:color-mix(in oklab, var(--down) 35%, transparent)}
+[data-theme="light"] .buyCol{background:rgba(5,150,105,.08);border-color:rgba(5,150,105,.25)}
+[data-theme="light"] .sellCol{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.25)}
 .topList{list-style:none;margin:0;padding:0;font-variant-numeric:tabular-nums}
 .topItem{padding:7px 6px;border-radius:8px;font-size:13px;display:flex;gap:8px;align-items:baseline}
-.topItem .usd{font-weight:800;color:#fff;flex:0 0 auto}
-.topItem .btc{color:rgba(233,254,247,.85);flex:0 0 auto}
-.topItem .t{color:rgba(233,254,247,.65);flex:0 0 auto;font-size:12px}
+.topItem .usd{font-weight:800;color:var(--text);flex:0 0 auto}
+.topItem .btc{color:var(--muted);flex:0 0 auto}
+.topItem .t{color:var(--muted);flex:0 0 auto;font-size:12px;opacity:.75}
 .topItem.newTrade{animation:blinkTrade var(--blink-duration, 5s) ease-out}
 @keyframes blinkTrade{
   0%{background:rgba(255,255,255,.3);transform:scale(1.06)}
@@ -157,7 +160,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.2</span>
+      <span class="pill" style="opacity:.6">v7.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
