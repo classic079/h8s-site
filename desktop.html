@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.7</title>
+<title>BTC Stalker - Multi-Timeframe v6.8</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -102,6 +102,16 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   70%{background:rgba(255,255,255,.08)}
   100%{background:transparent;transform:scale(1)}
 }
+.volBox.spikeAlert{animation:volSpike 3s ease-out}
+@keyframes volSpike{
+  0%{box-shadow:0 0 30px rgba(255,255,255,.6);transform:scale(1.02)}
+  15%{box-shadow:0 0 20px rgba(255,255,255,.4)}
+  30%{box-shadow:0 0 30px rgba(255,255,255,.6)}
+  45%{box-shadow:0 0 20px rgba(255,255,255,.4)}
+  60%{box-shadow:0 0 30px rgba(255,255,255,.6)}
+  80%{box-shadow:0 0 10px rgba(255,255,255,.2)}
+  100%{box-shadow:none;transform:scale(1)}
+}
 </style>
 </head>
 <body>
@@ -111,7 +121,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.7</span>
+      <span class="pill" style="opacity:.6">v6.8</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -390,7 +400,17 @@ function updateAll(){
     }
 
     drawChart(tf.key, arr); // Use sampled array for price chart
-    drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
+    const spikeDetected = drawVolume(tf.key, volArr, tf); // Use full volume array for volume chart
+
+    // Flash volume box if spike detected (only for 10m)
+    if(tf.key === '10m' && spikeDetected){
+      const volBox = document.querySelector(`#col-${tf.key} .volBox`);
+      if(volBox){
+        volBox.classList.remove('spikeAlert');
+        void volBox.offsetWidth; // Force reflow to restart animation
+        volBox.classList.add('spikeAlert');
+      }
+    }
 
     // Only draw gauge for 1h and 10m (where live data is accurate)
     if(stats && (tf.key === '1h' || tf.key === '10m')){
@@ -599,6 +619,15 @@ function drawVolume(key, arr, tf){
   const sums = bins.map(b => b.buy + b.sell);
   const max = Math.max(1, ...sums);
 
+  // Calculate average volume (excluding current bin and zero bins)
+  const completedSums = sums.slice(0, currentBinIdx).filter(s => s > 0);
+  const avgVol = completedSums.length > 0 ? completedSums.reduce((a,b) => a+b, 0) / completedSums.length : 0;
+
+  // Check if most recent completed bar is a spike (2x average or higher)
+  const mostRecentIdx = currentBinIdx > 0 ? currentBinIdx - 1 : -1;
+  const mostRecentVol = mostRecentIdx >= 0 ? sums[mostRecentIdx] : 0;
+  const isSpike = avgVol > 0 && mostRecentVol >= (avgVol * 2);
+
   const padX = 8, padY = 8;
   const chartH = h - 2*padY;
   const barW = (w - 2*padX) / bins.length * 0.7;
@@ -683,6 +712,9 @@ function drawVolume(key, arr, tf){
       }
     }
   });
+
+  // Return spike detection result
+  return isSpike;
 }
 
 /* ===== Gauge ===== */
