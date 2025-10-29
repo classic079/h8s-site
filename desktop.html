@@ -1445,7 +1445,8 @@ async function fetchPolymarketData(){
 
   try{
     console.log('🎲 Fetching Polymarket data...');
-    const r = await fetch('https://gamma-api.polymarket.com/markets');
+    // Use CORS proxy to avoid CORS errors
+    const r = await fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets');
     console.log('Polymarket response status:', r.status, r.statusText);
     if(!r.ok) {
       console.error('Polymarket API returned error:', r.status);
