@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v9.0</title>
+<title>BTC Stalker - Multi-Timeframe v9.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v9.0</span>
+      <span class="pill" style="opacity:.6">v9.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -921,10 +921,10 @@ function drawVolume(key, arr, tf){
   const completedSums = sums.slice(0, currentBinIdx).filter(s => s > 0);
   const avgVol = completedSums.length > 0 ? completedSums.reduce((a,b) => a+b, 0) / completedSums.length : 0;
 
-  // Check if most recent completed bar is a spike (2x average or higher)
+  // Check if most recent completed bar is a spike (1.5x average or higher)
   const mostRecentIdx = currentBinIdx > 0 ? currentBinIdx - 1 : -1;
   const mostRecentVol = mostRecentIdx >= 0 ? sums[mostRecentIdx] : 0;
-  const isSpike = avgVol > 0 && mostRecentVol >= (avgVol * 2);
+  const isSpike = avgVol > 0 && mostRecentVol >= (avgVol * 1.5);
 
   const padX = 8, padY = 8;
   const chartH = h - 2*padY;
