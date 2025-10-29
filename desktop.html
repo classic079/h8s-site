@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.5</title>
+<title>BTC Stalker - Multi-Timeframe v6.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -125,7 +125,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.5</span>
+      <span class="pill" style="opacity:.6">v6.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -854,28 +854,27 @@ async function fetch24h(){
 
     const open = +j.open;
     const last = +j.last;
-    const high = +j.high;
-    const low = +j.low;
-    const vol = +j.volume;
 
     if(Number.isFinite(open) && Number.isFinite(last)){
       const diff = last - open;
       const pct = open ? (diff/open*100) : 0;
       d24Change.textContent = `24h Δ ${fmtUSDChange.format(diff)} (${pct1.format(pct)}%)`;
-      d24Change.style.color = diff>0 ? 'var(--up)' : (diff<0 ? 'var(--down)' : 'var(--muted)');
-    }
 
-    if(isFinite(high) && isFinite(low)){
-      d24HiLo.textContent = `H/L ${fmtUSD0.format(high)} / ${fmtUSD0.format(low)}`;
+      // Color coding
+      if(diff > 0){
+        d24Change.style.color = 'var(--up)';
+        d24Change.style.borderColor = 'var(--up)';
+      } else if(diff < 0){
+        d24Change.style.color = 'var(--down)';
+        d24Change.style.borderColor = 'var(--down)';
+      } else {
+        d24Change.style.color = '';
+        d24Change.style.borderColor = '';
+      }
     }
-
-    if(Number.isFinite(vol)){
-      d24Vol.textContent = `Vol ${vol.toLocaleString()}`;
-    }
-  }catch{
+  }catch(e){
+    console.log('24h stats error:', e);
     d24Change.textContent = '24h Δ —';
-    d24HiLo.textContent = 'H/L —';
-    d24Vol.textContent = 'Vol —';
   }
 }
 
