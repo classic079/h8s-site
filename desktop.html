@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.0</title>
+<title>BTC Stalker - Multi-Timeframe v8.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -162,7 +162,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.0</span>
+      <span class="pill" style="opacity:.6">v8.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -711,49 +711,70 @@ async function loadTopTradesFromFirebase(){
     if(!data) return;
 
     // Merge Firebase data with live trade windows
-    TF.forEach(tf => {
-      const key = tf.key;
-      if(data[key]){
-        const fbBuys = data[key].buys || [];
-        const fbSells = data[key].sells || [];
-
-        // Get the appropriate live window
-        const liveMap = {
-          '30d': win30dLive, '24h': win24hLive, '12h': win12hLive, '8h': win8hLive,
-          '1h': win1hLive, '10m': win10mLive, '5m': win5mLive, '1m': win1mLive
-        };
-        const liveArr = liveMap[key];
-
-        // Add Firebase trades to live window if not already present
-        fbBuys.forEach(t => {
-          if(!liveArr.find(live => live.time === t.time)){
-            liveArr.push({
-              price: t.price,
-              size: t.size,
-              side: 'buy',
-              time: t.time
-            });
-          }
-        });
-
-        fbSells.forEach(t => {
-          if(!liveArr.find(live => live.time === t.time)){
-            liveArr.push({
-              price: t.price,
-              size: t.size,
-              side: 'sell',
-              time: t.time
-            });
-          }
-        });
-      }
-    });
+    mergeFirebaseTradesWithLive(data);
 
     console.log('✅ Loaded top trades from Firebase');
     updateAll(); // Update display with merged data
   }catch(e){
     console.error('Failed to load from Firebase:', e);
   }
+}
+
+/* ===== Firebase: Setup real-time listeners ===== */
+function setupFirebaseListeners(){
+  // Listen for changes to top trades in real-time
+  db.ref('topTrades').on('value', (snapshot) => {
+    const data = snapshot.val();
+    if(!data) return;
+
+    // Merge updated trades from Firebase
+    mergeFirebaseTradesWithLive(data);
+
+    // Update the display
+    updateAll();
+  });
+
+  console.log('✅ Firebase real-time sync enabled');
+}
+
+/* ===== Helper: Merge Firebase trades with live data ===== */
+function mergeFirebaseTradesWithLive(data){
+  const liveMap = {
+    '30d': win30dLive, '24h': win24hLive, '12h': win12hLive, '8h': win8hLive,
+    '1h': win1hLive, '10m': win10mLive, '5m': win5mLive, '1m': win1mLive
+  };
+
+  TF.forEach(tf => {
+    const key = tf.key;
+    if(data[key]){
+      const fbBuys = data[key].buys || [];
+      const fbSells = data[key].sells || [];
+      const liveArr = liveMap[key];
+
+      // Add Firebase trades to live window if not already present
+      fbBuys.forEach(t => {
+        if(!liveArr.find(live => live.time === t.time)){
+          liveArr.push({
+            price: t.price,
+            size: t.size,
+            side: 'buy',
+            time: t.time
+          });
+        }
+      });
+
+      fbSells.forEach(t => {
+        if(!liveArr.find(live => live.time === t.time)){
+          liveArr.push({
+            price: t.price,
+            size: t.size,
+            side: 'sell',
+            time: t.time
+          });
+        }
+      });
+    }
+  });
 }
 
 /* ===== Chart drawing (simple line) ===== */
@@ -1402,6 +1423,7 @@ function saveSettings(){
 setTimeout(() => {
   loadSettings(); // Load saved settings
   loadTopTradesFromFirebase(); // Load persisted top trades
+  setupFirebaseListeners(); // Enable real-time sync across all users
   fetchHistoricalCandles();
   startWS();
   fetch24h();
