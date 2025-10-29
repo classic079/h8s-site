@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v6.4</title>
+<title>BTC Stalker - Multi-Timeframe v6.5</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -125,7 +125,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v6.4</span>
+      <span class="pill" style="opacity:.6">v6.5</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -597,15 +597,14 @@ function drawVolume(key, arr, tf){
     sell: 0
   }));
 
-  // For 10m chart, lock completed minutes (exclude current incomplete minute)
-  const lockCurrentBin = (key === '10m');
-  const currentBinIdx = lockCurrentBin ? Math.floor((now - start) / tf.binSize) : -1;
+  // Lock all completed time periods (exclude current incomplete bin for all timeframes)
+  const currentBinIdx = Math.floor((now - start) / tf.binSize);
 
   arr.forEach(t => {
     const idx = Math.min(tf.bins-1, Math.max(0, Math.floor((t.time - start) / tf.binSize)));
 
-    // Skip current bin for 10m chart (incomplete minute)
-    if(lockCurrentBin && idx === currentBinIdx) return;
+    // Skip current incomplete bin for all timeframes
+    if(idx === currentBinIdx) return;
 
     if(t.side==='buy') bins[idx].buy += t.size;
     else bins[idx].sell += t.size;
