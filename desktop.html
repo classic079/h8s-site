@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v5.7</title>
+<title>BTC Stalker - Multi-Timeframe v5.8</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v5.7</span>
+      <span class="pill" style="opacity:.6">v5.8</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -910,42 +910,45 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via Finnhub (verified) ===== */
+/* ===== Fetch Gold/Silver prices via Twelve Data ===== */
 async function fetchMetalPrices(){
-  const API_KEY = 'd40m7b9r01qqo3qio430d40m7b9r01qqo3qio43g';
+  const API_KEY = '830bdfca25d44bfe9992c9872d0693f5';
 
   try{
-    // Try forex symbols for metals
-    const rGold = await fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAU_USD&token=${API_KEY}`);
+    // Fetch Gold spot price (XAU/USD)
+    const rGold = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${API_KEY}`);
     if(rGold.ok){
       const dataGold = await rGold.json();
       console.log('Gold response:', dataGold);
-      if(dataGold && dataGold.c && dataGold.c > 0){
-        goldPrice.textContent = `Gold $${Math.round(dataGold.c)}`;
-      } else {
-        console.log('Gold data was 0 or invalid');
+      if(dataGold && dataGold.price){
+        const price = parseFloat(dataGold.price);
+        if(price > 0){
+          goldPrice.textContent = `Gold $${Math.round(price)}`;
+        }
       }
     } else {
       console.log('Gold fetch failed with status:', rGold.status);
     }
 
     // Wait between requests
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    const rSilver = await fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAG_USD&token=${API_KEY}`);
+    // Fetch Silver spot price (XAG/USD)
+    const rSilver = await fetch(`https://api.twelvedata.com/price?symbol=XAG/USD&apikey=${API_KEY}`);
     if(rSilver.ok){
       const dataSilver = await rSilver.json();
       console.log('Silver response:', dataSilver);
-      if(dataSilver && dataSilver.c && dataSilver.c > 0){
-        silverPrice.textContent = `Silver $${dataSilver.c.toFixed(2)}`;
-      } else {
-        console.log('Silver data was 0 or invalid');
+      if(dataSilver && dataSilver.price){
+        const price = parseFloat(dataSilver.price);
+        if(price > 0){
+          silverPrice.textContent = `Silver $${price.toFixed(2)}`;
+        }
       }
     } else {
       console.log('Silver fetch failed with status:', rSilver.status);
     }
   }catch(e){
-    console.log('Finnhub API error:', e);
+    console.log('Twelve Data API error:', e);
     goldPrice.textContent = 'Gold --';
     silverPrice.textContent = 'Silver --';
   }
