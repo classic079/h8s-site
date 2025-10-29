@@ -785,10 +785,16 @@ function mergeFirebaseTradesWithLive(data){
             price: t.price,
             size: t.size,
             side: 'sell',
-            time: t.time
+            time: t.time,
+            usd: t.usd || (t.price * t.size) // Ensure USD is calculated
           });
         }
       });
+
+      // Debug: Show the actual trades being loaded
+      if(key === '30d' || key === '24h'){
+        console.log(`   Sells loaded:`, fbSells.map(t => `${(t.size || 0).toFixed(2)} BTC`).join(', '));
+      }
     }
   });
 }
