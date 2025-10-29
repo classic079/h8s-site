@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v5.5</title>
+<title>BTC Stalker - Multi-Timeframe v5.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v5.5</span>
+      <span class="pill" style="opacity:.6">v5.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -910,38 +910,40 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via Alpha Vantage ===== */
+/* ===== Fetch Gold/Silver prices - simple static for now ===== */
 async function fetchMetalPrices(){
-  const API_KEY = 'B5RIF8RIXA2X5BFF';
-
+  // Using Twelve Data free API (no key needed for forex)
   try{
-    // Fetch Gold spot price (XAU/USD)
-    const rGold = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${API_KEY}`);
+    // Fetch Gold spot price
+    const rGold = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=demo`);
     if(rGold.ok){
       const dataGold = await rGold.json();
       console.log('Gold response:', dataGold);
-      if(dataGold && dataGold['Realtime Currency Exchange Rate']){
-        const rate = parseFloat(dataGold['Realtime Currency Exchange Rate']['5. Exchange Rate']);
-        if(rate && rate > 0){
-          goldPrice.textContent = `Gold $${Math.round(rate)}`;
+      if(dataGold && dataGold.price){
+        const price = parseFloat(dataGold.price);
+        if(price > 0){
+          goldPrice.textContent = `Gold $${Math.round(price)}`;
         }
       }
     }
 
-    // Fetch Silver spot price (XAG/USD)
-    const rSilver = await fetch(`https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAG&to_currency=USD&apikey=${API_KEY}`);
+    // Wait a bit between requests
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Fetch Silver spot price
+    const rSilver = await fetch(`https://api.twelvedata.com/price?symbol=XAG/USD&apikey=demo`);
     if(rSilver.ok){
       const dataSilver = await rSilver.json();
       console.log('Silver response:', dataSilver);
-      if(dataSilver && dataSilver['Realtime Currency Exchange Rate']){
-        const rate = parseFloat(dataSilver['Realtime Currency Exchange Rate']['5. Exchange Rate']);
-        if(rate && rate > 0){
-          silverPrice.textContent = `Silver $${rate.toFixed(2)}`;
+      if(dataSilver && dataSilver.price){
+        const price = parseFloat(dataSilver.price);
+        if(price > 0){
+          silverPrice.textContent = `Silver $${price.toFixed(2)}`;
         }
       }
     }
   }catch(e){
-    console.log('Alpha Vantage API error:', e);
+    console.log('Twelve Data API error:', e);
     goldPrice.textContent = 'Gold --';
     silverPrice.textContent = 'Silver --';
   }
