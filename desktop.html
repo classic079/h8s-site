@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v11.3</title>
+<title>BTC Stalker - Multi-Timeframe v11.4</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v11.3</span>
+      <span class="pill" style="opacity:.6">v11.4</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1483,15 +1483,26 @@ async function fetchPolymarketData(){
 
       // Try multiple ways to extract price/probability
       let price = 0.5; // default to 50%
-      if(m.outcomePrices && Array.isArray(m.outcomePrices) && m.outcomePrices.length > 0){
-        price = parseFloat(m.outcomePrices[0]);
-      } else if(m.outcomes && Array.isArray(m.outcomes) && m.outcomes.length > 0 && m.outcomes[0].price){
-        price = parseFloat(m.outcomes[0].price);
-      } else if(typeof m.price === 'number'){
-        price = m.price;
+
+      // Try outcomePrices (can be array or JSON string)
+      if(m.outcomePrices){
+        let prices = m.outcomePrices;
+        // If it's a string, parse it as JSON
+        if(typeof prices === 'string'){
+          try{ prices = JSON.parse(prices); }catch(e){}
+        }
+        // Now extract first price
+        if(Array.isArray(prices) && prices.length > 0){
+          price = parseFloat(prices[0]);
+        }
       }
 
-      // Ensure price is valid
+      // Fallback to lastTradePrice if outcomePrices failed
+      if((isNaN(price) || price < 0 || price > 1) && m.lastTradePrice){
+        price = parseFloat(m.lastTradePrice);
+      }
+
+      // Ensure price is valid, default to 50% if not
       if(isNaN(price) || price < 0 || price > 1){
         price = 0.5;
       }
