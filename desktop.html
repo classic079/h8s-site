@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v8.6</title>
+<title>BTC Stalker - Multi-Timeframe v8.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -165,7 +165,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v8.6</span>
+      <span class="pill" style="opacity:.6">v8.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -594,8 +594,6 @@ const prevTopTrades = {
   '5m': {buys: [], sells: []},
   '1m': {buys: [], sells: []}
 };
-let startTime = Date.now();
-const BLINK_DELAY = 300000; // 5 minutes in milliseconds
 
 /* ===== Update top trades ===== */
 function updateTopTrades(key, liveArr){
@@ -632,8 +630,8 @@ function updateTopTrades(key, liveArr){
     return d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true}).toLowerCase();
   };
 
-  // Check if we're past the initial 5 minute delay and alerts are enabled
-  const enableBlink = settings.alerts.tradeBlink && (Date.now() - startTime) >= BLINK_DELAY;
+  // Check if alerts are enabled (no delay needed with Firebase persistence)
+  const enableBlink = settings.alerts.tradeBlink;
 
   // Update buy list
   const buyList = document.getElementById(`topBuys-${key}`);
