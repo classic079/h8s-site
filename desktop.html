@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v4.6</title>
+<title>BTC Stalker - Multi-Timeframe v5.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -910,37 +910,33 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via Yahoo Finance ===== */
+/* ===== Fetch Gold/Silver prices via Finnhub ===== */
 async function fetchMetalPrices(){
+  const API_KEY = 'd40m7b9r01qqo3qio43g';
+
   try{
-    // Yahoo Finance query API (unofficial but working)
-    // GC=F = Gold Futures, SI=F = Silver Futures
-    const symbols = 'GC=F,SI=F';
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+    // Fetch Gold (using gold futures or spot - XAU/USD)
+    const rGold = await fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAU_USD&token=${API_KEY}`);
+    if(rGold.ok){
+      const dataGold = await rGold.json();
+      console.log('Gold response:', dataGold);
+      if(dataGold && dataGold.c){
+        // c = current price
+        goldPrice.textContent = `Gold $${Math.round(dataGold.c)}`;
+      }
+    }
 
-    const r = await fetch(url);
-    if(r.ok){
-      const data = await r.json();
-      console.log('Yahoo Finance response:', data);
-
-      if(data.quoteResponse && data.quoteResponse.result){
-        const results = data.quoteResponse.result;
-
-        // Find gold (GC=F)
-        const gold = results.find(q => q.symbol === 'GC=F');
-        if(gold && gold.regularMarketPrice){
-          goldPrice.textContent = `Gold $${Math.round(gold.regularMarketPrice)}`;
-        }
-
-        // Find silver (SI=F)
-        const silver = results.find(q => q.symbol === 'SI=F');
-        if(silver && silver.regularMarketPrice){
-          silverPrice.textContent = `Silver $${silver.regularMarketPrice.toFixed(2)}`;
-        }
+    // Fetch Silver (using silver spot - XAG/USD)
+    const rSilver = await fetch(`https://finnhub.io/api/v1/quote?symbol=OANDA:XAG_USD&token=${API_KEY}`);
+    if(rSilver.ok){
+      const dataSilver = await rSilver.json();
+      console.log('Silver response:', dataSilver);
+      if(dataSilver && dataSilver.c){
+        silverPrice.textContent = `Silver $${dataSilver.c.toFixed(2)}`;
       }
     }
   }catch(e){
-    console.log('Yahoo Finance API error:', e);
+    console.log('Finnhub API error:', e);
     goldPrice.textContent = 'Gold --';
     silverPrice.textContent = 'Silver --';
   }
