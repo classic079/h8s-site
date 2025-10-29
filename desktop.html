@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v7.5</title>
+<title>BTC Stalker - Multi-Timeframe v7.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -160,7 +160,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v7.5</span>
+      <span class="pill" style="opacity:.6">v7.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -312,7 +312,7 @@ dash.innerHTML = TF.map(t => `
     </div>
   </div>
   <div class="chartBox"><canvas id="chart-${t.key}"></canvas></div>
-  ${(t.key==='1h' || t.key==='10m') ? `<div class="gaugeRow">
+  ${(t.key==='1h' || t.key==='10m' || t.key==='5m' || t.key==='1m') ? `<div class="gaugeRow">
     <span class="gLabel buy">Buys</span>
     <div class="gaugeWrap">
       <canvas id="biasGauge-${t.key}"></canvas>
@@ -525,8 +525,8 @@ function updateAll(){
       document.getElementById(`vol-${tf.key}`).textContent = `Vol ₿${fmtBTC.format(stats.buyVol + stats.sellVol)}`;
       document.getElementById(`hl-${tf.key}`).textContent = `H/L ${fmtUSD0.format(stats.hi)} / ${fmtUSD0.format(stats.lo)}`;
 
-      // Update metric pills (only for 1h and 10m)
-      if(tf.key === '1h' || tf.key === '10m'){
+      // Update metric pills (for 1h, 10m, 5m, 1m)
+      if(tf.key === '1h' || tf.key === '10m' || tf.key === '5m' || tf.key === '1m'){
         document.getElementById(`tpm-${tf.key}`).textContent = `T/m ${stats.tradesPerMin.toFixed(1)}`;
         document.getElementById(`vwap-${tf.key}`).textContent = `VWAP ${fmtUSD0.format(stats.vwap)}`;
 
@@ -554,8 +554,8 @@ function updateAll(){
       }
     }
 
-    // Only draw gauge for 1h and 10m (where live data is accurate)
-    if(stats && (tf.key === '1h' || tf.key === '10m')){
+    // Draw gauge for 1h, 10m, 5m, 1m (where live data is accurate)
+    if(stats && (tf.key === '1h' || tf.key === '10m' || tf.key === '5m' || tf.key === '1m')){
       drawGauge(tf.key, stats.buyVol, stats.sellVol);
     }
 
@@ -1087,67 +1087,67 @@ const iso = ms => new Date(ms).toISOString();
 
 async function fetchHistoricalCandles(){
   try{
-    // Fetch 1h of 1-min candles for 1h and 10m windows
     const end = Date.now();
-    const start1h = end - 3600000;
-    const url1h = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${encodeURIComponent(iso(start1h))}&end=${encodeURIComponent(iso(end))}`;
 
-    const r1h = await fetch(url1h, {headers: {Accept:'application/json'}});
-    if(r1h.ok){
-      const candles = await r1h.json();
-      // Candles format: [timestamp, low, high, open, close, volume]
-      // Sort oldest first
+    // Fetch 30d of 6-hour candles for 30d window
+    const start30d = end - 2592000000;
+    const url30d = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=21600&start=${encodeURIComponent(iso(start30d))}&end=${encodeURIComponent(iso(end))}`;
+    const r30d = await fetch(url30d, {headers: {Accept:'application/json'}});
+    if(r30d.ok){
+      const candles = await r30d.json();
       candles.sort((a,b) => a[0] - b[0]);
-
       candles.forEach(c => {
-        const vol = +c[5]; // actual volume from candle
+        const vol = +c[5];
         const buyTrade = {price: +c[4], size: vol * 0.5, side: 'buy', time: c[0] * 1000};
         const sellTrade = {price: +c[4], size: vol * 0.5, side: 'sell', time: c[0] * 1000};
-
-        // Add to price arrays (sampled)
-        win1h.push(buyTrade);
-        win1h.push(sellTrade);
-        win10m.push(buyTrade);
-        win10m.push(sellTrade);
-
-        // Add to volume arrays (for accurate volume tracking)
-        win1hVol.push(buyTrade);
-        win1hVol.push(sellTrade);
-        win10mVol.push(buyTrade);
-        win10mVol.push(sellTrade);
+        win30d.push(buyTrade); win30d.push(sellTrade);
+        win30dVol.push(buyTrade); win30dVol.push(sellTrade);
       });
-
-      console.log('✅ Loaded', candles.length, '1h candles');
+      console.log('✅ Loaded', candles.length, '30d candles');
     }
 
-    // Fetch 24h of 5-min candles for 24h and 8h windows
+    // Fetch 24h of 5-min candles for 24h, 12h, and 8h windows
     const start24h = end - 86400000;
     const url24h = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=300&start=${encodeURIComponent(iso(start24h))}&end=${encodeURIComponent(iso(end))}`;
-
     const r24h = await fetch(url24h, {headers: {Accept:'application/json'}});
     if(r24h.ok){
       const candles = await r24h.json();
       candles.sort((a,b) => a[0] - b[0]);
-
       candles.forEach(c => {
-        const vol = +c[5]; // actual volume from candle
+        const vol = +c[5];
         const buyTrade = {price: +c[4], size: vol * 0.5, side: 'buy', time: c[0] * 1000};
         const sellTrade = {price: +c[4], size: vol * 0.5, side: 'sell', time: c[0] * 1000};
-
-        // Add to price arrays (sampled)
-        win24h.push(buyTrade);
-        win24h.push(sellTrade);
-        win8h.push(buyTrade);
-        win8h.push(sellTrade);
-
-        // Add to volume arrays (for accurate volume tracking)
-        win24hVol.push(buyTrade);
-        win24hVol.push(sellTrade);
-        win8hVol.push(buyTrade);
-        win8hVol.push(sellTrade);
+        win24h.push(buyTrade); win24h.push(sellTrade);
+        win12h.push(buyTrade); win12h.push(sellTrade);
+        win8h.push(buyTrade); win8h.push(sellTrade);
+        win24hVol.push(buyTrade); win24hVol.push(sellTrade);
+        win12hVol.push(buyTrade); win12hVol.push(sellTrade);
+        win8hVol.push(buyTrade); win8hVol.push(sellTrade);
       });
-
       console.log('✅ Loaded', candles.length, '24h candles');
+    }
+
+    // Fetch 1h of 1-min candles for 1h, 10m, 5m, and 1m windows
+    const start1h = end - 3600000;
+    const url1h = `https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=60&start=${encodeURIComponent(iso(start1h))}&end=${encodeURIComponent(iso(end))}`;
+    const r1h = await fetch(url1h, {headers: {Accept:'application/json'}});
+    if(r1h.ok){
+      const candles = await r1h.json();
+      candles.sort((a,b) => a[0] - b[0]);
+      candles.forEach(c => {
+        const vol = +c[5];
+        const buyTrade = {price: +c[4], size: vol * 0.5, side: 'buy', time: c[0] * 1000};
+        const sellTrade = {price: +c[4], size: vol * 0.5, side: 'sell', time: c[0] * 1000};
+        win1h.push(buyTrade); win1h.push(sellTrade);
+        win10m.push(buyTrade); win10m.push(sellTrade);
+        win5m.push(buyTrade); win5m.push(sellTrade);
+        win1m.push(buyTrade); win1m.push(sellTrade);
+        win1hVol.push(buyTrade); win1hVol.push(sellTrade);
+        win10mVol.push(buyTrade); win10mVol.push(sellTrade);
+        win5mVol.push(buyTrade); win5mVol.push(sellTrade);
+        win1mVol.push(buyTrade); win1mVol.push(sellTrade);
+      });
+      console.log('✅ Loaded', candles.length, '1h candles');
     }
 
     // Prune and update all charts
