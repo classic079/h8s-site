@@ -691,13 +691,9 @@ function updateTopTrades(key, liveArr){
   // Save top trades to Firebase ONLY if the list changed (async, non-blocking)
   // Only persist 1h and longer timeframes (skip 10m, 5m, 1m - too volatile/resource intensive)
   // Don't save if we're currently loading from Firebase (prevents infinite loop)
-  // Save 14 trades (1 extra as buffer) to ensure all 13 display rows populate correctly on load
   if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h') && !isLoadingFromFirebase && (buysChanged || sellsChanged)){
-    const saveLimit = (key === '30d' || key === '24h' || key === '12h' || key === '8h') ? 14 : 10;
-    const buysToSave = buys.slice(0, saveLimit);
-    const sellsToSave = sells.slice(0, saveLimit);
-    console.log(`💾 Saving ${key}: ${buysToSave.length} buys, ${sellsToSave.length} sells to Firebase (list changed)`);
-    saveTopTradesToFirebase(key, buysToSave, sellsToSave);
+    console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
+    saveTopTradesToFirebase(key, top10Buys, top10Sells);
   }
 }
 
@@ -729,17 +725,26 @@ function saveTopTradesToFirebase(key, buys, sells){
 /* ===== Firebase: Load top trades on startup ===== */
 async function loadTopTradesFromFirebase(){
   try{
+    isLoadingFromFirebase = true; // Prevent saving during initial load
+
     const snapshot = await db.ref('topTrades').once('value');
     const data = snapshot.val();
-    if(!data) return;
+    if(!data) {
+      isLoadingFromFirebase = false;
+      return;
+    }
 
     // Merge Firebase data with live trade windows
     mergeFirebaseTradesWithLive(data);
 
     console.log('✅ Loaded top trades from Firebase');
     // Don't call updateAll() here - let normal flow handle it after historical data loads
+
+    // Keep flag true until after first updateAll() runs (after historical data loads)
+    // Will be set to false after historical candles finish loading
   }catch(e){
     console.error('Failed to load from Firebase:', e);
+    isLoadingFromFirebase = false;
   }
 }
 
@@ -1321,8 +1326,13 @@ async function fetchHistoricalCandles(){
     prune();
     updateAll();
 
+    // Now that initial load is complete, allow Firebase saves
+    isLoadingFromFirebase = false;
+    console.log('🔓 Initial load complete, Firebase saves enabled');
+
   }catch(e){
     console.error('Failed to load historical data:', e);
+    isLoadingFromFirebase = false;
   }
 }
 
