@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v3.0</title>
+<title>BTC Stalker - Multi-Timeframe v3.1</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -77,6 +77,18 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .metricPills{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:8px 0}
 .metricPill{font-size:11px;padding:3px 8px;border-radius:999px;
   border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.5);color:#cbd5e1;white-space:nowrap}
+
+/* Top trades */
+.topTrades{margin-top:10px;padding:8px;background:rgba(0,0,0,.2);border-radius:8px}
+.topHeader{font-size:11px;font-weight:700;margin-bottom:6px;opacity:.9;text-align:center}
+.topGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.topCol{padding:4px;border-radius:6px}
+.topCol.buyCol{background:rgba(45,212,191,.08);border:1px solid rgba(45,212,191,.2)}
+.topCol.sellCol{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2)}
+.topColTitle{font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:4px;text-align:center}
+.topList{list-style:none;margin:0;padding:0;font-size:10px}
+.topItem{padding:3px 4px;border-radius:4px;margin-bottom:2px;font-variant-numeric:tabular-nums}
+.topItem.buy{color:var(--up)}.topItem.sell{color:var(--down)}
 </style>
 </head>
 <body>
@@ -86,7 +98,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v3.0</span>
+      <span class="pill" style="opacity:.6">v3.1</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -165,6 +177,19 @@ dash.innerHTML = TF.map(t => `
     <span class="metricPill" id="vwap-${t.key}">VWAP —</span>
   </div>` : ''}
   <div class="volBox"><canvas id="volChart-${t.key}"></canvas></div>
+  <div class="topTrades">
+    <div class="topHeader">Top 10 Trades</div>
+    <div class="topGrid">
+      <div class="topCol buyCol">
+        <div class="topColTitle">Buys</div>
+        <ul class="topList" id="topBuys-${t.key}"></ul>
+      </div>
+      <div class="topCol sellCol">
+        <div class="topColTitle">Sells</div>
+        <ul class="topList" id="topSells-${t.key}"></ul>
+      </div>
+    </div>
+  </div>
 </div>
 `).join('');
 
@@ -352,7 +377,47 @@ function updateAll(){
     if(stats && (tf.key === '1h' || tf.key === '10m')){
       drawGauge(tf.key, stats.buyVol, stats.sellVol);
     }
+
+    // Update top trades list
+    updateTopTrades(tf.key, liveArr);
   });
+}
+
+/* ===== Update top trades ===== */
+function updateTopTrades(key, liveArr){
+  if(!liveArr || liveArr.length === 0) return;
+
+  // Separate buys and sells, calculate USD value
+  const buys = liveArr.filter(t => t.side === 'buy').map(t => ({
+    ...t,
+    usd: t.price * t.size
+  }));
+  const sells = liveArr.filter(t => t.side === 'sell').map(t => ({
+    ...t,
+    usd: t.price * t.size
+  }));
+
+  // Sort by USD value, take top 10
+  buys.sort((a,b) => b.usd - a.usd);
+  sells.sort((a,b) => b.usd - a.usd);
+  const top10Buys = buys.slice(0, 10);
+  const top10Sells = sells.slice(0, 10);
+
+  // Update buy list
+  const buyList = document.getElementById(`topBuys-${key}`);
+  if(buyList){
+    buyList.innerHTML = top10Buys.length > 0
+      ? top10Buys.map(t => `<li class="topItem buy">${fmtUSD0.format(t.usd)} • ₿${fmtBTC.format(t.size)}</li>`).join('')
+      : '<li class="topItem" style="opacity:.5">No buys yet</li>';
+  }
+
+  // Update sell list
+  const sellList = document.getElementById(`topSells-${key}`);
+  if(sellList){
+    sellList.innerHTML = top10Sells.length > 0
+      ? top10Sells.map(t => `<li class="topItem sell">${fmtUSD0.format(t.usd)} • ₿${fmtBTC.format(t.size)}</li>`).join('')
+      : '<li class="topItem" style="opacity:.5">No sells yet</li>';
+  }
 }
 
 /* ===== Chart drawing (simple line) ===== */
