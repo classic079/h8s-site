@@ -679,6 +679,7 @@ function updateTopTrades(key, liveArr){
   // Only persist 1h and longer timeframes (skip 10m, 5m, 1m - too volatile/resource intensive)
   // Don't save if we're currently loading from Firebase (prevents infinite loop)
   if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h') && !isLoadingFromFirebase){
+    console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase`);
     saveTopTradesToFirebase(key, top10Buys, top10Sells);
   }
 }
@@ -763,6 +764,8 @@ function mergeFirebaseTradesWithLive(data){
       const fbBuys = data[key].buys || [];
       const fbSells = data[key].sells || [];
       const liveArr = liveMap[key];
+
+      console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from Firebase`);
 
       // Add Firebase trades to live window if not already present
       fbBuys.forEach(t => {
