@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v5.8</title>
+<title>BTC Stalker - Multi-Timeframe v6.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v5.8</span>
+      <span class="pill" style="opacity:.6">v6.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -108,7 +108,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     </div>
     <div class="headerRight">
       <span id="goldPrice" class="pill">Gold —</span>
-      <span id="silverPrice" class="pill">Silver —</span>
+      <span id="ethPrice" class="pill">ETH —</span>
+      <span id="xrpPrice" class="pill">XRP —</span>
+      <span id="adaPrice" class="pill">ADA —</span>
       <span id="liveClock" class="pill">--:--:--</span>
     </div>
   </header>
@@ -130,7 +132,9 @@ const priceEl = document.getElementById('livePrice');
 const connPill = document.getElementById('connPill');
 const d24Change = document.getElementById('d24Change');
 const goldPrice = document.getElementById('goldPrice');
-const silverPrice = document.getElementById('silverPrice');
+const ethPrice = document.getElementById('ethPrice');
+const xrpPrice = document.getElementById('xrpPrice');
+const adaPrice = document.getElementById('adaPrice');
 const liveClock = document.getElementById('liveClock');
 
 /* ===== Formatters ===== */
@@ -910,7 +914,7 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
-/* ===== Fetch Gold/Silver prices via Twelve Data ===== */
+/* ===== Fetch Gold and crypto prices ===== */
 async function fetchMetalPrices(){
   const API_KEY = '830bdfca25d44bfe9992c9872d0693f5';
 
@@ -919,38 +923,42 @@ async function fetchMetalPrices(){
     const rGold = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${API_KEY}`);
     if(rGold.ok){
       const dataGold = await rGold.json();
-      console.log('Gold response:', dataGold);
       if(dataGold && dataGold.price){
         const price = parseFloat(dataGold.price);
         if(price > 0){
           goldPrice.textContent = `Gold $${Math.round(price)}`;
         }
       }
-    } else {
-      console.log('Gold fetch failed with status:', rGold.status);
     }
 
-    // Wait between requests
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Use Coinbase API for crypto prices (no key needed)
+    const cryptos = [
+      {id: 'ETH-USD', el: ethPrice, label: 'ETH', decimals: 0},
+      {id: 'XRP-USD', el: xrpPrice, label: 'XRP', decimals: 3},
+      {id: 'ADA-USD', el: adaPrice, label: 'ADA', decimals: 3}
+    ];
 
-    // Fetch Silver spot price (XAG/USD)
-    const rSilver = await fetch(`https://api.twelvedata.com/price?symbol=XAG/USD&apikey=${API_KEY}`);
-    if(rSilver.ok){
-      const dataSilver = await rSilver.json();
-      console.log('Silver response:', dataSilver);
-      if(dataSilver && dataSilver.price){
-        const price = parseFloat(dataSilver.price);
-        if(price > 0){
-          silverPrice.textContent = `Silver $${price.toFixed(2)}`;
+    for(const crypto of cryptos){
+      try{
+        const r = await fetch(`https://api.exchange.coinbase.com/products/${crypto.id}/ticker`, {
+          headers: {Accept: 'application/json'}
+        });
+        if(r.ok){
+          const data = await r.json();
+          if(data && data.price){
+            const price = parseFloat(data.price);
+            if(price > 0){
+              crypto.el.textContent = `${crypto.label} $${price.toFixed(crypto.decimals)}`;
+            }
+          }
         }
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }catch(e){
+        console.log(`${crypto.label} fetch error:`, e);
       }
-    } else {
-      console.log('Silver fetch failed with status:', rSilver.status);
     }
   }catch(e){
-    console.log('Twelve Data API error:', e);
-    goldPrice.textContent = 'Gold --';
-    silverPrice.textContent = 'Silver --';
+    console.log('Price fetch error:', e);
   }
 }
 
