@@ -618,10 +618,16 @@ function updateTopTrades(key, liveArr){
   const prevBuyTimes = new Set(prevBuys);
   const prevSellTimes = new Set(prevSells);
 
-  // Format time helper
+  // Format time helper - smart format based on timeframe
   const formatTime = (ms) => {
     const d = new Date(ms);
-    return d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true}).toLowerCase();
+    if(key === '30d'){
+      // For 30-day chart, show compact date: "Jan 29"
+      return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    } else {
+      // For shorter timeframes, show time: "2:30pm"
+      return d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true}).toLowerCase();
+    }
   };
 
   // Check if alerts are enabled (no delay needed with Firebase persistence)
