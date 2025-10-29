@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v3.8</title>
+<title>BTC Stalker - Multi-Timeframe v3.9</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -100,15 +100,16 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <header>
     <div class="headerLeft">
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v3.8</span>
+      <span class="pill" style="opacity:.6">v3.9</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
       <div id="livePrice">$—</div>
     </div>
     <div class="headerRight">
-      <span id="d24HiLo" class="pill">H/L —</span>
-      <span id="d24Vol" class="pill">Vol —</span>
+      <span id="goldPrice" class="pill">Gold —</span>
+      <span id="silverPrice" class="pill">Silver —</span>
+      <span id="liveClock" class="pill">--:--:--</span>
     </div>
   </header>
 
@@ -128,8 +129,9 @@ const TF = [
 const priceEl = document.getElementById('livePrice');
 const connPill = document.getElementById('connPill');
 const d24Change = document.getElementById('d24Change');
-const d24HiLo = document.getElementById('d24HiLo');
-const d24Vol = document.getElementById('d24Vol');
+const goldPrice = document.getElementById('goldPrice');
+const silverPrice = document.getElementById('silverPrice');
+const liveClock = document.getElementById('liveClock');
 
 /* ===== Formatters ===== */
 const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
@@ -402,7 +404,7 @@ function updateTopTrades(key, liveArr){
   // Sort by USD value, show more for 24h/8h to fill space
   buys.sort((a,b) => b.usd - a.usd);
   sells.sort((a,b) => b.usd - a.usd);
-  const limit = (key === '24h' || key === '8h') ? 12 : 10;
+  const limit = (key === '24h' || key === '8h') ? 13 : 10;
   const top10Buys = buys.slice(0, limit);
   const top10Sells = sells.slice(0, limit);
 
@@ -902,14 +904,43 @@ async function fetchHistoricalCandles(){
   }
 }
 
+/* ===== Clock ===== */
+function updateClock(){
+  const now = new Date();
+  liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
+}
+
+/* ===== Fetch Gold/Silver prices ===== */
+async function fetchMetalPrices(){
+  try{
+    // Using metals-api.com or similar free API
+    const r = await fetch('https://api.metals.live/v1/spot');
+    if(r.ok){
+      const data = await r.json();
+      if(data.gold){
+        goldPrice.textContent = `Gold $${data.gold.toFixed(0)}`;
+      }
+      if(data.silver){
+        silverPrice.textContent = `Silver $${data.silver.toFixed(2)}`;
+      }
+    }
+  }catch(e){
+    console.log('Metal prices unavailable:', e);
+  }
+}
+
 /* ===== Start ===== */
 // Wait for DOM to be fully ready before drawing
 setTimeout(() => {
   fetchHistoricalCandles();
   startWS();
   fetch24h();
+  fetchMetalPrices();
+  updateClock();
   setInterval(restFallback, 1200);
   setInterval(fetch24h, 60000);
+  setInterval(fetchMetalPrices, 300000); // Update every 5 minutes
+  setInterval(updateClock, 1000); // Update every second
 }, 100);
 </script>
 </body>
