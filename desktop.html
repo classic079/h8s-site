@@ -691,9 +691,13 @@ function updateTopTrades(key, liveArr){
   // Save top trades to Firebase ONLY if the list changed (async, non-blocking)
   // Only persist 1h and longer timeframes (skip 10m, 5m, 1m - too volatile/resource intensive)
   // Don't save if we're currently loading from Firebase (prevents infinite loop)
+  // Save 14 trades (1 extra as buffer) to ensure all 13 display rows populate correctly on load
   if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h') && !isLoadingFromFirebase && (buysChanged || sellsChanged)){
-    console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
-    saveTopTradesToFirebase(key, top10Buys, top10Sells);
+    const saveLimit = (key === '30d' || key === '24h' || key === '12h' || key === '8h') ? 14 : 10;
+    const buysToSave = buys.slice(0, saveLimit);
+    const sellsToSave = sells.slice(0, saveLimit);
+    console.log(`💾 Saving ${key}: ${buysToSave.length} buys, ${sellsToSave.length} sells to Firebase (list changed)`);
+    saveTopTradesToFirebase(key, buysToSave, sellsToSave);
   }
 }
 
