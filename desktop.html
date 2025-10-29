@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v11.6</title>
+<title>BTC Stalker - Multi-Timeframe v11.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v11.6</span>
+      <span class="pill" style="opacity:.6">v11.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -244,7 +244,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <span id="polymarketModePopularCheck"></span>
       </div>
       <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('expiring')">
-        <span>⏰ Expiring Soon (Next 7 Days)</span>
+        <span>⏰ Expiring Soon (Next 30 Days)</span>
         <span id="polymarketModeExpiringCheck"></span>
       </div>
     </div>
@@ -1478,17 +1478,17 @@ async function fetchPolymarketData(){
 
     let top20;
     if(settings.polymarketMode === 'expiring'){
-      // Filter for markets expiring in next 7 days (expanded from 24h)
+      // Filter for markets expiring in next 30 days
       const now = new Date();
-      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const monthFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const expiringMarkets = activeMarkets.filter(m => {
         if(!m.endDate) return false;
         const endDate = new Date(m.endDate);
-        return endDate >= now && endDate <= weekFromNow;
+        return endDate >= now && endDate <= monthFromNow;
       });
 
       // Debug logging
-      console.log(`🔍 Found ${expiringMarkets.length} markets expiring in next 7 days out of ${activeMarkets.length} total active markets`);
+      console.log(`🔍 Found ${expiringMarkets.length} markets expiring in next 30 days out of ${activeMarkets.length} total active markets`);
       if(expiringMarkets.length > 0){
         console.log('First 3 expiring:', expiringMarkets.slice(0, 3).map(m => ({q: m.question, end: m.endDate})));
       }
@@ -1507,7 +1507,7 @@ async function fetchPolymarketData(){
     if(!listEl) return;
 
     if(top20.length === 0){
-      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 7 days' : 'No markets available';
+      const msg = settings.polymarketMode === 'expiring' ? 'No markets expiring in next 30 days' : 'No markets available';
       listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">${msg}</div>`;
       return;
     }
@@ -1560,7 +1560,7 @@ async function fetchPolymarketData(){
       `;
     }).join('');
 
-    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 7 days' : 'most popular';
+    const modeText = settings.polymarketMode === 'expiring' ? 'expiring in 30 days' : 'most popular';
     console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
   }catch(e){
     console.error('Polymarket fetch error:', e);
