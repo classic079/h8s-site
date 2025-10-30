@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.15
+**Current Version:** v13.16
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,11 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.15 (Current)
+### v13.16 (Current)
+- **Removed [No Title] filter** - Disabled filtering to allow all Trump Truth posts through (including re-truths)
+- **Added development workflow documentation** - Created comprehensive version bump process in README
+
+### v13.15
 - **Refreshed Trump Truth feed integration** - Removed and re-added to resolve potential caching issues
 - **Enhanced news debugging** - Added detailed logging to track Trump Truth filter behavior
 - **Removed CNN feed** - Streamlined news sources
@@ -233,6 +237,40 @@ git add .
 git commit -m "Description of changes"
 git push origin main
 ```
+
+---
+
+## Development Workflow
+
+### Version Bump Process
+
+**IMPORTANT:** After EVERY change to index.html, follow this process:
+
+1. **Update version number** in TWO places:
+   - Line 6: `<title>BTC Stalker - Multi-Timeframe vX.XX</title>`
+   - Line 162: `<span class="pill" style="opacity:.6">vX.XX</span>`
+
+2. **Update README.md**:
+   - Line 5: `**Current Version:** vX.XX`
+   - Add entry to "Recent Changes" section with bullet points of what changed
+
+3. **Commit with descriptive message**:
+   ```bash
+   git add index.html README.md
+   git commit -m "Descriptive message of changes"
+   git push origin main
+   ```
+
+### Version Numbering
+- **Major changes** (new features, major UI changes): Increment first decimal (13.x → 14.0)
+- **Minor changes** (bug fixes, small tweaks, config changes): Increment second decimal (13.15 → 13.16)
+
+### Claude Code Instructions
+When working with Claude Code, remind at start of session:
+> "Please update version numbers in index.html (title + UI pill) and commit after every change"
+
+Or add to each request:
+> "Update version and commit when done"
 
 ---
 
