@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.30</title>
+<title>BTC Stalker - Multi-Timeframe v13.31</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.30</span>
+      <span class="pill" style="opacity:.6">v13.31</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1594,8 +1594,8 @@ async function fetchNewsData(){
     let trumpAddedCount = 0;
     responses.forEach(feed => {
       feed.items.forEach(item => {
-        // Accept all items with titles (removed [No Title] filter for Trump Truth debugging)
-        if(item.title){
+        // Skip items with [No Title] (re-truths/shares) and items without titles
+        if(item.title && !item.title.trim().startsWith('[No Title]')){
           // Use current time if no pubDate provided (fallback for broken feeds)
           let dateToUse = item.pubDate || new Date().toISOString();
 
