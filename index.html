@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.18</title>
+<title>BTC Stalker - Multi-Timeframe v13.19</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.18</span>
+      <span class="pill" style="opacity:.6">v13.19</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -370,7 +370,7 @@ dash.innerHTML += `
       <span class="statPill" id="newsUpdateTime">Loading...</span>
     </div>
   </div>
-  <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;height:340px;overflow:hidden">
+  <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;height:620px;overflow:hidden">
     <div id="newsList"></div>
   </div>
 </div>
@@ -1549,10 +1549,10 @@ async function fetchNewsData(){
 
     console.log(`📊 Total valid articles after filtering: ${allNews.length}`);
 
-    // Show top 15 most recent articles
-    const newsToShow = allNews.slice(0, 15);
+    // Show top 10 most recent articles
+    const newsToShow = allNews.slice(0, 10);
 
-    console.log(`\n🎯 TOP 15 ARTICLES TO DISPLAY:`);
+    console.log(`\n🎯 TOP 10 ARTICLES TO DISPLAY:`);
     newsToShow.forEach((item, idx) => {
       console.log(`  ${idx+1}. [${item.source}] ${item.title.substring(0, 60)} | ${item.pubDate.toISOString()}`);
     });
