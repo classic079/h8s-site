@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.12</title>
+<title>BTC Stalker - Multi-Timeframe v13.13</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.12</span>
+      <span class="pill" style="opacity:.6">v13.13</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1479,9 +1479,10 @@ async function fetchNewsData(){
       if(feed.items.length > 0){
         console.log(`\n📰 ${feed.name} (${feed.items.length} items):`);
         feed.items.forEach((item, idx) => {
-          if(!item.title?.trim().startsWith('[No Title]')){
-            console.log(`  ${idx+1}. ${item.title?.substring(0, 80)} | ${item.pubDate}`);
-          }
+          const isNoTitle = item.title?.trim().startsWith('[No Title]');
+          const titleDisplay = item.title?.substring(0, 80) || 'NO TITLE';
+          const dateDisplay = item.pubDate || 'NO DATE';
+          console.log(`  ${idx+1}. ${titleDisplay} | ${dateDisplay}${isNoTitle ? ' [FILTERED]' : ''}`);
         });
       }
     });
@@ -1491,21 +1492,27 @@ async function fetchNewsData(){
     responses.forEach(feed => {
       feed.items.forEach(item => {
         // Skip items with [No Title] (likely re-truths/shares)
-        // Check if title starts with "[No Title]"
-        if(item.title && !item.title.trim().startsWith('[No Title]')){
-          allNews.push({
-            title: item.title,
-            link: item.link,
-            pubDate: new Date(item.pubDate),
-            source: feed.name,
-            sourceColor: feed.color
-          });
+        // Skip items without titles or dates
+        if(item.title && item.pubDate && !item.title.trim().startsWith('[No Title]')){
+          const parsedDate = new Date(item.pubDate);
+          // Only add if date is valid
+          if(!isNaN(parsedDate.getTime())){
+            allNews.push({
+              title: item.title,
+              link: item.link,
+              pubDate: parsedDate,
+              source: feed.name,
+              sourceColor: feed.color
+            });
+          }
         }
       });
     });
 
     // Sort by date (newest first)
     allNews.sort((a, b) => b.pubDate - a.pubDate);
+
+    console.log(`📊 Total valid articles after filtering: ${allNews.length}`);
 
     // Show top 15 most recent articles
     const newsToShow = allNews.slice(0, 15);
