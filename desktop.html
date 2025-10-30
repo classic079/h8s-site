@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.5</title>
+<title>BTC Stalker - Multi-Timeframe v13.6</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.5</span>
+      <span class="pill" style="opacity:.6">v13.6</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1458,9 +1458,11 @@ async function fetchNewsData(){
     ];
 
     // Fetch all feeds in parallel using rss2json (free CORS proxy)
+    // Add timestamp to bust cache
+    const cacheBuster = Date.now();
     const responses = await Promise.all(
       feeds.map(feed =>
-        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10`)
+        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10&_=${cacheBuster}`)
           .then(r => r.json())
           .then(data => ({ ...feed, items: data.items || [] }))
           .catch(err => {
@@ -1471,6 +1473,14 @@ async function fetchNewsData(){
     );
 
     console.log('News feeds fetched:', responses.map(r => `${r.name}:${r.items.length}`).join(', '));
+
+    // Log first item from each feed to debug dates
+    responses.forEach(feed => {
+      if(feed.items.length > 0){
+        const first = feed.items[0];
+        console.log(`📰 ${feed.name} latest:`, first.title?.substring(0, 50), '|', first.pubDate);
+      }
+    });
 
     // Combine all news items with source info
     const allNews = [];
