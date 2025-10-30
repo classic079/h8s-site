@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.29
+**Current Version:** v13.30
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,13 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.29 (Current)
+### v13.30 (Current)
+- **Added Live Ticker** - New scrolling trade feed showing real-time BTC trades (last 100)
+- **Trade details** - Displays buy/sell side, price, size, USD value, and timestamp for each trade
+- **Color-coded sides** - Green for buys, orange for sells
+- **Toggleable in Settings** - Enable/disable Live Ticker like other chart panels
+
+### v13.29
 - **Expanded news window** - Increased news panel height to 800px (+50px) to show more article content
 - **Better news visibility** - Last article now fully visible without cutoff
 

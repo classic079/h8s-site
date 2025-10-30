@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.29</title>
+<title>BTC Stalker - Multi-Timeframe v13.30</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.29</span>
+      <span class="pill" style="opacity:.6">v13.30</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -244,6 +244,10 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <span>📰 Live News Feed</span>
         <input type="checkbox" id="chartNews">
       </div>
+      <div class="settingOption">
+        <span>📊 Live Ticker</span>
+        <input type="checkbox" id="chartTicker">
+      </div>
     </div>
 
     <div class="settingsSection">
@@ -315,6 +319,7 @@ let win30d = [], win24h = [], win12h = [], win8h = [], win1h = [], win10m = [], 
 let win30dVol = [], win24hVol = [], win12hVol = [], win8hVol = [], win1hVol = [], win10mVol = [], win5mVol = [], win1mVol = [];
 let win30dLive = [], win24hLive = [], win12hLive = [], win8hLive = [], win1hLive = [], win10mLive = [], win5mLive = [], win1mLive = [];
 let last30dSample = 0, last24hSample = 0, last12hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0, last5mSample = 0, last1mSample = 0;
+let recentTrades = []; // Live ticker trades (keep last 100)
 const SAMPLE_INTERVALS = {
   '30d': 3600000,  // 1 hour
   '24h': 300000,   // 5 minutes
@@ -381,6 +386,21 @@ dash.innerHTML += `
   </div>
   <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;height:800px;overflow:hidden">
     <div id="newsList"></div>
+  </div>
+</div>
+`;
+
+// Add Live Ticker card
+dash.innerHTML += `
+<div class="col" id="col-ticker" style="display:none">
+  <div class="colHeader">
+    <div class="tfLabel">📊 LIVE TICKER</div>
+    <div class="statPills">
+      <span class="statPill" id="tickerCount">0 trades</span>
+    </div>
+  </div>
+  <div id="tickerContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;height:800px;overflow-y:auto;overflow-x:hidden">
+    <div id="tickerList"></div>
   </div>
 </div>
 `;
@@ -513,6 +533,11 @@ function onTrade(t){
   win10mLive.push(trade);
   win5mLive.push(trade);
   win1mLive.push(trade);
+
+  // Add to live ticker (keep last 100 trades)
+  recentTrades.unshift(trade);
+  if(recentTrades.length > 100) recentTrades.pop();
+  updateTicker();
 
   prune();
   updateAll();
@@ -767,6 +792,39 @@ function saveTopTradesToFirebase(key, buys, sells){
   }catch(e){
     console.error('Failed to save to Firebase:', e);
   }
+}
+
+/* ===== Update Live Ticker ===== */
+function updateTicker(){
+  if(!settings.charts.ticker) return; // Only update if ticker is enabled
+
+  const tickerList = document.getElementById('tickerList');
+  const tickerCount = document.getElementById('tickerCount');
+  if(!tickerList || !tickerCount) return;
+
+  tickerCount.textContent = `${recentTrades.length} trades`;
+
+  if(recentTrades.length === 0){
+    tickerList.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">Waiting for trades...</div>';
+    return;
+  }
+
+  tickerList.innerHTML = recentTrades.map(t => {
+    const usd = t.price * t.size;
+    const timeStr = new Date(t.time).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+    const sideColor = t.side === 'buy' ? 'var(--up)' : 'var(--down)';
+    const sideLabel = t.side === 'buy' ? 'BUY' : 'SELL';
+
+    return `
+      <div style="border-bottom:1px solid rgba(255,255,255,.05);padding:8px 4px;display:flex;gap:10px;align-items:center;font-size:13px">
+        <span style="color:${sideColor};font-weight:800;width:45px">${sideLabel}</span>
+        <span style="flex:1;font-weight:700">${fmtUSD.format(t.price)}</span>
+        <span style="color:var(--muted);width:80px;text-align:right">${t.size.toFixed(4)} BTC</span>
+        <span style="color:var(--muted);width:70px;text-align:right">${fmtUSD0.format(usd)}</span>
+        <span style="color:var(--muted);width:70px;text-align:right;font-size:11px">${timeStr}</span>
+      </div>
+    `;
+  }).join('');
 }
 
 /* ===== Firebase: Load top trades on startup ===== */
@@ -1666,7 +1724,7 @@ function getTimeAgo(date){
 /* ===== Settings Modal ===== */
 const settings = {
   theme: 'dark',
-  charts: { '30d': false, '24h': true, '12h': false, '8h': false, '1h': true, '10m': false, '5m': true, '1m': false, 'news': true },
+  charts: { '30d': false, '24h': true, '12h': false, '8h': false, '1h': true, '10m': false, '5m': true, '1m': false, 'news': true, 'ticker': false },
   alerts: { volSpike: true, tradeBlink: true }
 };
 
@@ -1700,6 +1758,14 @@ function applySettings(){
     if(settings.charts.news) fetchNewsData();
   }
 
+  // Apply Ticker visibility
+  const tickerCol = document.getElementById('col-ticker');
+  if(tickerCol){
+    tickerCol.style.display = settings.charts.ticker ? '' : 'none';
+    // Update ticker if enabled
+    if(settings.charts.ticker) updateTicker();
+  }
+
   // Update checkboxes
   TF.forEach(tf => {
     const checkbox = document.getElementById(`chart${tf.key}`);
@@ -1707,6 +1773,8 @@ function applySettings(){
   });
   const newsCheck = document.getElementById('chartNews');
   if(newsCheck) newsCheck.checked = settings.charts.news;
+  const tickerCheck = document.getElementById('chartTicker');
+  if(tickerCheck) tickerCheck.checked = settings.charts.ticker;
 
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
@@ -1735,6 +1803,9 @@ function saveSettings(){
   // News checkbox
   const newsCheck = document.getElementById('chartNews');
   if(newsCheck) settings.charts.news = newsCheck.checked;
+  // Ticker checkbox
+  const tickerCheck = document.getElementById('chartTicker');
+  if(tickerCheck) settings.charts.ticker = tickerCheck.checked;
 
   settings.alerts.volSpike = document.getElementById('alertVolSpike').checked;
   settings.alerts.tradeBlink = document.getElementById('alertTradeBlink').checked;
