@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.6</title>
+<title>BTC Stalker - Multi-Timeframe v13.7</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.6</span>
+      <span class="pill" style="opacity:.6">v13.7</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -618,7 +618,7 @@ function updateTopTrades(key, liveArr){
 
   // Debug: show raw liveArr length
   if(key === '30d'){
-    console.log(`🔍 30d liveArr has ${liveArr.length} total trades (before filtering by side)`);
+    // console.log(`🔍 30d liveArr has ${liveArr.length} total trades (before filtering by side)`);
   }
 
   // Separate buys and sells, calculate USD value
@@ -640,9 +640,9 @@ function updateTopTrades(key, liveArr){
 
   // Debug logging for 30d
   if(key === '30d'){
-    console.log(`📊 30d updateTopTrades: ${buys.length} total buys, ${sells.length} total sells`);
-    console.log(`   Top 13 buys:`, top10Buys.map(t => `${t.size.toFixed(2)} BTC`).join(', '));
-    console.log(`   Top 13 sells:`, top10Sells.map(t => `${t.size.toFixed(2)} BTC`).join(', '));
+    // console.log(`📊 30d updateTopTrades: ${buys.length} total buys, ${sells.length} total sells`);
+    // console.log(`   Top 13 buys:`, top10Buys.map(t => `${t.size.toFixed(2)} BTC`).join(', '));
+    // console.log(`   Top 13 sells:`, top10Sells.map(t => `${t.size.toFixed(2)} BTC`).join(', '));
   }
 
   // Check for new entries by comparing timestamps
@@ -719,11 +719,11 @@ function updateTopTrades(key, liveArr){
   // Don't save if we're currently loading from Firebase (prevents infinite loop)
   if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h')){
     if(isLoadingFromFirebase){
-      if(key === '30d') console.log(`🔒 ${key}: Save blocked - still loading from Firebase`);
+      // if(key === '30d') console.log(`🔒 ${key}: Save blocked - still loading from Firebase`);
     } else if(!buysChanged && !sellsChanged){
-      if(key === '30d') console.log(`⏭️ ${key}: No changes, skipping save`);
+      // if(key === '30d') console.log(`⏭️ ${key}: No changes, skipping save`);
     } else {
-      console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
+      // console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
       saveTopTradesToFirebase(key, top10Buys, top10Sells);
     }
   }
@@ -819,7 +819,7 @@ function mergeFirebaseTradesWithLive(data){
       const fbSells = data[key].sells || [];
       const liveArr = liveMap[key];
 
-      console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from Firebase`);
+      // console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from Firebase`);
 
       // Replace liveArr contents with Firebase data (don't merge - replace entirely)
       // This ensures we get exactly what's in Firebase without duplicates
@@ -848,7 +848,7 @@ function mergeFirebaseTradesWithLive(data){
 
       // Debug: Show the actual trades being loaded
       if(key === '30d' || key === '24h'){
-        console.log(`   Sells loaded:`, fbSells.map(t => `${(t.size || 0).toFixed(2)} BTC`).join(', '));
+        // console.log(`   Sells loaded:`, fbSells.map(t => `${(t.size || 0).toFixed(2)} BTC`).join(', '));
       }
     }
   });
