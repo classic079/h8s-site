@@ -1502,8 +1502,8 @@ async function fetchNewsData(){
     const allNews = [];
     responses.forEach(feed => {
       feed.items.forEach(item => {
-        // Skip items with [No Title] (likely re-truths/shares)
-        if(item.title && !item.title.trim().startsWith('[No Title]')){
+        // Accept all items with titles (removed [No Title] filter for Trump Truth debugging)
+        if(item.title){
           // Use current time if no pubDate provided (fallback for broken feeds)
           const dateToUse = item.pubDate || new Date().toISOString();
           const parsedDate = new Date(dateToUse);
