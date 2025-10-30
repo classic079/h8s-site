@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.9</title>
+<title>BTC Stalker - Multi-Timeframe v13.10</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.9</span>
+      <span class="pill" style="opacity:.6">v13.10</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1509,6 +1509,8 @@ async function fetchNewsData(){
     const itemHeight = 60; // Approximate height per news item
     const maxItems = Math.floor(availableHeight / itemHeight);
     const itemsToShow = Math.min(allNews.length, Math.max(5, maxItems)); // Show at least 5, max what fits
+
+    console.log(`📐 News display calc: availableHeight=${availableHeight}px, itemHeight=${itemHeight}px, maxItems=${maxItems}, itemsToShow=${itemsToShow}`);
 
     // Take only items that fit
     const newsToShow = allNews.slice(0, itemsToShow);
