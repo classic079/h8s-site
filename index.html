@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.33</title>
+<title>BTC Stalker - Multi-Timeframe v13.34</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.33</span>
+      <span class="pill" style="opacity:.6">v13.34</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -320,6 +320,7 @@ let win30dVol = [], win24hVol = [], win12hVol = [], win8hVol = [], win1hVol = []
 let win30dLive = [], win24hLive = [], win12hLive = [], win8hLive = [], win1hLive = [], win10mLive = [], win5mLive = [], win1mLive = [];
 let last30dSample = 0, last24hSample = 0, last12hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0, last5mSample = 0, last1mSample = 0;
 let recentTrades = []; // Live ticker trades (keep last 100)
+let lastTradeTime = 0; // Track last trade for health monitoring
 const SAMPLE_INTERVALS = {
   '30d': 3600000,  // 1 hour
   '24h': 300000,   // 5 minutes
@@ -488,6 +489,9 @@ function onTrade(t){
   const side = t.side==='sell' ? 'sell' : 'buy';
   const time = t.time.getTime();
 
+  // Track last trade time for health monitoring
+  lastTradeTime = Date.now();
+
   // Update price display (always)
   if(lastPrice !== null){
     priceEl.classList.remove('up','down');
@@ -545,6 +549,10 @@ function onTrade(t){
 
 function prune(){
   const now = Date.now();
+
+  // Safety check: log if we're about to clear arrays
+  const before5m = win5m.length;
+
   win30d = win30d.filter(t => t.time >= now - 2592000000);
   win24h = win24h.filter(t => t.time >= now - 86400000);
   win12h = win12h.filter(t => t.time >= now - 43200000);
@@ -553,6 +561,11 @@ function prune(){
   win10m = win10m.filter(t => t.time >= now - 600000);
   win5m = win5m.filter(t => t.time >= now - 300000);
   win1m = win1m.filter(t => t.time >= now - 60000);
+
+  // Alert if 5m data was completely cleared
+  if(before5m > 0 && win5m.length === 0){
+    console.error(`⚠️ 5m array cleared! Before: ${before5m}, After: 0. Current time: ${now}, Cutoff: ${now - 300000}`);
+  }
 
   win30dVol = win30dVol.filter(t => t.time >= now - 2592000000);
   win24hVol = win24hVol.filter(t => t.time >= now - 86400000);
@@ -1841,6 +1854,17 @@ setTimeout(async () => {
   setInterval(fetchMetalPrices, 300000); // Update every 5 minutes
   setInterval(fetchNewsData, 180000); // Update news every 3 minutes
   setInterval(updateClock, 1000); // Update every second
+
+  // Health monitor: check if trades are flowing and arrays aren't empty
+  setInterval(() => {
+    const timeSinceLastTrade = Date.now() - lastTradeTime;
+    if(lastTradeTime > 0 && timeSinceLastTrade > 60000){ // No trades for 1+ minute
+      console.warn(`⚠️ No trades received for ${Math.floor(timeSinceLastTrade/1000)}s. 5m: ${win5m.length}, WS state: ${ws?.readyState}`);
+    }
+    if(win5m.length === 0 && lastTradeTime > 0){
+      console.error(`🚨 5m array is empty! Last trade ${Math.floor(timeSinceLastTrade/1000)}s ago. This might cause blank chart.`);
+    }
+  }, 60000); // Check every minute
 }, 100);
 </script>
 </body>
