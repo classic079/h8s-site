@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.27</title>
+<title>BTC Stalker - Multi-Timeframe v13.28</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.27</span>
+      <span class="pill" style="opacity:.6">v13.28</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -538,9 +538,15 @@ function prune(){
   win5mVol = win5mVol.filter(t => t.time >= now - 300000);
   win1mVol = win1mVol.filter(t => t.time >= now - 60000);
 
-  // DON'T prune Live arrays - they hold top trades from Firebase that should persist
-  // regardless of age. These are the historical high scores, not time-windowed data.
-  // win30dLive, win24hLive, etc. are intentionally NOT pruned
+  // Prune Live arrays by their respective time windows
+  win30dLive = win30dLive.filter(t => t.time >= now - 2592000000);
+  win24hLive = win24hLive.filter(t => t.time >= now - 86400000);
+  win12hLive = win12hLive.filter(t => t.time >= now - 43200000);
+  win8hLive = win8hLive.filter(t => t.time >= now - 28800000);
+  win1hLive = win1hLive.filter(t => t.time >= now - 3600000);
+  win10mLive = win10mLive.filter(t => t.time >= now - 600000);
+  win5mLive = win5mLive.filter(t => t.time >= now - 300000);
+  win1mLive = win1mLive.filter(t => t.time >= now - 60000);
 }
 
 /* ===== Update stats & charts ===== */
