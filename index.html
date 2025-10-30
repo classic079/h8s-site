@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.24</title>
+<title>BTC Stalker - Multi-Timeframe v13.25</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.24</span>
+      <span class="pill" style="opacity:.6">v13.25</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1452,6 +1452,10 @@ async function fetchNewsData(){
       { url: 'https://moxie.foxnews.com/google-publisher/us.xml', name: 'Fox News', color: '#003366' },
       { url: 'https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US', name: 'Reuters', color: '#FF6600' },
       { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC', color: '#0D7AB3' },
+      { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', color: '#BB1919' },
+      { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NY Times', color: '#000000' },
+      { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ', color: '#0274B6' },
+      { url: 'https://www.yahoo.com/news/rss', name: 'Yahoo News', color: '#5F01D1' },
       { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', name: 'CoinDesk', color: '#FF9800' },
       { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', color: '#F7931A' }
     ];
