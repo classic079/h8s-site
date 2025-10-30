@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v12.5</title>
+<title>BTC Stalker - Multi-Timeframe v13.0</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v12.5</span>
+      <span class="pill" style="opacity:.6">v13.0</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -232,20 +232,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
         <input type="checkbox" id="chart1m">
       </div>
       <div class="settingOption">
-        <span>🎲 Polymarket</span>
-        <input type="checkbox" id="chartPolymarket">
-      </div>
-    </div>
-
-    <div class="settingsSection">
-      <h3>Polymarket Mode</h3>
-      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('popular')">
-        <span>📊 Most Popular (Top 20 by Volume)</span>
-        <span id="polymarketModePopularCheck"></span>
-      </div>
-      <div class="settingOption" style="cursor:pointer" onclick="selectPolymarketMode('action')">
-        <span>⚡ Today's Action (Sports, Ending Soon, Featured)</span>
-        <span id="polymarketModeActionCheck"></span>
+        <span>📰 Live News Feed</span>
+        <input type="checkbox" id="chartNews">
       </div>
     </div>
 
@@ -373,17 +361,17 @@ dash.innerHTML = TF.map(t => `
 </div>
 `).join('');
 
-// Add Polymarket card
+// Add Live News card
 dash.innerHTML += `
-<div class="col" id="col-polymarket" style="display:none">
+<div class="col" id="col-news" style="display:none">
   <div class="colHeader">
-    <div class="tfLabel">🎲 POLYMARKET</div>
+    <div class="tfLabel">📰 LIVE NEWS</div>
     <div class="statPills">
-      <span class="statPill" id="polymarketModeLabel">Most Popular</span>
+      <span class="statPill" id="newsUpdateTime">Loading...</span>
     </div>
   </div>
   <div style="background:var(--panel-2);border-radius:10px;padding:8px;max-height:calc(100vh - 180px);overflow-y:auto">
-    <div id="polymarketList" style="font-size:12px"></div>
+    <div id="newsList" style="font-size:11px"></div>
   </div>
 </div>
 `;
@@ -1451,214 +1439,111 @@ async function fetchMetalPrices(){
   }
 }
 
-/* ===== Fetch Polymarket Data ===== */
-async function fetchPolymarketData(){
-  if(!settings.charts.polymarket) return; // Skip if not enabled
+/* ===== Fetch Live News Data ===== */
+async function fetchNewsData(){
+  if(!settings.charts.news) return; // Skip if not enabled
 
   try{
-    console.log('🎲 Fetching Polymarket data...');
+    console.log('📰 Fetching live news...');
 
-    // Fetch both general markets AND sports markets
-    // Sports tag 100639 is the universal sports tag
-    const [generalResponse, sportsResponse] = await Promise.all([
-      fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false&limit=100'),
-      fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false&tag_id=100639&limit=50')
-    ]);
+    // RSS feeds to fetch
+    const feeds = [
+      { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC', color: '#0D7AB3' },
+      { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', name: 'CoinDesk', color: '#FF9800' },
+      { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', color: '#F7931A' },
+      { url: 'https://cryptoslate.com/feed/', name: 'CryptoSlate', color: '#9C27B0' },
+      { url: 'https://finance.yahoo.com/news/rssindex', name: 'Yahoo Finance', color: '#720E9E' }
+    ];
 
-    console.log('Polymarket response status:', generalResponse.status, sportsResponse.status);
-    if(!generalResponse.ok || !sportsResponse.ok) {
-      console.error('Polymarket API returned error');
-      throw new Error(`API returned error`);
-    }
+    // Fetch all feeds in parallel using rss2json (free CORS proxy)
+    const responses = await Promise.all(
+      feeds.map(feed =>
+        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10`)
+          .then(r => r.json())
+          .then(data => ({ ...feed, items: data.items || [] }))
+          .catch(err => {
+            console.warn(`Failed to fetch ${feed.name}:`, err);
+            return { ...feed, items: [] };
+          })
+      )
+    );
 
-    const generalMarkets = await generalResponse.json();
-    const sportsMarkets = await sportsResponse.json();
+    console.log('News feeds fetched:', responses.map(r => `${r.name}:${r.items.length}`).join(', '));
 
-    // Mark sports markets so we can prioritize them
-    sportsMarkets.forEach(m => m.isSports = true);
-
-    // Combine and dedupe (sports markets might also be in general)
-    const marketsMap = new Map();
-    [...generalMarkets, ...sportsMarkets].forEach(m => {
-      if(!marketsMap.has(m.id) || m.isSports){
-        marketsMap.set(m.id, m);
-      }
-    });
-    const markets = Array.from(marketsMap.values());
-
-    console.log(`Polymarket markets fetched: ${generalMarkets.length} general + ${sportsMarkets.length} sports = ${markets.length} total`);
-
-    // Debug: Log first market to see structure
-    if(markets.length > 0){
-      console.log('Sample market structure:', JSON.stringify(markets[0], null, 2));
-    }
-
-    // Filter for active markets only
-    const activeMarkets = markets.filter(m => m.active !== false);
-
-    let top20;
-    if(settings.polymarketMode === 'action'){
-      // Today's Action: Sports, ending soon, featured, high 24hr activity
-      const now = new Date();
-      const todayEnd = new Date(now);
-      todayEnd.setHours(23, 59, 59, 999);
-      const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
-
-      const actionMarkets = activeMarkets.map(m => {
-        let actionScore = 0;
-        const tags = [];
-
-        // 1. Sports markets (highest priority)
-        if(m.isSports === true){
-          actionScore += 100000;
-          tags.push('sports');
-        }
-
-        // 2. Markets ending soon (today or within 48 hours)
-        if(m.endDate){
-          const endDate = new Date(m.endDate);
-          if(endDate >= now && endDate <= todayEnd){
-            actionScore += 50000; // Ending today - very high priority
-            tags.push('today');
-          } else if(endDate > todayEnd && endDate <= twoDaysFromNow){
-            actionScore += 30000; // Ending within 48 hours
-            tags.push('soon');
-          }
-        }
-
-        // 3. Featured markets
-        if(m.featured === true){
-          actionScore += 40000;
-          tags.push('featured');
-        }
-
-        // 4. High 24hr volume (secondary factor)
-        const vol24 = parseFloat(m.volume24hr || 0);
-        actionScore += vol24 * 0.01;
-
-        return { ...m, actionScore, actionTags: tags };
+    // Combine all news items with source info
+    const allNews = [];
+    responses.forEach(feed => {
+      feed.items.forEach(item => {
+        allNews.push({
+          title: item.title,
+          link: item.link,
+          pubDate: new Date(item.pubDate),
+          source: feed.name,
+          sourceColor: feed.color
+        });
       });
+    });
 
-      // Filter to markets with at least one action tag, then sort by score
-      const filteredMarkets = actionMarkets.filter(m => m.actionTags.length > 0);
-      filteredMarkets.sort((a,b) => b.actionScore - a.actionScore);
+    // Sort by date (newest first)
+    allNews.sort((a, b) => b.pubDate - a.pubDate);
 
-      // If we don't have 20 action markets, fill with high 24hr volume markets
-      if(filteredMarkets.length < 20){
-        const remaining = activeMarkets
-          .filter(m => !filteredMarkets.find(f => f.id === m.id))
-          .sort((a,b) => parseFloat(b.volume24hr || 0) - parseFloat(a.volume24hr || 0))
-          .slice(0, 20 - filteredMarkets.length);
-        top20 = [...filteredMarkets, ...remaining];
-      } else {
-        top20 = filteredMarkets.slice(0, 20);
-      }
-
-      console.log(`⚡ Found ${filteredMarkets.length} action markets (${top20.length} total)`);
-      if(top20.length > 0){
-        console.log('Top 3 action:', top20.slice(0,3).map(m => ({
-          q: m.question?.substring(0,50),
-          tags: m.actionTags,
-          score: m.actionScore?.toFixed(0)
-        })));
-      }
-    } else {
-      // Most popular: Sort by volume (highest first) and take top 20
-      activeMarkets.sort((a,b) => parseFloat(b.volume || 0) - parseFloat(a.volume || 0));
-      top20 = activeMarkets.slice(0, 20);
-    }
+    // Take top 30
+    const top30 = allNews.slice(0, 30);
 
     // Display
-    const listEl = document.getElementById('polymarketList');
+    const listEl = document.getElementById('newsList');
     if(!listEl) return;
 
-    if(top20.length === 0){
-      listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">No markets available</div>`;
+    if(top30.length === 0){
+      listEl.innerHTML = `<div style="color:var(--muted);padding:20px;text-align:center">No news available</div>`;
       return;
     }
 
-    // Display markets with rich cards (similar to Polymarket UI)
-    listEl.innerHTML = top20.map((m, idx) => {
-      const vol = parseFloat(m.volume || 0);
-      const volStr = vol >= 1000000 ? `$${(vol/1000000).toFixed(1)}M` : vol >= 1000 ? `$${(vol/1000).toFixed(0)}K` : `$${vol.toFixed(0)}`;
-
-      // Parse outcomes and prices
-      let outcomes = [];
-      let outcomePrices = [];
-
-      if(m.outcomes){
-        outcomes = typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : m.outcomes;
-      }
-
-      if(m.outcomePrices){
-        outcomePrices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
-      }
-
-      // Build outcome display (like Polymarket's cards)
-      let outcomeHTML = '';
-      if(outcomes.length > 0 && outcomePrices.length > 0){
-        // For binary markets, show both outcomes
-        if(outcomes.length === 2){
-          const yesPrice = (parseFloat(outcomePrices[0]) * 100).toFixed(0);
-          const noPrice = (parseFloat(outcomePrices[1]) * 100).toFixed(0);
-          outcomeHTML = `
-            <div style="display:flex;gap:4px;margin-top:4px">
-              <div style="flex:1;background:rgba(45,212,191,.15);border:1px solid rgba(45,212,191,.3);border-radius:4px;padding:4px 6px;text-align:center">
-                <div style="font-size:9px;color:var(--muted);margin-bottom:1px">${outcomes[0]}</div>
-                <div style="font-size:13px;font-weight:700;color:var(--up)">${yesPrice}¢</div>
-              </div>
-              <div style="flex:1;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:4px 6px;text-align:center">
-                <div style="font-size:9px;color:var(--muted);margin-bottom:1px">${outcomes[1]}</div>
-                <div style="font-size:13px;font-weight:700;color:var(--down)">${noPrice}¢</div>
-              </div>
-            </div>
-          `;
-        } else {
-          // For multiple choice, show top 3 outcomes
-          outcomeHTML = `<div style="margin-top:4px;display:flex;flex-direction:column;gap:3px">`;
-          for(let i = 0; i < Math.min(3, outcomes.length); i++){
-            const price = (parseFloat(outcomePrices[i]) * 100).toFixed(0);
-            outcomeHTML += `
-              <div style="background:rgba(255,255,255,.05);border-radius:3px;padding:3px 6px;display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:10px">${outcomes[i]}</span>
-                <span style="font-size:11px;font-weight:600;color:${price >= 50 ? 'var(--up)' : 'var(--muted)'}">${price}¢</span>
-              </div>
-            `;
-          }
-          if(outcomes.length > 3){
-            outcomeHTML += `<div style="font-size:9px;color:var(--muted);text-align:center;margin-top:2px">+${outcomes.length - 3} more</div>`;
-          }
-          outcomeHTML += `</div>`;
-        }
-      }
-
-      // Show LIVE badge for very active markets (volume24hr > 50k)
-      const vol24 = parseFloat(m.volume24hr || 0);
-      const liveBadge = vol24 > 50000 ? '<span style="display:inline-block;padding:2px 6px;background:#ff4d4d;color:#fff;font-size:9px;font-weight:700;border-radius:3px;margin-left:6px">LIVE</span>' : '';
-
+    listEl.innerHTML = top30.map((item, idx) => {
+      const timeAgo = getTimeAgo(item.pubDate);
       return `
-        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px;margin-bottom:8px">
-          <div style="font-weight:600;font-size:12px;line-height:1.3;margin-bottom:4px">${m.question || 'Unknown'}${liveBadge} <span style="font-size:9px;color:var(--muted);font-weight:400">${volStr}</span></div>
-          ${outcomeHTML}
+        <div style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 2px">
+          <a href="${item.link}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;display:block">
+            <div style="font-weight:600;font-size:11px;line-height:1.3;margin-bottom:3px;color:var(--text)">${item.title}</div>
+            <div style="display:flex;gap:8px;font-size:9px;color:var(--muted)">
+              <span style="color:${item.sourceColor};font-weight:600">${item.source}</span>
+              <span>•</span>
+              <span>${timeAgo}</span>
+            </div>
+          </a>
         </div>
       `;
     }).join('');
 
-    const modeText = settings.polymarketMode === 'action' ? "today's action" : 'most popular';
-    console.log(`✅ Loaded ${top20.length} Polymarket markets (${modeText})`);
+    // Update timestamp
+    const updateTime = document.getElementById('newsUpdateTime');
+    if(updateTime) updateTime.textContent = `Updated ${new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'})}`;
+
+    console.log(`✅ Loaded ${top30.length} news headlines from ${responses.length} sources`);
   }catch(e){
-    console.error('Polymarket fetch error:', e);
-    const listEl = document.getElementById('polymarketList');
-    if(listEl) listEl.innerHTML = '<div style="color:var(--down);padding:20px;text-align:center">Failed to load markets</div>';
+    console.error('News fetch error:', e);
+    const listEl = document.getElementById('newsList');
+    if(listEl) listEl.innerHTML = '<div style="color:var(--down);padding:20px;text-align:center">Failed to load news</div>';
   }
+}
+
+// Helper function to format time ago
+function getTimeAgo(date){
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if(seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if(minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if(hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 /* ===== Settings Modal ===== */
 const settings = {
   theme: 'dark',
-  charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false, 'polymarket': false },
-  alerts: { volSpike: true, tradeBlink: true },
-  polymarketMode: 'popular' // 'popular' or 'action'
+  charts: { '30d': true, '24h': true, '12h': false, '8h': true, '1h': true, '10m': true, '5m': true, '1m': false, 'news': false },
+  alerts: { volSpike: true, tradeBlink: true }
 };
 
 function loadSettings(){
@@ -1683,17 +1568,12 @@ function applySettings(){
     if(col) col.style.display = settings.charts[tf.key] ? '' : 'none';
   });
 
-  // Apply Polymarket visibility and mode
-  const polymarketCol = document.getElementById('col-polymarket');
-  if(polymarketCol){
-    polymarketCol.style.display = settings.charts.polymarket ? '' : 'none';
-    // Update mode label
-    const modeLabel = document.getElementById('polymarketModeLabel');
-    if(modeLabel){
-      modeLabel.textContent = settings.polymarketMode === 'action' ? "Today's Action" : 'Most Popular';
-    }
+  // Apply News visibility
+  const newsCol = document.getElementById('col-news');
+  if(newsCol){
+    newsCol.style.display = settings.charts.news ? '' : 'none';
     // Fetch data if enabled
-    if(settings.charts.polymarket) fetchPolymarketData();
+    if(settings.charts.news) fetchNewsData();
   }
 
   // Update checkboxes
@@ -1701,12 +1581,8 @@ function applySettings(){
     const checkbox = document.getElementById(`chart${tf.key}`);
     if(checkbox) checkbox.checked = settings.charts[tf.key];
   });
-  const polymarketCheck = document.getElementById('chartPolymarket');
-  if(polymarketCheck) polymarketCheck.checked = settings.charts.polymarket;
-
-  // Update Polymarket mode checkmarks
-  document.getElementById('polymarketModePopularCheck').textContent = settings.polymarketMode === 'popular' ? '✓ Active' : '';
-  document.getElementById('polymarketModeActionCheck').textContent = settings.polymarketMode === 'action' ? '✓ Active' : '';
+  const newsCheck = document.getElementById('chartNews');
+  if(newsCheck) newsCheck.checked = settings.charts.news;
 
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
@@ -1714,11 +1590,6 @@ function applySettings(){
 
 function selectTheme(theme){
   settings.theme = theme;
-  applySettings();
-}
-
-function selectPolymarketMode(mode){
-  settings.polymarketMode = mode;
   applySettings();
 }
 
@@ -1737,9 +1608,9 @@ function saveSettings(){
     const checkbox = document.getElementById(`chart${tf.key}`);
     if(checkbox) settings.charts[tf.key] = checkbox.checked;
   });
-  // Polymarket checkbox
-  const polymarketCheck = document.getElementById('chartPolymarket');
-  if(polymarketCheck) settings.charts.polymarket = polymarketCheck.checked;
+  // News checkbox
+  const newsCheck = document.getElementById('chartNews');
+  if(newsCheck) settings.charts.news = newsCheck.checked;
 
   settings.alerts.volSpike = document.getElementById('alertVolSpike').checked;
   settings.alerts.tradeBlink = document.getElementById('alertTradeBlink').checked;
@@ -1764,12 +1635,12 @@ setTimeout(async () => {
   startWS();
   fetch24h();
   fetchMetalPrices();
-  fetchPolymarketData(); // Initial load
+  fetchNewsData(); // Initial load
   updateClock();
   setInterval(restFallback, 1200);
   setInterval(fetch24h, 60000);
   setInterval(fetchMetalPrices, 300000); // Update every 5 minutes
-  setInterval(fetchPolymarketData, 300000); // Update Polymarket every 5 minutes
+  setInterval(fetchNewsData, 180000); // Update news every 3 minutes
   setInterval(updateClock, 1000); // Update every second
 }, 100);
 </script>
