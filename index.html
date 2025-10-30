@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.21</title>
+<title>BTC Stalker - Multi-Timeframe v13.22</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.21</span>
+      <span class="pill" style="opacity:.6">v13.22</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1463,7 +1463,13 @@ async function fetchNewsData(){
       feeds.map(feed =>
         fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10&_=${cacheBuster}`)
           .then(r => r.json())
-          .then(data => ({ ...feed, items: data.items || [] }))
+          .then(data => {
+            // Debug: Log first item's raw date for each feed
+            if(data.items && data.items.length > 0){
+              console.log(`\n📅 ${feed.name} - Raw date from RSS: ${data.items[0].pubDate}`);
+            }
+            return { ...feed, items: data.items || [] };
+          })
           .catch(err => {
             console.warn(`Failed to fetch ${feed.name}:`, err);
             return { ...feed, items: [] };

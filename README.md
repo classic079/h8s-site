@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.21
+**Current Version:** v13.22
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,10 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.21 (Current)
+### v13.22 (Current)
+- **Added raw RSS date logging** - Debug output showing original date strings from RSS feeds to diagnose timezone issues
+
+### v13.21
 - **Extended news panel further** - Increased to 750px (+10% more space)
 - **Added timezone debugging** - Console logs to diagnose timezone display issues
 
