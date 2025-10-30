@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v12.4</title>
+<title>BTC Stalker - Multi-Timeframe v12.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v12.4</span>
+      <span class="pill" style="opacity:.6">v12.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -382,7 +382,7 @@ dash.innerHTML += `
       <span class="statPill" id="polymarketModeLabel">Most Popular</span>
     </div>
   </div>
-  <div style="background:var(--panel-2);border-radius:10px;padding:8px;max-height:calc(100vh - 180px);overflow-y:auto">
+  <div style="background:var(--panel-2);border-radius:10px;padding:12px;max-height:600px;overflow-y:auto">
     <div id="polymarketList" style="font-size:12px"></div>
   </div>
 </div>
@@ -1577,7 +1577,7 @@ async function fetchPolymarketData(){
       return;
     }
 
-    // Display markets in compressed format - just header + outcomes
+    // Display markets with rich cards (similar to Polymarket UI)
     listEl.innerHTML = top20.map((m, idx) => {
       const vol = parseFloat(m.volume || 0);
       const volStr = vol >= 1000000 ? `$${(vol/1000000).toFixed(1)}M` : vol >= 1000 ? `$${(vol/1000).toFixed(0)}K` : `$${vol.toFixed(0)}`;
@@ -1594,51 +1594,63 @@ async function fetchPolymarketData(){
         outcomePrices = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
       }
 
-      // Build compact outcome display
+      // Build outcome display (like Polymarket's cards)
       let outcomeHTML = '';
       if(outcomes.length > 0 && outcomePrices.length > 0){
-        // For binary markets, show inline
+        // For binary markets, show both outcomes
         if(outcomes.length === 2){
           const yesPrice = (parseFloat(outcomePrices[0]) * 100).toFixed(0);
           const noPrice = (parseFloat(outcomePrices[1]) * 100).toFixed(0);
           outcomeHTML = `
-            <div style="display:flex;gap:4px;margin-top:3px">
-              <div style="flex:1;background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.25);border-radius:4px;padding:3px 6px;text-align:center">
-                <span style="font-size:9px;color:var(--muted)">${outcomes[0]}</span>
-                <span style="font-size:12px;font-weight:700;color:var(--up);margin-left:4px">${yesPrice}¢</span>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <div style="flex:1;background:rgba(45,212,191,.15);border:1px solid rgba(45,212,191,.3);border-radius:6px;padding:6px 8px;text-align:center">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:2px">${outcomes[0]}</div>
+                <div style="font-size:14px;font-weight:700;color:var(--up)">${yesPrice}¢</div>
               </div>
-              <div style="flex:1;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:4px;padding:3px 6px;text-align:center">
-                <span style="font-size:9px;color:var(--muted)">${outcomes[1]}</span>
-                <span style="font-size:12px;font-weight:700;color:var(--down);margin-left:4px">${noPrice}¢</span>
+              <div style="flex:1;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:6px 8px;text-align:center">
+                <div style="font-size:10px;color:var(--muted);margin-bottom:2px">${outcomes[1]}</div>
+                <div style="font-size:14px;font-weight:700;color:var(--down)">${noPrice}¢</div>
               </div>
             </div>
           `;
         } else {
-          // For multiple choice, show compact list
-          outcomeHTML = `<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px">`;
-          for(let i = 0; i < Math.min(4, outcomes.length); i++){
+          // For multiple choice, show top 3 outcomes
+          outcomeHTML = `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">`;
+          for(let i = 0; i < Math.min(3, outcomes.length); i++){
             const price = (parseFloat(outcomePrices[i]) * 100).toFixed(0);
             outcomeHTML += `
-              <div style="background:rgba(255,255,255,.05);border-radius:3px;padding:2px 6px;font-size:10px">
-                <span style="color:var(--muted)">${outcomes[i]}</span>
-                <span style="font-weight:600;color:${price >= 50 ? 'var(--up)' : 'var(--muted)};margin-left:4px">${price}¢</span>
+              <div style="background:rgba(255,255,255,.05);border-radius:4px;padding:4px 8px;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:11px">${outcomes[i]}</span>
+                <span style="font-size:12px;font-weight:600;color:${price >= 50 ? 'var(--up)' : 'var(--muted)'}">${price}¢</span>
               </div>
             `;
           }
-          if(outcomes.length > 4){
-            outcomeHTML += `<span style="font-size:9px;color:var(--muted);padding:2px 6px">+${outcomes.length - 4}</span>`;
+          if(outcomes.length > 3){
+            outcomeHTML += `<div style="font-size:10px;color:var(--muted);text-align:center">+${outcomes.length - 3} more</div>`;
           }
           outcomeHTML += `</div>`;
         }
       }
 
-      // Show LIVE badge for very active markets
+      // Show image if available
+      const imageHTML = m.image ? `
+        <div style="width:100%;height:120px;border-radius:8px;overflow:hidden;margin-bottom:8px;background:rgba(0,0,0,.3)">
+          <img src="${m.image}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.style.display='none'">
+        </div>
+      ` : '';
+
+      // Show LIVE badge for very active markets (volume24hr > 50k)
       const vol24 = parseFloat(m.volume24hr || 0);
-      const liveBadge = vol24 > 50000 ? '<span style="padding:1px 4px;background:#ff4d4d;color:#fff;font-size:8px;font-weight:700;border-radius:2px;margin-left:4px">LIVE</span>' : '';
+      const liveBadge = vol24 > 50000 ? '<span style="display:inline-block;padding:2px 6px;background:#ff4d4d;color:#fff;font-size:9px;font-weight:700;border-radius:3px;margin-left:6px">LIVE</span>' : '';
 
       return `
-        <div style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 4px">
-          <div style="font-weight:600;font-size:11px;line-height:1.3;margin-bottom:2px">${m.question || 'Unknown'}${liveBadge} <span style="font-size:9px;color:var(--muted);font-weight:400">${volStr}</span></div>
+        <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin-bottom:10px">
+          ${imageHTML}
+          <div style="font-weight:600;font-size:13px;line-height:1.3;margin-bottom:6px">${m.question || 'Unknown'}${liveBadge}</div>
+          <div style="display:flex;gap:8px;font-size:10px;color:var(--muted);margin-bottom:4px">
+            <span>${volStr} Vol.</span>
+            ${m.category ? `<span>• ${m.category}</span>` : ''}
+          </div>
           ${outcomeHTML}
         </div>
       `;
