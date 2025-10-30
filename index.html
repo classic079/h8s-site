@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.22</title>
+<title>BTC Stalker - Multi-Timeframe v13.23</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.22</span>
+      <span class="pill" style="opacity:.6">v13.23</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1611,20 +1611,30 @@ async function fetchNewsData(){
   }
 }
 
-// Helper function to format time
+// Helper function to format time as "X ago"
 function getTimeAgo(date){
   const seconds = Math.floor((new Date() - date) / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
 
-  // Less than 24 hours: show actual time in user's local timezone (e.g., "2:30 PM")
-  if(hours < 24){
-    return date.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', hour12:true});
+  // Less than 1 minute
+  if(minutes < 1){
+    return seconds < 0 ? `${Math.abs(seconds)}s future` : `${seconds}s ago`;
   }
 
-  // More than 24 hours: show days ago
+  // Less than 1 hour: show minutes
+  if(minutes < 60){
+    return minutes < 0 ? `${Math.abs(minutes)}m future` : `${minutes}m ago`;
+  }
+
+  // Less than 24 hours: show hours
+  if(hours < 24){
+    return hours < 0 ? `${Math.abs(hours)}h future` : `${hours}h ago`;
+  }
+
+  // More than 24 hours: show days
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return days < 0 ? `${Math.abs(days)}d future` : `${days}d ago`;
 }
 
 /* ===== Settings Modal ===== */
