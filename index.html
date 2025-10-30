@@ -1486,6 +1486,18 @@ async function fetchNewsData(){
       }
     });
 
+    // Special debug for Trump Truth
+    const trumpFeed = responses.find(f => f.name === 'Trump Truth');
+    if(trumpFeed){
+      const validTrump = trumpFeed.items.filter(item => item.title && !item.title.trim().startsWith('[No Title]'));
+      console.log(`\n🔍 Trump Truth DEBUG: ${trumpFeed.items.length} total, ${validTrump.length} valid (after [No Title] filter)`);
+      if(validTrump.length > 0){
+        console.log('   Valid Trump posts:', validTrump.map(t => t.title.substring(0, 50)).join(' | '));
+      } else {
+        console.log('   ⚠️ All Trump Truth items are re-truths ([No Title])');
+      }
+    }
+
     // Combine all news items with source info
     const allNews = [];
     responses.forEach(feed => {
