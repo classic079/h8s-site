@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.25
+**Current Version:** v13.26
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,11 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.25 (Current)
+### v13.26 (Current)
+- **Added mobile detection** - Automatically redirects to mobile.html when accessed from phone or tablet
+- **User agent detection** - Checks for Android, iOS, and other mobile devices
+
+### v13.25
 - **Added world news sources** - Expanded feeds to include BBC World, NY Times, Wall Street Journal, and Yahoo News
 - **Total 10 news sources** - Now aggregating from Trump Truth, Fox News, Reuters, CNBC, BBC, NYT, WSJ, Yahoo, CoinDesk, Cointelegraph
 
