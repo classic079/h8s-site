@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.31
+**Current Version:** v13.32
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,10 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.31 (Current)
+### v13.32 (Current)
+- **Added white text-shadow to news sources** - NY Times and other dark-colored source names now have white glow for better readability on dark background
+
+### v13.31
 - **Re-enabled [No Title] filter** - Filters out Trump Truth re-truths/shares while keeping original posts with proper titles
 - **Cleaner news feed** - Only shows original Trump posts, not shared content
 
