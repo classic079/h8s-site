@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.23</title>
+<title>BTC Stalker - Multi-Timeframe v13.24</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.23</span>
+      <span class="pill" style="opacity:.6">v13.24</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1520,7 +1520,14 @@ async function fetchNewsData(){
         // Accept all items with titles (removed [No Title] filter for Trump Truth debugging)
         if(item.title){
           // Use current time if no pubDate provided (fallback for broken feeds)
-          const dateToUse = item.pubDate || new Date().toISOString();
+          let dateToUse = item.pubDate || new Date().toISOString();
+
+          // Force UTC parsing: if date string doesn't end with Z, append it to force UTC interpretation
+          if(dateToUse && !dateToUse.endsWith('Z') && !dateToUse.includes('+') && !dateToUse.includes('GMT')){
+            // Replace space with T if needed (e.g., "2025-10-30 17:06:32" -> "2025-10-30T17:06:32Z")
+            dateToUse = dateToUse.replace(' ', 'T') + 'Z';
+          }
+
           const parsedDate = new Date(dateToUse);
 
           // Only add if date is valid

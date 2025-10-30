@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.23
+**Current Version:** v13.24
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,11 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.23 (Current)
+### v13.24 (Current)
+- **Force UTC timestamp parsing** - All RSS timestamps now parsed as UTC instead of local time, fixing "future" timestamp issues
+- **Automatic timezone conversion** - Appends 'Z' to timestamps without timezone info to force UTC interpretation
+
+### v13.23
 - **Changed to relative time display** - Shows "Xm ago", "Xh ago" instead of absolute times for easier tracking
 - **Added future timestamp detection** - Shows "Xm future" if article timestamps are in the future (RSS feed issue indicator)
 
