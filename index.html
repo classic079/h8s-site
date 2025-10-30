@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.17</title>
+<title>BTC Stalker - Multi-Timeframe v13.18</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.17</span>
+      <span class="pill" style="opacity:.6">v13.18</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -370,7 +370,7 @@ dash.innerHTML += `
       <span class="statPill" id="newsUpdateTime">Loading...</span>
     </div>
   </div>
-  <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;overflow:hidden">
+  <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;height:340px;overflow:hidden">
     <div id="newsList"></div>
   </div>
 </div>
@@ -1594,14 +1594,18 @@ async function fetchNewsData(){
   }
 }
 
-// Helper function to format time ago
+// Helper function to format time
 function getTimeAgo(date){
   const seconds = Math.floor((new Date() - date) / 1000);
-  if(seconds < 60) return 'Just now';
   const minutes = Math.floor(seconds / 60);
-  if(minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if(hours < 24) return `${hours}h ago`;
+
+  // Less than 24 hours: show actual time (e.g., "2:30 PM")
+  if(hours < 24){
+    return date.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true});
+  }
+
+  // More than 24 hours: show days ago
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
 }
