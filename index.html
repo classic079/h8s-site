@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.14</title>
+<title>BTC Stalker - Multi-Timeframe v13.15</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -1449,7 +1449,6 @@ async function fetchNewsData(){
     // RSS feeds to fetch
     const feeds = [
       { url: 'https://www.trumpstruth.org/feed', name: 'Trump Truth', color: '#E91E3A' },
-      { url: 'http://rss.cnn.com/rss/edition.rss', name: 'CNN', color: '#CC0000' },
       { url: 'https://moxie.foxnews.com/google-publisher/us.xml', name: 'Fox News', color: '#003366' },
       { url: 'https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US', name: 'Reuters', color: '#FF6600' },
       { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC', color: '#0D7AB3' },
@@ -1519,7 +1518,10 @@ async function fetchNewsData(){
     // Show top 15 most recent articles
     const newsToShow = allNews.slice(0, 15);
 
-    console.log(`📊 Displaying ${newsToShow.length} articles out of ${allNews.length} total`);
+    console.log(`\n🎯 TOP 15 ARTICLES TO DISPLAY:`);
+    newsToShow.forEach((item, idx) => {
+      console.log(`  ${idx+1}. [${item.source}] ${item.title.substring(0, 60)} | ${item.pubDate.toISOString()}`);
+    });
 
     // Display
     const listEl = document.getElementById('newsList');
