@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.11</title>
+<title>BTC Stalker - Multi-Timeframe v13.12</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.11</span>
+      <span class="pill" style="opacity:.6">v13.12</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -370,7 +370,7 @@ dash.innerHTML += `
       <span class="statPill" id="newsUpdateTime">Loading...</span>
     </div>
   </div>
-  <div style="background:var(--panel-2);border-radius:10px;padding:12px;min-height:600px;overflow:hidden">
+  <div id="newsListContainer" style="background:var(--panel-2);border-radius:10px;padding:12px;overflow:hidden">
     <div id="newsList"></div>
   </div>
 </div>
@@ -1474,11 +1474,15 @@ async function fetchNewsData(){
 
     console.log('News feeds fetched:', responses.map(r => `${r.name}:${r.items.length}`).join(', '));
 
-    // Log first item from each feed to debug dates
+    // Log all items from each feed to see what's available
     responses.forEach(feed => {
       if(feed.items.length > 0){
-        const first = feed.items[0];
-        console.log(`📰 ${feed.name} latest:`, first.title?.substring(0, 50), '|', first.pubDate);
+        console.log(`\n📰 ${feed.name} (${feed.items.length} items):`);
+        feed.items.forEach((item, idx) => {
+          if(!item.title?.trim().startsWith('[No Title]')){
+            console.log(`  ${idx+1}. ${item.title?.substring(0, 80)} | ${item.pubDate}`);
+          }
+        });
       }
     });
 
@@ -1503,18 +1507,10 @@ async function fetchNewsData(){
     // Sort by date (newest first)
     allNews.sort((a, b) => b.pubDate - a.pubDate);
 
-    // Calculate how many items fit without scrolling
-    // Get actual container height from DOM
-    const newsCol = document.getElementById('col-news');
-    const containerHeight = newsCol ? newsCol.offsetHeight - 100 : 600; // Subtract header/padding, default 600
-    const itemHeight = 80; // Approximate height per news item (increased from 60)
-    const maxItems = Math.floor(containerHeight / itemHeight);
-    const itemsToShow = Math.min(allNews.length, Math.max(8, maxItems)); // Show at least 8, max what fits
+    // Show top 15 most recent articles
+    const newsToShow = allNews.slice(0, 15);
 
-    console.log(`📐 News display calc: containerHeight=${containerHeight}px, itemHeight=${itemHeight}px, maxItems=${maxItems}, itemsToShow=${itemsToShow}`);
-
-    // Take only items that fit
-    const newsToShow = allNews.slice(0, itemsToShow);
+    console.log(`📊 Displaying ${newsToShow.length} articles out of ${allNews.length} total`);
 
     // Display
     const listEl = document.getElementById('newsList');
