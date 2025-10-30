@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.26</title>
+<title>BTC Stalker - Multi-Timeframe v13.27</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.26</span>
+      <span class="pill" style="opacity:.6">v13.27</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -963,14 +963,14 @@ function drawVolume(key, arr, tf){
       const binStart = Math.floor(t.time / tf.binSize) * tf.binSize;
       const idx = Math.floor((binStart - start) / tf.binSize);
 
-      // Only count trades in completed bins (not current bin)
-      if(idx >= 0 && idx < tf.bins && binStart < currentBoundary){
+      // Count all trades including current bin (allow first bar to grow live)
+      if(idx >= 0 && idx < tf.bins){
         if(t.side==='buy') bins[idx].buy += t.size;
         else bins[idx].sell += t.size;
       }
     });
 
-    currentBinIdx = -1; // Not used for locked timeframes
+    currentBinIdx = tf.bins - 1; // Current bin is the last one
   } else {
     // Other timeframes use sliding window
     const start = now - tf.win;
