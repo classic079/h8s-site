@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.32</title>
+<title>BTC Stalker - Multi-Timeframe v13.33</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.32</span>
+      <span class="pill" style="opacity:.6">v13.33</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1669,12 +1669,16 @@ async function fetchNewsData(){
         console.log(`   Display time: ${timeAgo}`);
       }
 
+      const sourceStyle = item.source === 'NY Times'
+        ? `color:${item.sourceColor};font-weight:700;text-shadow:0 0 3px rgba(255,255,255,0.8)`
+        : `color:${item.sourceColor};font-weight:700`;
+
       return `
         <div style="border-bottom:1px solid rgba(255,255,255,.1);padding:14px 6px">
           <a href="${item.link}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit;display:block">
             <div style="font-weight:600;font-size:16px;line-height:1.4;margin-bottom:6px;color:var(--text)">${item.title}</div>
             <div style="display:flex;gap:12px;font-size:13px;color:var(--muted)">
-              <span style="color:${item.sourceColor};font-weight:700;text-shadow:0 0 3px rgba(255,255,255,0.8)">${item.source}</span>
+              <span style="${sourceStyle}">${item.source}</span>
               <span>•</span>
               <span>${timeAgo}</span>
             </div>
