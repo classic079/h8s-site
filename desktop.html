@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v12.2</title>
+<title>BTC Stalker - Multi-Timeframe v12.3</title>
 <style>
 :root{
   --bg:#0a0a0a; --panel:#111; --panel-2:#0d0d0d;
@@ -159,7 +159,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v12.2</span>
+      <span class="pill" style="opacity:.6">v12.3</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1457,16 +1457,36 @@ async function fetchPolymarketData(){
 
   try{
     console.log('🎲 Fetching Polymarket data...');
-    // Use CORS proxy to avoid CORS errors, fetch only active markets
-    const r = await fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false');
-    console.log('Polymarket response status:', r.status, r.statusText);
-    if(!r.ok) {
-      console.error('Polymarket API returned error:', r.status);
-      throw new Error(`API returned ${r.status}`);
+
+    // Fetch both general markets AND sports markets
+    // Sports tag 100639 is the universal sports tag
+    const [generalResponse, sportsResponse] = await Promise.all([
+      fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false&limit=100'),
+      fetch('https://corsproxy.io/?https://gamma-api.polymarket.com/markets?closed=false&tag_id=100639&limit=50')
+    ]);
+
+    console.log('Polymarket response status:', generalResponse.status, sportsResponse.status);
+    if(!generalResponse.ok || !sportsResponse.ok) {
+      console.error('Polymarket API returned error');
+      throw new Error(`API returned error`);
     }
 
-    const markets = await r.json();
-    console.log('Polymarket markets fetched:', markets.length);
+    const generalMarkets = await generalResponse.json();
+    const sportsMarkets = await sportsResponse.json();
+
+    // Mark sports markets so we can prioritize them
+    sportsMarkets.forEach(m => m.isSports = true);
+
+    // Combine and dedupe (sports markets might also be in general)
+    const marketsMap = new Map();
+    [...generalMarkets, ...sportsMarkets].forEach(m => {
+      if(!marketsMap.has(m.id) || m.isSports){
+        marketsMap.set(m.id, m);
+      }
+    });
+    const markets = Array.from(marketsMap.values());
+
+    console.log(`Polymarket markets fetched: ${generalMarkets.length} general + ${sportsMarkets.length} sports = ${markets.length} total`);
 
     // Debug: Log first market to see structure
     if(markets.length > 0){
@@ -1489,7 +1509,7 @@ async function fetchPolymarketData(){
         const tags = [];
 
         // 1. Sports markets (highest priority)
-        if(m.category?.toLowerCase() === 'sports'){
+        if(m.isSports === true){
           actionScore += 100000;
           tags.push('sports');
         }
