@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.34</title>
+<title>BTC Stalker - Multi-Timeframe v13.35</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.34</span>
+      <span class="pill" style="opacity:.6">v13.35</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -321,6 +321,8 @@ let win30dLive = [], win24hLive = [], win12hLive = [], win8hLive = [], win1hLive
 let last30dSample = 0, last24hSample = 0, last12hSample = 0, last8hSample = 0, last1hSample = 0, last10mSample = 0, last5mSample = 0, last1mSample = 0;
 let recentTrades = []; // Live ticker trades (keep last 100)
 let lastTradeTime = 0; // Track last trade for health monitoring
+let lastNewsUpdate = 0; // Track last successful news update
+let newsUpdateCount = 0; // Count successful news updates
 const SAMPLE_INTERVALS = {
   '30d': 3600000,  // 1 hour
   '24h': 300000,   // 5 minutes
@@ -1705,8 +1707,14 @@ async function fetchNewsData(){
     if(updateTime) updateTime.textContent = `Updated ${new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'})}`;
 
     console.log(`✅ Loaded ${newsToShow.length} news headlines from ${responses.length} sources (${allNews.length} total available)`);
+
+    // Track successful update
+    lastNewsUpdate = Date.now();
+    newsUpdateCount++;
+    console.log(`📊 News update #${newsUpdateCount} completed at ${new Date().toLocaleTimeString()}`);
   }catch(e){
-    console.error('News fetch error:', e);
+    console.error('❌ News fetch error:', e);
+    console.error(`Last successful update was ${lastNewsUpdate > 0 ? Math.floor((Date.now() - lastNewsUpdate) / 1000) + 's ago' : 'never'}`);
     const listEl = document.getElementById('newsList');
     if(listEl) listEl.innerHTML = '<div style="color:var(--down);padding:20px;text-align:center">Failed to load news</div>';
   }

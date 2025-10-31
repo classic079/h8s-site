@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.34
+**Current Version:** v13.35
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,12 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.34 (Current)
+### v13.35 (Current)
+- **Added news feed health monitoring** - Tracks successful news updates with timestamp and count
+- **News update logging** - Console logs show "📊 News update #X completed at [time]" for each successful fetch
+- **Enhanced error tracking** - Errors now show time since last successful news update to diagnose stalling issues
+
+### v13.34
 - **Added health monitoring** - Tracks when trades stop flowing and logs warnings to diagnose 5m chart blanking issue
 - **Added array clearing detection** - Logs error if 5m data array gets unexpectedly cleared
 - **Trade flow tracking** - Monitors last trade time to detect silent WebSocket failures
