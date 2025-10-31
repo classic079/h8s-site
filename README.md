@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.35
+**Current Version:** v13.36
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,12 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.35 (Current)
+### v13.36 (Current)
+- **Added WTI crude oil price** - Header now shows Oil price with 24h percentage change
+- **Color-coded oil ticker** - Green for positive change, orange for negative change
+- **TwelveData integration** - Uses quote endpoint for detailed oil price data
+
+### v13.35
 - **Added news feed health monitoring** - Tracks successful news updates with timestamp and count
 - **News update logging** - Console logs show "📊 News update #X completed at [time]" for each successful fetch
 - **Enhanced error tracking** - Errors now show time since last successful news update to diagnose stalling issues
