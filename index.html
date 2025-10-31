@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.37</title>
+<title>BTC Stalker - Multi-Timeframe v13.38</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.37</span>
+      <span class="pill" style="opacity:.6">v13.38</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1465,6 +1465,43 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
+/* ===== Check if WTI oil markets are open ===== */
+function isOilMarketOpen(){
+  // WTI trades Sunday 5pm CT - Friday 4pm CT with 1hr break at 4pm daily
+  // Convert to UTC: CT is UTC-6 (CST) or UTC-5 (CDT)
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcDay = now.getUTCDay(); // 0=Sunday, 6=Saturday
+  const utcMinutes = now.getUTCMinutes();
+
+  // Estimate CT offset (rough: UTC-6 Nov-Mar, UTC-5 Mar-Nov)
+  // For simplicity, use America/Chicago locale to get CT hour
+  const ctString = now.toLocaleString('en-US', {timeZone: 'America/Chicago', hour: '2-digit', hour12: false});
+  const ctHour = parseInt(ctString);
+
+  // Saturday: Closed all day
+  if(utcDay === 6) return false;
+
+  // Sunday: Open from 5pm CT onwards
+  if(utcDay === 0){
+    return ctHour >= 17; // 5pm or later
+  }
+
+  // Monday-Thursday: Open 6pm-5pm next day (with 1hr break 4-5pm)
+  if(utcDay >= 1 && utcDay <= 4){
+    // Closed during 4-5pm CT break
+    if(ctHour === 16) return false; // 4pm hour
+    return true; // Open rest of the time
+  }
+
+  // Friday: Open until 4pm CT
+  if(utcDay === 5){
+    return ctHour < 16; // Before 4pm
+  }
+
+  return false;
+}
+
 /* ===== Fetch Gold and crypto prices ===== */
 async function fetchMetalPrices(){
   const TWELVE_API_KEY = '830bdfca25d44bfe9992c9872d0693f5';
@@ -1483,8 +1520,9 @@ async function fetchMetalPrices(){
       }
     }
 
-    // Fetch WTI Crude Oil price with % change from OilPriceAPI
-    if(OIL_API_KEY !== 'YOUR_OILPRICEAPI_KEY_HERE'){
+    // Fetch WTI Crude Oil price ONLY when markets are open (saves API calls!)
+    const oilMarketOpen = isOilMarketOpen();
+    if(OIL_API_KEY !== 'YOUR_OILPRICEAPI_KEY_HERE' && oilMarketOpen){
       const rOil = await fetch('https://api.oilpriceapi.com/v1/prices/latest?by_code=WTI_USD', {
         headers: {
           'Authorization': `Token ${OIL_API_KEY}`,
@@ -1514,6 +1552,8 @@ async function fetchMetalPrices(){
           }
         }
       }
+    } else if(!oilMarketOpen){
+      console.log('🛢️ Oil markets closed - skipping API call');
     }
 
     // Use Coinbase API for crypto prices with 24h stats

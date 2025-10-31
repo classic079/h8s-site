@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.37
+**Current Version:** v13.38
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,14 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.37 (Current)
+### v13.38 (Current)
+- **Smart oil market hours detection** - Only fetches oil prices when WTI markets are actually open
+- **Massive API savings** - Skips calls on weekends, holidays, and daily 4pm CT break
+- **Automatic timezone handling** - Uses America/Chicago timezone for accurate market hours
+- **Console logging** - Shows "🛢️ Oil markets closed - skipping API call" when markets are closed
+- **Reduces API usage by ~40%** - From 288 calls/day to ~170 calls/day (markets closed ~40 hrs/week)
+
+### v13.37
 - **Fixed oil price integration** - Switched from TwelveData to OilPriceAPI (free tier supports WTI)
 - **Added OilPriceAPI key** - 1,000 free API calls per month for real-time oil prices
 - **Working oil ticker** - Now displays WTI crude oil price with 24h percentage change and color coding
