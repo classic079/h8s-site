@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.38
+**Current Version:** v13.39
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,13 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.38 (Current)
+### v13.39 (Current)
+- **Fixed oil price initial load** - Always fetches oil price on first page load, even when markets closed
+- **Shows last closing price** - Displays most recent oil price when markets are closed (weekends/holidays)
+- **Smart refresh logic** - After initial load, only fetches during market hours to save API calls
+- **Better user experience** - Oil price always visible instead of showing "Oil —" during off-hours
+
+### v13.38
 - **Smart oil market hours detection** - Only fetches oil prices when WTI markets are actually open
 - **Massive API savings** - Skips calls on weekends, holidays, and daily 4pm CT break
 - **Automatic timezone handling** - Uses America/Chicago timezone for accurate market hours

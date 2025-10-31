@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.38</title>
+<title>BTC Stalker - Multi-Timeframe v13.39</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -168,7 +168,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.38</span>
+      <span class="pill" style="opacity:.6">v13.39</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -325,6 +325,7 @@ let recentTrades = []; // Live ticker trades (keep last 100)
 let lastTradeTime = 0; // Track last trade for health monitoring
 let lastNewsUpdate = 0; // Track last successful news update
 let newsUpdateCount = 0; // Count successful news updates
+let oilPriceFetched = false; // Track if we've fetched oil at least once
 const SAMPLE_INTERVALS = {
   '30d': 3600000,  // 1 hour
   '24h': 300000,   // 5 minutes
@@ -1520,9 +1521,11 @@ async function fetchMetalPrices(){
       }
     }
 
-    // Fetch WTI Crude Oil price ONLY when markets are open (saves API calls!)
+    // Fetch WTI Crude Oil price: always on first load, then only when markets are open
     const oilMarketOpen = isOilMarketOpen();
-    if(OIL_API_KEY !== 'YOUR_OILPRICEAPI_KEY_HERE' && oilMarketOpen){
+    const shouldFetchOil = !oilPriceFetched || oilMarketOpen; // First time OR markets open
+
+    if(OIL_API_KEY !== 'YOUR_OILPRICEAPI_KEY_HERE' && shouldFetchOil){
       const rOil = await fetch('https://api.oilpriceapi.com/v1/prices/latest?by_code=WTI_USD', {
         headers: {
           'Authorization': `Token ${OIL_API_KEY}`,
@@ -1549,10 +1552,15 @@ async function fetchMetalPrices(){
               oilPrice.style.color = '';
               oilPrice.style.borderColor = '';
             }
+
+            oilPriceFetched = true; // Mark as fetched
+            if(!oilMarketOpen){
+              console.log('🛢️ Initial oil price loaded (markets closed, showing last close)');
+            }
           }
         }
       }
-    } else if(!oilMarketOpen){
+    } else if(!shouldFetchOil && !oilMarketOpen){
       console.log('🛢️ Oil markets closed - skipping API call');
     }
 
