@@ -1547,10 +1547,16 @@ async function updateWeather(){
     const temp = Math.round(current.main.temp);
     const condition = current.weather[0].main;
 
-    // Weather emoji mapping
+    // Check if it's currently daytime or nighttime
+    const now = Math.floor(Date.now() / 1000); // Current time in Unix timestamp
+    const sunrise = current.sys.sunrise;
+    const sunset = current.sys.sunset;
+    const isDaytime = now >= sunrise && now < sunset;
+
+    // Weather emoji mapping (day/night versions)
     const weatherEmojis = {
-      'Clear': '☀️',
-      'Clouds': '☁️',
+      'Clear': isDaytime ? '☀️' : '🌙',
+      'Clouds': isDaytime ? '☁️' : '☁️',
       'Rain': '🌧️',
       'Drizzle': '🌦️',
       'Thunderstorm': '⛈️',
@@ -1560,7 +1566,7 @@ async function updateWeather(){
       'Haze': '🌫️'
     };
 
-    const emoji = weatherEmojis[condition] || '🌤️';
+    const emoji = weatherEmojis[condition] || (isDaytime ? '🌤️' : '🌙');
 
     // Today's high/low from forecast (next 8 3-hour periods = 24 hours)
     const todayForecasts = forecast.list.slice(0, 8);
@@ -1579,7 +1585,20 @@ async function updateWeather(){
     const tomorrowCondition = tomorrowConditions.sort((a,b) =>
       tomorrowConditions.filter(v => v===a).length - tomorrowConditions.filter(v => v===b).length
     ).pop();
-    const tomorrowEmoji = weatherEmojis[tomorrowCondition] || '🌤️';
+
+    // Tomorrow's emoji (always use daytime version for forecast)
+    const forecastEmojis = {
+      'Clear': '☀️',
+      'Clouds': '☁️',
+      'Rain': '🌧️',
+      'Drizzle': '🌦️',
+      'Thunderstorm': '⛈️',
+      'Snow': '❄️',
+      'Mist': '🌫️',
+      'Fog': '🌫️',
+      'Haze': '🌫️'
+    };
+    const tomorrowEmoji = forecastEmojis[tomorrowCondition] || '🌤️';
 
     // Update display
     weatherNow.textContent = `${emoji} ${temp}°F`;
