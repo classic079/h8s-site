@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.40</title>
+<title>BTC Stalker - Multi-Timeframe v13.41</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -70,10 +70,11 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .bigClockPill:hover{opacity:1}
 
 /* Weather Pill */
-.weatherPill{font-size:clamp(16px,2vw,20px);font-weight:600;
-  padding:8px 16px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+.weatherPill{font-size:clamp(24px,3vw,36px);font-weight:700;letter-spacing:1px;
+  font-family:'Courier New',monospace;padding:8px 16px;
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;
   background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.22);
-  color:#fff;opacity:.92;transition:opacity .3s;white-space:nowrap}
+  color:#fff;opacity:.92;transition:opacity .3s;white-space:nowrap;user-select:none}
 [data-theme="light"] .weatherPill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
 .weatherPill:hover{opacity:1}
 
@@ -192,7 +193,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.40</span>
+      <span class="pill" style="opacity:.6">v13.41</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
