@@ -56,14 +56,26 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .conn-warn{color:#fbbf24;border-color:#fbbf24}
 .conn-err{color:#fb7185;border-color:#fb7185}
 
-/* Big Clock */
-.bigClock{position:fixed;right:24px;bottom:24px;z-index:50;
-  font-size:clamp(48px,6vw,72px);font-weight:900;letter-spacing:2px;
-  color:var(--text);opacity:.85;transition:opacity .3s;
-  text-shadow:0 2px 12px rgba(0,0,0,.5);
-  font-family:'Courier New',monospace;user-select:none}
-.bigClock:hover{opacity:1}
-@media(max-width:760px){.bigClock{font-size:clamp(32px,8vw,48px);right:16px;bottom:16px}}
+/* Bottom Right Pills Container */
+.bottomRightPills{position:fixed;right:24px;bottom:24px;z-index:50;display:flex;gap:8px;align-items:center}
+@media(max-width:760px){.bottomRightPills{right:16px;bottom:16px}}
+
+/* Big Clock Pill */
+.bigClockPill{font-size:clamp(24px,3vw,36px);font-weight:700;letter-spacing:1px;
+  font-family:'Courier New',monospace;padding:8px 16px;
+  display:inline-flex;align-items:center;border-radius:999px;
+  background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.22);
+  color:#fff;opacity:.92;transition:opacity .3s;user-select:none}
+[data-theme="light"] .bigClockPill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
+.bigClockPill:hover{opacity:1}
+
+/* Weather Pill */
+.weatherPill{font-size:clamp(16px,2vw,20px);font-weight:600;
+  padding:8px 16px;display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+  background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.22);
+  color:#fff;opacity:.92;transition:opacity .3s;white-space:nowrap}
+[data-theme="light"] .weatherPill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
+.weatherPill:hover{opacity:1}
 
 /* Settings button */
 .settingsBtn{cursor:pointer;transition:all .2s;user-select:none}
@@ -195,8 +207,11 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   <section class="grid" id="dashboard"></section>
 </div>
 
-<!-- Big Clock Bottom Right -->
-<div id="bigClock" class="bigClock">--:--:--</div>
+<!-- Bottom Right Pills -->
+<div class="bottomRightPills">
+  <div id="weatherPill" class="weatherPill">🌤️ --°F</div>
+  <div id="bigClock" class="bigClockPill">--:--:--</div>
+</div>
 
 <!-- Settings Modal -->
 <div class="settingsModal" id="settingsModal" onclick="if(event.target === this) closeSettings()">
@@ -318,6 +333,7 @@ const ethPrice = document.getElementById('ethPrice');
 const xrpPrice = document.getElementById('xrpPrice');
 const adaPrice = document.getElementById('adaPrice');
 const liveClock = document.getElementById('bigClock');
+const weatherPill = document.getElementById('weatherPill');
 
 /* ===== Formatters ===== */
 const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
@@ -1477,6 +1493,42 @@ function updateClock(){
   liveClock.textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
 }
 
+/* ===== Weather ===== */
+async function updateWeather(){
+  try {
+    // Using OpenWeatherMap API - you can replace with your own API key
+    const apiKey = '1591da776534a0f5e80ba9c577531a54'; // Using the one from your HA config
+    const lat = 41.391;
+    const lon = -82.221;
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const temp = Math.round(data.main.temp);
+    const condition = data.weather[0].main;
+
+    // Weather emoji mapping
+    const weatherEmojis = {
+      'Clear': '☀️',
+      'Clouds': '☁️',
+      'Rain': '🌧️',
+      'Drizzle': '🌦️',
+      'Thunderstorm': '⛈️',
+      'Snow': '❄️',
+      'Mist': '🌫️',
+      'Fog': '🌫️',
+      'Haze': '🌫️'
+    };
+
+    const emoji = weatherEmojis[condition] || '🌤️';
+    weatherPill.textContent = `${emoji} ${temp}°F`;
+  } catch(e) {
+    console.error('Weather fetch failed:', e);
+    weatherPill.textContent = '🌤️ --°F';
+  }
+}
+
 /* ===== Check if WTI oil markets are open ===== */
 function isOilMarketOpen(){
   // WTI trades Sunday 5pm CT - Friday 4pm CT with 1hr break at 4pm daily
@@ -1952,11 +2004,13 @@ setTimeout(async () => {
   fetchMetalPrices();
   fetchNewsData(); // Initial load
   updateClock();
+  updateWeather();
   setInterval(restFallback, 1200);
   setInterval(fetch24h, 60000);
   setInterval(fetchMetalPrices, 300000); // Update every 5 minutes
   setInterval(fetchNewsData, 180000); // Update news every 3 minutes
   setInterval(updateClock, 1000); // Update every second
+  setInterval(updateWeather, 600000); // Update weather every 10 minutes
 
   // Health monitor: check if trades are flowing and arrays aren't empty
   setInterval(() => {
