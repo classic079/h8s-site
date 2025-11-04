@@ -56,6 +56,15 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .conn-warn{color:#fbbf24;border-color:#fbbf24}
 .conn-err{color:#fb7185;border-color:#fb7185}
 
+/* Big Clock */
+.bigClock{position:fixed;right:24px;bottom:24px;z-index:50;
+  font-size:clamp(48px,6vw,72px);font-weight:900;letter-spacing:2px;
+  color:var(--text);opacity:.85;transition:opacity .3s;
+  text-shadow:0 2px 12px rgba(0,0,0,.5);
+  font-family:'Courier New',monospace;user-select:none}
+.bigClock:hover{opacity:1}
+@media(max-width:760px){.bigClock{font-size:clamp(32px,8vw,48px);right:16px;bottom:16px}}
+
 /* Settings button */
 .settingsBtn{cursor:pointer;transition:all .2s;user-select:none}
 .settingsBtn:hover{opacity:1;transform:scale(1.05);border-color:rgba(255,255,255,.4)}
@@ -180,12 +189,14 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <span id="adaPrice" class="pill">ADA —</span>
       <span id="goldPrice" class="pill">Gold —</span>
       <span id="oilPrice" class="pill">Oil —</span>
-      <span id="liveClock" class="pill">--:--:--</span>
     </div>
   </header>
 
   <section class="grid" id="dashboard"></section>
 </div>
+
+<!-- Big Clock Bottom Right -->
+<div id="bigClock" class="bigClock">--:--:--</div>
 
 <!-- Settings Modal -->
 <div class="settingsModal" id="settingsModal" onclick="if(event.target === this) closeSettings()">
@@ -306,7 +317,7 @@ const oilPrice = document.getElementById('oilPrice');
 const ethPrice = document.getElementById('ethPrice');
 const xrpPrice = document.getElementById('xrpPrice');
 const adaPrice = document.getElementById('adaPrice');
-const liveClock = document.getElementById('liveClock');
+const liveClock = document.getElementById('bigClock');
 
 /* ===== Formatters ===== */
 const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
