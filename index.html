@@ -98,6 +98,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   border-radius:8px;background:rgba(255,255,255,.03);margin-bottom:8px}
 .settingOption:hover{background:rgba(255,255,255,.06)}
 .settingOption input[type="checkbox"]{cursor:pointer;width:18px;height:18px}
+.settingOption input[type="text"]{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);
+  border-radius:6px;padding:6px 10px;color:var(--text);font-size:14px;width:120px}
+.settingOption input[type="text"]:focus{outline:none;border-color:var(--up);background:rgba(255,255,255,.15)}
 .settingsActions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .btn{padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:600;transition:all .2s}
 .btnPrimary{background:var(--up);color:#000}
@@ -274,6 +277,14 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <div class="settingOption">
         <span>📊 Live Ticker</span>
         <input type="checkbox" id="chartTicker">
+      </div>
+    </div>
+
+    <div class="settingsSection">
+      <h3>Weather</h3>
+      <div class="settingOption">
+        <span>📍 Zip Code</span>
+        <input type="text" id="weatherZip" placeholder="43440" maxlength="5">
       </div>
     </div>
 
@@ -1496,11 +1507,10 @@ function updateClock(){
 /* ===== Weather ===== */
 async function updateWeather(){
   try {
-    // Using OpenWeatherMap API - you can replace with your own API key
-    const apiKey = '1591da776534a0f5e80ba9c577531a54'; // Using the one from your HA config
-    const lat = 41.391;
-    const lon = -82.221;
-    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+    // Using OpenWeatherMap API
+    const apiKey = '1591da776534a0f5e80ba9c577531a54';
+    const zip = settings.weatherZip || '43440';
+    const url = `https://api.openweathermap.org/data/2.5/weather?zip=${zip},US&units=imperial&appid=${apiKey}`;
 
     const response = await fetch(url);
     const data = await response.json();
@@ -1897,7 +1907,8 @@ function getTimeAgo(date){
 const settings = {
   theme: 'dark',
   charts: { '30d': false, '24h': true, '12h': false, '8h': false, '1h': true, '10m': false, '5m': true, '1m': false, 'news': true, 'ticker': false },
-  alerts: { volSpike: true, tradeBlink: true }
+  alerts: { volSpike: true, tradeBlink: true },
+  weatherZip: '43440'
 };
 
 function loadSettings(){
@@ -1950,6 +1961,10 @@ function applySettings(){
 
   document.getElementById('alertVolSpike').checked = settings.alerts.volSpike;
   document.getElementById('alertTradeBlink').checked = settings.alerts.tradeBlink;
+
+  // Apply weather zip
+  const weatherZipInput = document.getElementById('weatherZip');
+  if(weatherZipInput) weatherZipInput.value = settings.weatherZip;
 }
 
 function selectTheme(theme){
@@ -1982,11 +1997,20 @@ function saveSettings(){
   settings.alerts.volSpike = document.getElementById('alertVolSpike').checked;
   settings.alerts.tradeBlink = document.getElementById('alertTradeBlink').checked;
 
+  // Weather zip code
+  const weatherZipInput = document.getElementById('weatherZip');
+  if(weatherZipInput && weatherZipInput.value.trim()) {
+    settings.weatherZip = weatherZipInput.value.trim();
+  }
+
   // Save to localStorage
   localStorage.setItem('btcStalkerSettings', JSON.stringify(settings));
 
   // Apply the settings
   applySettings();
+
+  // Update weather with new zip
+  updateWeather();
 
   // Close modal
   closeSettings();
