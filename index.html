@@ -289,6 +289,15 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     </div>
 
     <div class="settingsSection">
+      <h3>News Filter</h3>
+      <div class="settingOption" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <span>🚫 Block words (comma separated)</span>
+        <input type="text" id="newsFilter" placeholder="Trump, Biden, election" style="width:100%">
+        <small style="opacity:0.6;font-size:12px">News containing these words will be hidden</small>
+      </div>
+    </div>
+
+    <div class="settingsSection">
       <h3>Alerts</h3>
       <div class="settingOption">
         <span>Volume Spike Alerts</span>
@@ -1764,10 +1773,24 @@ async function fetchNewsData(){
     // Combine all news items with source info
     const allNews = [];
     let trumpAddedCount = 0;
+
+    // Get blocked words from settings (case-insensitive)
+    const blockedWords = settings.newsFilter
+      ? settings.newsFilter.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0)
+      : [];
+
     responses.forEach(feed => {
       feed.items.forEach(item => {
         // Skip items with [No Title] (re-truths/shares) and items without titles
         if(item.title && !item.title.trim().startsWith('[No Title]')){
+
+          // Check if title contains any blocked words
+          const titleLower = item.title.toLowerCase();
+          const hasBlockedWord = blockedWords.some(word => titleLower.includes(word));
+          if(hasBlockedWord) {
+            console.log(`🚫 Filtered out: "${item.title.substring(0, 60)}..." (matched filter)`);
+            return; // Skip this item
+          }
           // Use current time if no pubDate provided (fallback for broken feeds)
           let dateToUse = item.pubDate || new Date().toISOString();
 
@@ -1908,7 +1931,8 @@ const settings = {
   theme: 'dark',
   charts: { '30d': false, '24h': true, '12h': false, '8h': false, '1h': true, '10m': false, '5m': true, '1m': false, 'news': true, 'ticker': false },
   alerts: { volSpike: true, tradeBlink: true },
-  weatherZip: '43440'
+  weatherZip: '43440',
+  newsFilter: ''
 };
 
 function loadSettings(){
@@ -1965,6 +1989,10 @@ function applySettings(){
   // Apply weather zip
   const weatherZipInput = document.getElementById('weatherZip');
   if(weatherZipInput) weatherZipInput.value = settings.weatherZip;
+
+  // Apply news filter
+  const newsFilterInput = document.getElementById('newsFilter');
+  if(newsFilterInput) newsFilterInput.value = settings.newsFilter;
 }
 
 function selectTheme(theme){
@@ -2003,6 +2031,12 @@ function saveSettings(){
     settings.weatherZip = weatherZipInput.value.trim();
   }
 
+  // News filter
+  const newsFilterInput = document.getElementById('newsFilter');
+  if(newsFilterInput) {
+    settings.newsFilter = newsFilterInput.value.trim();
+  }
+
   // Save to localStorage
   localStorage.setItem('btcStalkerSettings', JSON.stringify(settings));
 
@@ -2011,6 +2045,11 @@ function saveSettings(){
 
   // Update weather with new zip
   updateWeather();
+
+  // Refresh news if filter changed
+  if(settings.charts.news) {
+    fetchNewsData();
+  }
 
   // Close modal
   closeSettings();
