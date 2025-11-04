@@ -58,7 +58,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 
 /* Bottom Right Pills Container */
 .bottomRightPills{position:fixed;right:24px;bottom:24px;z-index:50;display:flex;gap:8px;align-items:center}
-@media(max-width:760px){.bottomRightPills{right:16px;bottom:16px}}
+@media(max-width:760px){.bottomRightPills{right:16px;bottom:16px;flex-wrap:wrap}}
 
 /* Big Clock Pill */
 .bigClockPill{font-size:clamp(24px,3vw,36px);font-weight:700;letter-spacing:1px;
@@ -69,14 +69,16 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 [data-theme="light"] .bigClockPill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
 .bigClockPill:hover{opacity:1}
 
-/* Weather Pill */
-.weatherPill{font-size:clamp(24px,3vw,36px);font-weight:700;letter-spacing:1px;
+/* Weather Bar - Expanded */
+.weatherBar{font-size:clamp(14px,1.8vw,18px);font-weight:600;
   font-family:'Courier New',monospace;padding:8px 16px;
-  display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+  display:inline-flex;align-items:center;gap:12px;border-radius:999px;
   background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.22);
   color:#fff;opacity:.92;transition:opacity .3s;white-space:nowrap;user-select:none}
-[data-theme="light"] .weatherPill{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
-.weatherPill:hover{opacity:1}
+[data-theme="light"] .weatherBar{background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.15);color:var(--text)}
+.weatherBar:hover{opacity:1}
+.weatherBar .divider{opacity:.3;margin:0 4px}
+.weatherBar .label{opacity:.6;font-size:0.85em}
 
 /* Settings button */
 .settingsBtn{cursor:pointer;transition:all .2s;user-select:none}
@@ -213,7 +215,13 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 
 <!-- Bottom Right Pills -->
 <div class="bottomRightPills">
-  <div id="weatherPill" class="weatherPill">🌤️ --°F</div>
+  <div id="weatherBar" class="weatherBar">
+    <span id="weatherNow">🌤️ --°F</span>
+    <span class="divider">|</span>
+    <span id="weatherToday"><span class="label">Today:</span> H -- L --</span>
+    <span class="divider">|</span>
+    <span id="weatherTomorrow"><span class="label">Tomorrow:</span> -- H -- L --</span>
+  </div>
   <div id="bigClock" class="bigClockPill">--:--:--</div>
 </div>
 
@@ -354,7 +362,9 @@ const ethPrice = document.getElementById('ethPrice');
 const xrpPrice = document.getElementById('xrpPrice');
 const adaPrice = document.getElementById('adaPrice');
 const liveClock = document.getElementById('bigClock');
-const weatherPill = document.getElementById('weatherPill');
+const weatherNow = document.getElementById('weatherNow');
+const weatherToday = document.getElementById('weatherToday');
+const weatherTomorrow = document.getElementById('weatherTomorrow');
 
 /* ===== Formatters ===== */
 const fmtUSD = new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2});
@@ -1520,13 +1530,22 @@ async function updateWeather(){
     // Using OpenWeatherMap API
     const apiKey = '1591da776534a0f5e80ba9c577531a54';
     const zip = settings.weatherZip || '43440';
-    const url = `https://api.openweathermap.org/data/2.5/weather?zip=${zip},US&units=imperial&appid=${apiKey}`;
 
-    const response = await fetch(url);
-    const data = await response.json();
+    // Fetch current weather and 5-day forecast
+    const currentUrl = `https://api.openweathermap.org/data/2.5/weather?zip=${zip},US&units=imperial&appid=${apiKey}`;
+    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?zip=${zip},US&units=imperial&appid=${apiKey}`;
 
-    const temp = Math.round(data.main.temp);
-    const condition = data.weather[0].main;
+    const [currentRes, forecastRes] = await Promise.all([
+      fetch(currentUrl),
+      fetch(forecastUrl)
+    ]);
+
+    const current = await currentRes.json();
+    const forecast = await forecastRes.json();
+
+    // Current temp
+    const temp = Math.round(current.main.temp);
+    const condition = current.weather[0].main;
 
     // Weather emoji mapping
     const weatherEmojis = {
@@ -1542,10 +1561,36 @@ async function updateWeather(){
     };
 
     const emoji = weatherEmojis[condition] || '🌤️';
-    weatherPill.textContent = `${emoji} ${temp}°F`;
+
+    // Today's high/low from forecast (next 8 3-hour periods = 24 hours)
+    const todayForecasts = forecast.list.slice(0, 8);
+    const todayTemps = todayForecasts.map(f => f.main.temp);
+    const todayHigh = Math.round(Math.max(...todayTemps));
+    const todayLow = Math.round(Math.min(...todayTemps));
+
+    // Tomorrow's forecast (forecasts 8-16, next 24 hours after today)
+    const tomorrowForecasts = forecast.list.slice(8, 16);
+    const tomorrowTemps = tomorrowForecasts.map(f => f.main.temp);
+    const tomorrowHigh = Math.round(Math.max(...tomorrowTemps));
+    const tomorrowLow = Math.round(Math.min(...tomorrowTemps));
+
+    // Get most common weather condition for tomorrow
+    const tomorrowConditions = tomorrowForecasts.map(f => f.weather[0].main);
+    const tomorrowCondition = tomorrowConditions.sort((a,b) =>
+      tomorrowConditions.filter(v => v===a).length - tomorrowConditions.filter(v => v===b).length
+    ).pop();
+    const tomorrowEmoji = weatherEmojis[tomorrowCondition] || '🌤️';
+
+    // Update display
+    weatherNow.textContent = `${emoji} ${temp}°F`;
+    weatherToday.innerHTML = `<span class="label">Today:</span> H ${todayHigh}° L ${todayLow}°`;
+    weatherTomorrow.innerHTML = `<span class="label">Tomorrow:</span> ${tomorrowEmoji} H ${tomorrowHigh}° L ${tomorrowLow}°`;
+
   } catch(e) {
     console.error('Weather fetch failed:', e);
-    weatherPill.textContent = '🌤️ --°F';
+    weatherNow.textContent = '🌤️ --°F';
+    weatherToday.innerHTML = '<span class="label">Today:</span> H -- L --';
+    weatherTomorrow.innerHTML = '<span class="label">Tomorrow:</span> -- H -- L --';
   }
 }
 
