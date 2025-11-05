@@ -28,27 +28,37 @@
 
         .chart-panel {
             background: #1e293b;
-            border-radius: 8px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.15);
+            border: 1px solid rgba(45, 212, 191, 0.1);
         }
 
         .chart-header {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: bold;
-            color: #2dd4bf;
-            margin-bottom: 10px;
+            color: #94a3b8;
+            margin-bottom: 8px;
             text-align: center;
-            text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
+            letter-spacing: 2px;
         }
 
         .price-display {
-            font-size: 24px;
+            font-size: 32px;
+            font-weight: bold;
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             color: #2dd4bf;
+            text-shadow: 0 0 20px rgba(45, 212, 191, 0.3);
+        }
+
+        .change-display {
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
         }
 
         .chart-container {
@@ -96,6 +106,7 @@
         <div class="chart-panel">
             <div class="chart-header">24 HOURS</div>
             <div class="price-display" id="price-24h">$--,---</div>
+            <div class="change-display" id="change-24h">--</div>
             <div class="chart-container">
                 <canvas id="chart-24h"></canvas>
             </div>
@@ -114,6 +125,7 @@
         <div class="chart-panel">
             <div class="chart-header">1 HOUR</div>
             <div class="price-display" id="price-1h">$--,---</div>
+            <div class="change-display" id="change-1h">--</div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
             </div>
@@ -132,6 +144,7 @@
         <div class="chart-panel">
             <div class="chart-header">5 MINUTES</div>
             <div class="price-display" id="price-5m">$--,---</div>
+            <div class="change-display" id="change-5m">--</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
             </div>
@@ -197,11 +210,19 @@
                         y: {
                             display: true,
                             grid: {
-                                color: 'rgba(148, 163, 184, 0.1)'
+                                color: 'rgba(148, 163, 184, 0.15)',
+                                lineWidth: 1
+                            },
+                            border: {
+                                display: false
                             },
                             ticks: {
-                                color: '#94a3b8',
-                                font: { size: 10 }
+                                color: '#64748b',
+                                font: {
+                                    size: 11,
+                                    family: "'Courier New', monospace"
+                                },
+                                padding: 8
                             }
                         }
                     },
@@ -259,11 +280,19 @@
             if (data.prices.length === 0) return;
 
             const currentPrice = data.prices[data.prices.length - 1];
+            const startPrice = data.prices[0];
             const high = Math.max(...data.prices);
             const low = Math.min(...data.prices);
+            const change = ((currentPrice - startPrice) / startPrice) * 100;
 
             document.getElementById(`price-${timeframe}`).textContent =
                 `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+            const changeEl = document.getElementById(`change-${timeframe}`);
+            const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+            changeEl.textContent = changeText;
+            changeEl.className = `change-display ${change >= 0 ? 'up' : 'down'}`;
+
             document.getElementById(`high-${timeframe}`).textContent =
                 `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
             document.getElementById(`low-${timeframe}`).textContent =
