@@ -224,7 +224,27 @@
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0.1,
-                        fill: true
+                        fill: true,
+                        segment: {
+                            borderColor: ctx => {
+                                const chart = ctx.chart;
+                                const {p0, p1} = ctx;
+                                if (!p0 || !p1) return '#2dd4bf';
+                                const avg = chart.data.datasets[1].data[p0.parsed.x];
+                                const v0 = p0.parsed.y;
+                                const v1 = p1.parsed.y;
+                                return (v0 >= avg || v1 >= avg) ? '#2dd4bf' : '#f59e0b';
+                            },
+                            backgroundColor: ctx => {
+                                const chart = ctx.chart;
+                                const {p0, p1} = ctx;
+                                if (!p0 || !p1) return 'rgba(45, 212, 191, 0.1)';
+                                const avg = chart.data.datasets[1].data[p0.parsed.x];
+                                const v0 = p0.parsed.y;
+                                const v1 = p1.parsed.y;
+                                return (v0 >= avg || v1 >= avg) ? 'rgba(45, 212, 191, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+                            }
+                        }
                     }, {
                         label: 'Average',
                         data: [],
@@ -305,12 +325,6 @@
 
             // Add average line as horizontal line across all points
             chart.data.datasets[1].data = new Array(data.prices.length).fill(avg);
-
-            // Color based on current vs average
-            const currentPrice = data.prices[data.prices.length - 1];
-            chart.data.datasets[0].borderColor = currentPrice > avg ? '#2dd4bf' : '#f59e0b';
-            chart.data.datasets[0].backgroundColor = currentPrice > avg ?
-                'rgba(45, 212, 191, 0.1)' : 'rgba(245, 158, 11, 0.1)';
 
             chart.update('none');
         }
