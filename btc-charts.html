@@ -105,11 +105,6 @@
     <div class="container">
         <div class="chart-panel">
             <div class="chart-header">24 HOURS</div>
-            <div class="price-display" id="price-24h">$--,---</div>
-            <div class="change-display" id="change-24h">--</div>
-            <div class="chart-container">
-                <canvas id="chart-24h"></canvas>
-            </div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">HIGH</div>
@@ -119,16 +114,18 @@
                     <div class="stat-label">LOW</div>
                     <div class="stat-value" id="low-24h">-</div>
                 </div>
+                <div class="stat">
+                    <div class="stat-label">AVG</div>
+                    <div class="stat-value" id="avg-24h">-</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-24h"></canvas>
             </div>
         </div>
 
         <div class="chart-panel">
             <div class="chart-header">1 HOUR</div>
-            <div class="price-display" id="price-1h">$--,---</div>
-            <div class="change-display" id="change-1h">--</div>
-            <div class="chart-container">
-                <canvas id="chart-1h"></canvas>
-            </div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">HIGH</div>
@@ -138,6 +135,13 @@
                     <div class="stat-label">LOW</div>
                     <div class="stat-value" id="low-1h">-</div>
                 </div>
+                <div class="stat">
+                    <div class="stat-label">AVG</div>
+                    <div class="stat-value" id="avg-1h">-</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-1h"></canvas>
             </div>
         </div>
 
@@ -196,6 +200,14 @@
                         pointRadius: 0,
                         tension: 0.1,
                         fill: true
+                    }, {
+                        label: 'Average',
+                        data: [],
+                        borderColor: '#94a3b8',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
                     }]
                 },
                 options: {
@@ -266,6 +278,9 @@
             chart.data.labels = data.timestamps.map(t => new Date(t * 1000).toLocaleTimeString());
             chart.data.datasets[0].data = data.prices;
 
+            // Add average line as horizontal line across all points
+            chart.data.datasets[1].data = new Array(data.prices.length).fill(avg);
+
             // Color based on current vs average
             const currentPrice = data.prices[data.prices.length - 1];
             chart.data.datasets[0].borderColor = currentPrice > avg ? '#2dd4bf' : '#f59e0b';
@@ -283,20 +298,34 @@
             const startPrice = data.prices[0];
             const high = Math.max(...data.prices);
             const low = Math.min(...data.prices);
+            const avg = data.prices.reduce((a, b) => a + b, 0) / data.prices.length;
             const change = ((currentPrice - startPrice) / startPrice) * 100;
 
-            document.getElementById(`price-${timeframe}`).textContent =
-                `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            // Only update price display if element exists (for 5m chart)
+            const priceEl = document.getElementById(`price-${timeframe}`);
+            if (priceEl) {
+                priceEl.textContent =
+                    `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
 
             const changeEl = document.getElementById(`change-${timeframe}`);
-            const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
-            changeEl.textContent = changeText;
-            changeEl.className = `change-display ${change >= 0 ? 'up' : 'down'}`;
+            if (changeEl) {
+                const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                changeEl.textContent = changeText;
+                changeEl.className = `change-display ${change >= 0 ? 'up' : 'down'}`;
+            }
 
             document.getElementById(`high-${timeframe}`).textContent =
                 `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
             document.getElementById(`low-${timeframe}`).textContent =
                 `$${low.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+            // Update average if element exists
+            const avgEl = document.getElementById(`avg-${timeframe}`);
+            if (avgEl) {
+                avgEl.textContent =
+                    `$${avg.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+            }
         }
 
         // WebSocket for real-time updates
