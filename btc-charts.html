@@ -100,6 +100,65 @@
         .down {
             color: #f59e0b;
         }
+
+        /* Bias Gauge */
+        .gauge-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            margin-top: 8px;
+        }
+
+        .gauge-label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        .gauge-label.buy {
+            color: #2dd4bf;
+        }
+
+        .gauge-label.sell {
+            color: #f59e0b;
+        }
+
+        #biasGauge-5m {
+            width: 100%;
+            height: 20px;
+            border-radius: 999px;
+            background: transparent;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+
+        .gauge-wrap {
+            position: relative;
+            flex: 1;
+        }
+
+        .needle {
+            position: absolute;
+            top: 2px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 9px solid #fff;
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+            transition: left 0.2s;
+        }
+
+        .needle-value {
+            position: absolute;
+            top: -13px;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
     </style>
 </head>
 <body>
@@ -139,20 +198,19 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">5 MINUTES<span class="version-tag">v1.0</span></div>
+            <div class="chart-header">5 MINUTES<span class="version-tag">v1.1</span></div>
             <div class="price-display" id="price-5m">$--,---</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
             </div>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-label">HIGH</div>
-                    <div class="stat-value" id="high-5m">-</div>
+            <div class="gauge-row">
+                <span class="gauge-label buy">Buys</span>
+                <div class="gauge-wrap">
+                    <canvas id="biasGauge-5m"></canvas>
+                    <div id="needle-5m" class="needle" style="left:50%"></div>
+                    <div id="needleValue-5m" class="needle-value" style="left:50%">0%</div>
                 </div>
-                <div class="stat">
-                    <div class="stat-label">LOW</div>
-                    <div class="stat-value" id="low-5m">-</div>
-                </div>
+                <span class="gauge-label sell">Sells</span>
             </div>
         </div>
     </div>
@@ -276,10 +334,72 @@
                 priceEl.textContent =
                     `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
             }
-            document.getElementById(`high-${timeframe}`).textContent =
-                `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-            document.getElementById(`low-${timeframe}`).textContent =
-                `$${low.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+            const highEl = document.getElementById(`high-${timeframe}`);
+            if (highEl) {
+                highEl.textContent =
+                    `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+            }
+            const lowEl = document.getElementById(`low-${timeframe}`);
+            if (lowEl) {
+                lowEl.textContent =
+                    `$${low.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+            }
+        }
+
+        // Bias Gauge
+        let buyVolume = 0, sellVolume = 0;
+        let needlePos = 0.5;
+
+        function sizeCanvas(canvas) {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            return canvas.getContext('2d');
+        }
+
+        function drawGauge() {
+            const canvas = document.getElementById('biasGauge-5m');
+            if (!canvas) return;
+
+            const ctx = sizeCanvas(canvas);
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            const total = buyVolume + sellVolume;
+            const target = total ? (buyVolume / total) : 0.5;
+
+            needlePos += (target - needlePos) * 0.25;
+
+            const upColor = '#2dd4bf';
+            const downColor = '#f59e0b';
+
+            const g = ctx.createLinearGradient(0, 0, w, 0);
+            g.addColorStop(0, upColor);
+            g.addColorStop(Math.max(0, needlePos - 0.001), upColor);
+            g.addColorStop(Math.min(1, needlePos + 0.001), downColor);
+            g.addColorStop(1, downColor);
+
+            const r = h / 2;
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.moveTo(r, 1);
+            ctx.arcTo(w - 1, 1, w - 1, h - 1, r);
+            ctx.arcTo(w - 1, h - 1, 0, h - 1, r);
+            ctx.arcTo(0, h - 1, 0, 1, r);
+            ctx.arcTo(0, 1, w - 1, 1, r);
+            ctx.fill();
+
+            const needle = document.getElementById('needle-5m');
+            const needleValue = document.getElementById('needleValue-5m');
+            if (!needle || !needleValue) return;
+
+            const leftPx = Math.round(canvas.getBoundingClientRect().width * needlePos);
+            needle.style.left = leftPx + 'px';
+            const biasPct = total ? ((buyVolume - sellVolume) / total) * 100 : 0;
+            needleValue.textContent = (biasPct >= 0 ? '+' : '') + biasPct.toFixed(0) + '%';
+            needleValue.style.left = leftPx + 'px';
         }
 
         // WebSocket for real-time updates
@@ -289,12 +409,13 @@
             ws.send(JSON.stringify({
                 type: 'subscribe',
                 product_ids: ['BTC-USD'],
-                channels: ['ticker']
+                channels: ['ticker', 'matches']
             }));
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+
             if (data.type === 'ticker' && data.price) {
                 const price = parseFloat(data.price);
                 const now = Math.floor(Date.now() / 1000);
@@ -323,6 +444,17 @@
                     }
                 });
             }
+
+            // Handle match data for bias gauge
+            if (data.type === 'match') {
+                const size = parseFloat(data.size);
+                if (data.side === 'buy') {
+                    buyVolume += size;
+                } else {
+                    sellVolume += size;
+                }
+                drawGauge();
+            }
         };
 
         // Initialize with historical data
@@ -336,6 +468,13 @@
                 fetchHistoricalData(key);
             });
         }, 60000); // Refresh every minute
+
+        // Reset volume periodically (every 5 seconds)
+        setInterval(() => {
+            buyVolume *= 0.8;
+            sellVolume *= 0.8;
+            drawGauge();
+        }, 5000);
     </script>
 </body>
 </html>
