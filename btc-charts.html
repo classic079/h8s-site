@@ -21,34 +21,44 @@
         .container {
             display: grid;
             grid-template-columns: 1fr 2fr 2fr;
-            gap: 10px;
-            padding: 10px;
+            gap: 6px;
+            padding: 6px;
             height: 100vh;
         }
 
         .chart-panel {
             background: #1e293b;
-            border-radius: 8px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.15);
+            border: 1px solid rgba(45, 212, 191, 0.1);
         }
 
         .chart-header {
-            font-size: 18px;
+            font-size: 11px;
             font-weight: bold;
-            color: #2dd4bf;
-            margin-bottom: 10px;
+            color: #94a3b8;
+            margin-bottom: 4px;
             text-align: center;
-            text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
+            letter-spacing: 2px;
         }
 
         .price-display {
-            font-size: 24px;
+            font-size: 28px;
+            font-weight: bold;
             text-align: center;
-            margin-bottom: 10px;
+            margin-bottom: 3px;
             color: #2dd4bf;
+            text-shadow: 0 0 20px rgba(45, 212, 191, 0.3);
+        }
+
+        .change-display {
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-weight: bold;
         }
 
         .chart-container {
@@ -61,25 +71,48 @@
             height: 100% !important;
         }
 
+        .stats-wrapper {
+            margin-bottom: 8px;
+            padding: 0 5px;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 4px;
+        }
+
+        .stats-row-center {
+            display: flex;
+            justify-content: center;
+        }
+
         .stats {
             display: flex;
             justify-content: space-around;
-            margin-top: 10px;
+            margin-bottom: 8px;
+            padding: 0 5px;
             font-size: 12px;
+            gap: 10px;
         }
 
         .stat {
             text-align: center;
+            flex: 1;
         }
 
         .stat-label {
             color: #94a3b8;
-            font-size: 10px;
+            font-size: 11px;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
         }
 
         .stat-value {
             color: #e2e8f0;
             font-weight: bold;
+            font-size: 14px;
         }
 
         .up {
@@ -89,52 +122,111 @@
         .down {
             color: #f59e0b;
         }
+
+        /* Bias Gauge */
+        .gauge-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            margin-top: 8px;
+        }
+
+        .gauge-label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        .gauge-label.buy {
+            color: #2dd4bf;
+        }
+
+        .gauge-label.sell {
+            color: #f59e0b;
+        }
+
+        #biasGauge-5m {
+            width: 100%;
+            height: 20px;
+            border-radius: 999px;
+            background: transparent;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+
+        .gauge-wrap {
+            position: relative;
+            flex: 1;
+        }
+
+        .needle {
+            position: absolute;
+            top: 2px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 9px solid #fff;
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+            transition: left 0.2s;
+        }
+
+        .needle-value {
+            position: absolute;
+            top: -13px;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="chart-panel">
             <div class="chart-header">24 HOURS</div>
-            <div class="price-display" id="price-24h">$--,---</div>
+            <div class="stats-wrapper">
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="stat-label">HIGH</div>
+                        <div class="stat-value" id="high-24h">-</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-label">LOW</div>
+                        <div class="stat-value" id="low-24h">-</div>
+                    </div>
+                </div>
+            </div>
             <div class="chart-container">
                 <canvas id="chart-24h"></canvas>
-            </div>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-label">HIGH</div>
-                    <div class="stat-value" id="high-24h">-</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">LOW</div>
-                    <div class="stat-value" id="low-24h">-</div>
-                </div>
             </div>
         </div>
 
         <div class="chart-panel">
             <div class="chart-header">1 HOUR</div>
-            <div class="price-display" id="price-1h">$--,---</div>
-            <div class="chart-container">
-                <canvas id="chart-1h"></canvas>
-            </div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">HIGH</div>
                     <div class="stat-value" id="high-1h">-</div>
                 </div>
                 <div class="stat">
+                    <div class="stat-label">AVG</div>
+                    <div class="stat-value" id="avg-1h">-</div>
+                </div>
+                <div class="stat">
                     <div class="stat-label">LOW</div>
                     <div class="stat-value" id="low-1h">-</div>
                 </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-1h"></canvas>
             </div>
         </div>
 
         <div class="chart-panel">
             <div class="chart-header">5 MINUTES</div>
-            <div class="price-display" id="price-5m">$--,---</div>
-            <div class="chart-container">
-                <canvas id="chart-5m"></canvas>
-            </div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">HIGH</div>
@@ -144,6 +236,20 @@
                     <div class="stat-label">LOW</div>
                     <div class="stat-value" id="low-5m">-</div>
                 </div>
+            </div>
+            <div class="price-display" id="price-5m">$--,---</div>
+            <div class="change-display" id="change-5m">--</div>
+            <div class="chart-container">
+                <canvas id="chart-5m"></canvas>
+            </div>
+            <div class="gauge-row">
+                <span class="gauge-label buy">Buys</span>
+                <div class="gauge-wrap">
+                    <canvas id="biasGauge-5m"></canvas>
+                    <div id="needle-5m" class="needle" style="left:50%"></div>
+                    <div id="needleValue-5m" class="needle-value" style="left:50%">0%</div>
+                </div>
+                <span class="gauge-label sell">Sells</span>
             </div>
         </div>
     </div>
@@ -182,7 +288,35 @@
                         borderWidth: 2,
                         pointRadius: 0,
                         tension: 0.1,
-                        fill: true
+                        fill: true,
+                        segment: {
+                            borderColor: ctx => {
+                                const chart = ctx.chart;
+                                const {p0, p1} = ctx;
+                                if (!p0 || !p1) return '#2dd4bf';
+                                const avg = chart.data.datasets[1].data[p0.parsed.x];
+                                const v0 = p0.parsed.y;
+                                const v1 = p1.parsed.y;
+                                return (v0 >= avg || v1 >= avg) ? '#2dd4bf' : '#f59e0b';
+                            },
+                            backgroundColor: ctx => {
+                                const chart = ctx.chart;
+                                const {p0, p1} = ctx;
+                                if (!p0 || !p1) return 'rgba(45, 212, 191, 0.1)';
+                                const avg = chart.data.datasets[1].data[p0.parsed.x];
+                                const v0 = p0.parsed.y;
+                                const v1 = p1.parsed.y;
+                                return (v0 >= avg || v1 >= avg) ? 'rgba(45, 212, 191, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+                            }
+                        }
+                    }, {
+                        label: 'Average',
+                        data: [],
+                        borderColor: '#94a3b8',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
                     }]
                 },
                 options: {
@@ -197,11 +331,19 @@
                         y: {
                             display: true,
                             grid: {
-                                color: 'rgba(148, 163, 184, 0.1)'
+                                color: 'rgba(148, 163, 184, 0.15)',
+                                lineWidth: 1
+                            },
+                            border: {
+                                display: false
                             },
                             ticks: {
-                                color: '#94a3b8',
-                                font: { size: 10 }
+                                color: '#64748b',
+                                font: {
+                                    size: 11,
+                                    family: "'Courier New', monospace"
+                                },
+                                padding: 8
                             }
                         }
                     },
@@ -245,11 +387,8 @@
             chart.data.labels = data.timestamps.map(t => new Date(t * 1000).toLocaleTimeString());
             chart.data.datasets[0].data = data.prices;
 
-            // Color based on current vs average
-            const currentPrice = data.prices[data.prices.length - 1];
-            chart.data.datasets[0].borderColor = currentPrice > avg ? '#2dd4bf' : '#f59e0b';
-            chart.data.datasets[0].backgroundColor = currentPrice > avg ?
-                'rgba(45, 212, 191, 0.1)' : 'rgba(245, 158, 11, 0.1)';
+            // Add average line as horizontal line across all points
+            chart.data.datasets[1].data = new Array(data.prices.length).fill(avg);
 
             chart.update('none');
         }
@@ -259,15 +398,95 @@
             if (data.prices.length === 0) return;
 
             const currentPrice = data.prices[data.prices.length - 1];
+            const startPrice = data.prices[0];
             const high = Math.max(...data.prices);
             const low = Math.min(...data.prices);
+            const avg = data.prices.reduce((a, b) => a + b, 0) / data.prices.length;
+            const change = ((currentPrice - startPrice) / startPrice) * 100;
 
-            document.getElementById(`price-${timeframe}`).textContent =
-                `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            // Only update price display if element exists (for 5m chart)
+            const priceEl = document.getElementById(`price-${timeframe}`);
+            if (priceEl) {
+                priceEl.textContent =
+                    `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
+
+            const changeEl = document.getElementById(`change-${timeframe}`);
+            if (changeEl) {
+                const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                changeEl.textContent = changeText;
+                changeEl.className = `change-display ${change >= 0 ? 'up' : 'down'}`;
+            }
+
             document.getElementById(`high-${timeframe}`).textContent =
                 `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
             document.getElementById(`low-${timeframe}`).textContent =
                 `$${low.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+            // Update average if element exists
+            const avgEl = document.getElementById(`avg-${timeframe}`);
+            if (avgEl) {
+                avgEl.textContent =
+                    `$${avg.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+                // Color code AVG based on price vs average
+                avgEl.className = `stat-value ${currentPrice > avg ? 'up' : 'down'}`;
+            }
+        }
+
+        // Bias Gauge
+        let buyVolume = 0, sellVolume = 0;
+        let needlePos = 0.5;
+
+        function sizeCanvas(canvas) {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            return canvas.getContext('2d');
+        }
+
+        function drawGauge() {
+            const canvas = document.getElementById('biasGauge-5m');
+            if (!canvas) return;
+
+            const ctx = sizeCanvas(canvas);
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            const total = buyVolume + sellVolume;
+            const target = total ? (buyVolume / total) : 0.5;
+
+            needlePos += (target - needlePos) * 0.25;
+
+            const upColor = '#2dd4bf';
+            const downColor = '#f59e0b';
+
+            const g = ctx.createLinearGradient(0, 0, w, 0);
+            g.addColorStop(0, upColor);
+            g.addColorStop(Math.max(0, needlePos - 0.001), upColor);
+            g.addColorStop(Math.min(1, needlePos + 0.001), downColor);
+            g.addColorStop(1, downColor);
+
+            const r = h / 2;
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.moveTo(r, 1);
+            ctx.arcTo(w - 1, 1, w - 1, h - 1, r);
+            ctx.arcTo(w - 1, h - 1, 0, h - 1, r);
+            ctx.arcTo(0, h - 1, 0, 1, r);
+            ctx.arcTo(0, 1, w - 1, 1, r);
+            ctx.fill();
+
+            const needle = document.getElementById('needle-5m');
+            const needleValue = document.getElementById('needleValue-5m');
+            if (!needle || !needleValue) return;
+
+            const leftPx = Math.round(canvas.getBoundingClientRect().width * needlePos);
+            needle.style.left = leftPx + 'px';
+            const biasPct = total ? ((buyVolume - sellVolume) / total) * 100 : 0;
+            needleValue.textContent = (biasPct >= 0 ? '+' : '') + biasPct.toFixed(0) + '%';
+            needleValue.style.left = leftPx + 'px';
         }
 
         // WebSocket for real-time updates
@@ -277,12 +496,13 @@
             ws.send(JSON.stringify({
                 type: 'subscribe',
                 product_ids: ['BTC-USD'],
-                channels: ['ticker']
+                channels: ['ticker', 'matches']
             }));
         };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+
             if (data.type === 'ticker' && data.price) {
                 const price = parseFloat(data.price);
                 const now = Math.floor(Date.now() / 1000);
@@ -311,7 +531,25 @@
                     }
                 });
             }
+
+            // Handle match data for bias gauge
+            if (data.type === 'match') {
+                const size = parseFloat(data.size);
+                if (data.side === 'buy') {
+                    buyVolume += size;
+                } else {
+                    sellVolume += size;
+                }
+                drawGauge();
+            }
         };
+
+        // Reset volume periodically (every 5 minutes)
+        setInterval(() => {
+            buyVolume *= 0.8;
+            sellVolume *= 0.8;
+            drawGauge();
+        }, 5000);
 
         // Initialize with historical data
         Object.keys(chartConfigs).forEach(key => {
