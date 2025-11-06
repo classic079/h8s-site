@@ -400,9 +400,20 @@
             }
         };
 
-        // Initialize with historical data
-        Object.keys(chartConfigs).forEach(key => {
-            fetchHistoricalData(key);
+        // Wait for window to fully load before initializing
+        window.addEventListener('load', () => {
+            // Small delay to ensure container is sized
+            setTimeout(() => {
+                // Force chart resize
+                Object.keys(charts).forEach(key => {
+                    charts[key].resize();
+                });
+
+                // Initialize with historical data
+                Object.keys(chartConfigs).forEach(key => {
+                    fetchHistoricalData(key);
+                });
+            }, 100);
         });
 
         // Refresh historical data periodically
