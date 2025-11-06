@@ -402,7 +402,7 @@
 
         // Wait for window to fully load before initializing
         window.addEventListener('load', () => {
-            // Small delay to ensure container is sized
+            // Delay to let Lovelace iframe size properly
             setTimeout(() => {
                 // Force chart resize
                 Object.keys(charts).forEach(key => {
@@ -413,7 +413,7 @@
                 Object.keys(chartConfigs).forEach(key => {
                     fetchHistoricalData(key);
                 });
-            }, 100);
+            }, 500);
         });
 
         // Refresh historical data periodically
