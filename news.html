@@ -38,6 +38,21 @@
             position: relative;
         }
 
+        .settings-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 18px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .settings-icon:hover {
+            opacity: 1;
+        }
+
         .version-tag {
             position: absolute;
             top: 8px;
@@ -46,6 +61,87 @@
             color: #64748b;
             font-weight: normal;
             opacity: 0.7;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #2dd4bf;
+        }
+
+        .close-btn {
+            cursor: pointer;
+            font-size: 24px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .close-btn:hover {
+            opacity: 1;
+        }
+
+        .settings-section {
+            margin-bottom: 15px;
+        }
+
+        .settings-section h3 {
+            font-size: 12px;
+            margin: 0 0 8px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #94a3b8;
+        }
+
+        .settings-section input {
+            width: 100%;
+            padding: 8px;
+            background: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            color: #e2e8f0;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .settings-section small {
+            display: block;
+            margin-top: 4px;
+            opacity: 0.6;
+            font-size: 11px;
         }
 
         .news-item {
@@ -110,13 +206,63 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">LIVE NEWS<span class="version-tag">v2.0</span></div>
+        <div class="header">
+            <span class="settings-icon" onclick="openSettings()">⚙️</span>
+            LIVE NEWS
+            <span class="version-tag">v2.1</span>
+        </div>
         <div id="newsContainer">
             <div class="loading">Loading news...</div>
         </div>
     </div>
 
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>News Settings</h2>
+                <span class="close-btn" onclick="closeSettings()">×</span>
+            </div>
+            <div class="settings-section">
+                <h3>Blocked Words</h3>
+                <input type="text" id="blockedWords" placeholder="trump, biden, election">
+                <small>News containing these words will be hidden (comma-separated)</small>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Settings management
+        function loadSettings() {
+            const saved = localStorage.getItem('newsSettings');
+            return saved ? JSON.parse(saved) : { blockedWords: '' };
+        }
+
+        function saveSettings(settings) {
+            localStorage.setItem('newsSettings', JSON.stringify(settings));
+        }
+
+        function openSettings() {
+            const settings = loadSettings();
+            document.getElementById('blockedWords').value = settings.blockedWords;
+            document.getElementById('settingsModal').classList.add('open');
+        }
+
+        function closeSettings() {
+            const blockedWords = document.getElementById('blockedWords').value;
+            saveSettings({ blockedWords });
+            document.getElementById('settingsModal').classList.remove('open');
+            // Refresh news with new filter
+            fetchNews();
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('settingsModal');
+            if (e.target === modal) {
+                closeSettings();
+            }
+        });
+
         // Format time ago
         function timeAgo(date) {
             const seconds = Math.floor((new Date() - date) / 1000);
@@ -184,18 +330,32 @@
                     )
                 );
 
+                // Get blocked words from settings
+                const settings = loadSettings();
+                const blockedWords = settings.blockedWords
+                    ? settings.blockedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0)
+                    : [];
+
                 const allNews = [];
                 responses.forEach(feed => {
                     feed.items.forEach(item => {
                         if (item.title && !item.title.trim().startsWith('[No Title]')) {
-                            const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
-                            allNews.push({
-                                title: item.title,
-                                source: feed.name,
-                                time: timeAgo(pubDate),
-                                link: item.link || '#',
-                                pubDate: pubDate
-                            });
+                            // Check if title contains any blocked words
+                            const titleLower = item.title.toLowerCase();
+                            const hasBlockedWord = blockedWords.some(word => titleLower.includes(word));
+
+                            if (!hasBlockedWord) {
+                                const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+                                allNews.push({
+                                    title: item.title,
+                                    source: feed.name,
+                                    time: timeAgo(pubDate),
+                                    link: item.link || '#',
+                                    pubDate: pubDate
+                                });
+                            } else {
+                                console.log(`🚫 Filtered: "${item.title.substring(0, 60)}..."`);
+                            }
                         }
                     });
                 });
