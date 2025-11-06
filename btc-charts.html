@@ -40,9 +40,22 @@
             font-weight: bold;
             color: #2dd4bf;
             margin-bottom: 10px;
-            text-align: center;
+            text-align: left;
             text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
             position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .timeframe-label {
+            min-width: 90px;
+        }
+
+        .change-display {
+            font-size: 14px;
+            font-weight: normal;
+            text-shadow: none;
         }
 
         .version-tag {
@@ -135,7 +148,10 @@
 <body>
     <div class="container">
         <div class="chart-panel">
-            <div class="chart-header">24 HOURS</div>
+            <div class="chart-header">
+                <span class="timeframe-label">24 HOURS</span>
+                <span class="change-display" id="change-24h">--</span>
+            </div>
             <div class="chart-container">
                 <canvas id="chart-24h"></canvas>
             </div>
@@ -152,7 +168,10 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">1 HOUR</div>
+            <div class="chart-header">
+                <span class="timeframe-label">1 HOUR</span>
+                <span class="change-display" id="change-1h">--</span>
+            </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
             </div>
@@ -169,7 +188,11 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">5 MINUTES<span class="version-tag">v2.1</span></div>
+            <div class="chart-header">
+                <span class="timeframe-label">5 MINUTES</span>
+                <span class="change-display" id="change-5m">--</span>
+                <span class="version-tag">v2.2</span>
+            </div>
             <div class="price-display" id="price-5m">$--,---</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
@@ -298,8 +321,14 @@
             if (data.prices.length === 0) return;
 
             const currentPrice = data.prices[data.prices.length - 1];
+            const startPrice = data.prices[0];
             const high = Math.max(...data.prices);
             const low = Math.min(...data.prices);
+
+            // Calculate change
+            const changeAmount = currentPrice - startPrice;
+            const changePercent = (changeAmount / startPrice) * 100;
+            const isPositive = changeAmount >= 0;
 
             const priceEl = document.getElementById(`price-${timeframe}`);
             if (priceEl) {
@@ -315,6 +344,15 @@
             if (lowEl) {
                 lowEl.textContent =
                     `$${low.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+            }
+
+            // Update change display
+            const changeEl = document.getElementById(`change-${timeframe}`);
+            if (changeEl) {
+                const sign = isPositive ? '+' : '';
+                changeEl.textContent =
+                    `${sign}$${Math.abs(changeAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${changePercent.toFixed(1)}%)`;
+                changeEl.className = 'change-display ' + (isPositive ? 'up' : 'down');
             }
         }
 
