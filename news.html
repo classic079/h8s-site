@@ -26,13 +26,13 @@
         }
 
         .header {
-            font-size: 10px;
+            font-size: 16px;
             font-weight: bold;
             color: #94a3b8;
-            margin-bottom: 4px;
+            margin-bottom: 8px;
             text-align: center;
             letter-spacing: 1px;
-            padding: 4px;
+            padding: 8px;
             background: #1e293b;
             border-radius: 4px;
             position: relative;
@@ -40,9 +40,9 @@
 
         .version-tag {
             position: absolute;
-            top: 4px;
-            right: 6px;
-            font-size: 7px;
+            top: 8px;
+            right: 10px;
+            font-size: 11px;
             color: #64748b;
             font-weight: normal;
             opacity: 0.7;
@@ -50,11 +50,12 @@
 
         .news-item {
             background: #1e293b;
-            border-radius: 4px;
-            padding: 6px;
-            margin-bottom: 4px;
-            border-left: 2px solid #2dd4bf;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid #2dd4bf;
             transition: all 0.2s;
+            cursor: pointer;
         }
 
         .news-item:hover {
@@ -63,21 +64,21 @@
         }
 
         .news-title {
-            font-size: 9px;
+            font-size: 14px;
             font-weight: bold;
             color: #e2e8f0;
-            margin-bottom: 2px;
-            line-height: 1.3;
+            margin-bottom: 6px;
+            line-height: 1.4;
         }
 
         .news-source {
-            font-size: 7px;
+            font-size: 12px;
             color: #64748b;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
 
         .news-time {
-            font-size: 7px;
+            font-size: 11px;
             color: #94a3b8;
         }
 
@@ -85,7 +86,7 @@
             text-align: center;
             padding: 20px;
             color: #64748b;
-            font-size: 9px;
+            font-size: 14px;
         }
 
         /* Custom scrollbar */
@@ -109,61 +110,43 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">CRYPTO NEWS<span class="version-tag">v1.0</span></div>
+        <div class="header">LIVE NEWS<span class="version-tag">v2.0</span></div>
         <div id="newsContainer">
             <div class="loading">Loading news...</div>
         </div>
     </div>
 
     <script>
-        // Mock news data - In production, this would fetch from a real API
-        const mockNews = [
-            {
-                title: "Bitcoin reaches new all-time high as institutional adoption grows",
-                source: "CoinDesk",
-                time: "5m ago"
-            },
-            {
-                title: "MicroStrategy announces additional BTC purchase of 10,000 coins",
-                source: "Bloomberg",
-                time: "15m ago"
-            },
-            {
-                title: "Ethereum network upgrade successfully deployed",
-                source: "CryptoNews",
-                time: "1h ago"
-            },
-            {
-                title: "SEC delays decision on spot Bitcoin ETF applications",
-                source: "Reuters",
-                time: "2h ago"
-            },
-            {
-                title: "Major exchange announces new staking rewards program",
-                source: "Binance",
-                time: "3h ago"
-            },
-            {
-                title: "On-chain metrics suggest bullish sentiment continues",
-                source: "Glassnode",
-                time: "4h ago"
-            },
-            {
-                title: "Lightning Network capacity reaches new milestone",
-                source: "Bitcoin Magazine",
-                time: "5h ago"
-            },
-            {
-                title: "DeFi protocol reports record trading volume",
-                source: "The Block",
-                time: "6h ago"
+        // Format time ago
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            const intervals = {
+                year: 31536000,
+                month: 2592000,
+                week: 604800,
+                day: 86400,
+                hour: 3600,
+                minute: 60
+            };
+
+            for (const [name, count] of Object.entries(intervals)) {
+                const interval = Math.floor(seconds / count);
+                if (interval >= 1) {
+                    return interval === 1 ? `${interval} ${name} ago` : `${interval} ${name}s ago`;
+                }
             }
-        ];
+            return 'just now';
+        }
 
         function displayNews(newsArray) {
             const container = document.getElementById('newsContainer');
+            if (!newsArray || newsArray.length === 0) {
+                container.innerHTML = '<div class="loading">No news available</div>';
+                return;
+            }
+
             container.innerHTML = newsArray.map(item => `
-                <div class="news-item">
+                <div class="news-item" onclick="window.open('${item.link}', '_blank')">
                     <div class="news-title">${item.title}</div>
                     <div class="news-source">${item.source}</div>
                     <div class="news-time">${item.time}</div>
@@ -171,18 +154,72 @@
             `).join('');
         }
 
-        // Simulate loading delay
-        setTimeout(() => {
-            displayNews(mockNews);
-        }, 500);
+        async function fetchNews() {
+            try {
+                console.log('📰 Fetching live news...');
 
-        // Refresh news every 5 minutes
-        setInterval(() => {
-            // In production, fetch new news here
-            // For now, just shuffle the mock data
-            const shuffled = [...mockNews].sort(() => Math.random() - 0.5);
-            displayNews(shuffled);
-        }, 300000);
+                const feeds = [
+                    { url: 'https://www.trumpstruth.org/feed', name: 'Trump Truth' },
+                    { url: 'https://moxie.foxnews.com/google-publisher/us.xml', name: 'Fox News' },
+                    { url: 'https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US', name: 'Reuters' },
+                    { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC' },
+                    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World' },
+                    { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NY Times' },
+                    { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ' },
+                    { url: 'https://www.yahoo.com/news/rss', name: 'Yahoo News' },
+                    { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', name: 'CoinDesk' },
+                    { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph' }
+                ];
+
+                const cacheBuster = Date.now();
+                const responses = await Promise.all(
+                    feeds.map(feed =>
+                        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10&_=${cacheBuster}`)
+                            .then(r => r.json())
+                            .then(data => ({ ...feed, items: data.items || [] }))
+                            .catch(err => {
+                                console.warn(`Failed to fetch ${feed.name}:`, err);
+                                return { ...feed, items: [] };
+                            })
+                    )
+                );
+
+                const allNews = [];
+                responses.forEach(feed => {
+                    feed.items.forEach(item => {
+                        if (item.title && !item.title.trim().startsWith('[No Title]')) {
+                            const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+                            allNews.push({
+                                title: item.title,
+                                source: feed.name,
+                                time: timeAgo(pubDate),
+                                link: item.link || '#',
+                                pubDate: pubDate
+                            });
+                        }
+                    });
+                });
+
+                // Sort by date (newest first)
+                allNews.sort((a, b) => b.pubDate - a.pubDate);
+
+                // Take top 50
+                const topNews = allNews.slice(0, 50);
+
+                console.log(`📰 Loaded ${topNews.length} news items`);
+                displayNews(topNews);
+            } catch (error) {
+                console.error('Error fetching news:', error);
+                document.getElementById('newsContainer').innerHTML =
+                    '<div class="loading">Error loading news</div>';
+            }
+        }
+
+        // Initial fetch
+        fetchNews();
+
+        // Refresh every 5 minutes
+        setInterval(fetchNews, 300000);
     </script>
 </body>
 </html>
