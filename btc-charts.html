@@ -43,6 +43,17 @@
             margin-bottom: 1px;
             text-align: center;
             letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        .version-tag {
+            position: absolute;
+            top: 0;
+            right: 4px;
+            font-size: 8px;
+            color: #64748b;
+            font-weight: normal;
+            opacity: 0.7;
         }
 
         .price-display {
@@ -226,7 +237,7 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">5 MINUTES</div>
+            <div class="chart-header">5 MINUTES<span class="version-tag" id="lastUpdate">--:--</span></div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-label">HIGH</div>
@@ -403,6 +414,13 @@
             const low = Math.min(...data.prices);
             const avg = data.prices.reduce((a, b) => a + b, 0) / data.prices.length;
             const change = ((currentPrice - startPrice) / startPrice) * 100;
+
+            // Update timestamp for 5m chart
+            if (timeframe === '5m') {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                document.getElementById('lastUpdate').textContent = timeStr;
+            }
 
             // Only update price display if element exists (for 5m chart)
             const priceEl = document.getElementById(`price-${timeframe}`);
