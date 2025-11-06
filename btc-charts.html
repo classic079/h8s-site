@@ -42,6 +42,17 @@
             margin-bottom: 10px;
             text-align: center;
             text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
+            position: relative;
+        }
+
+        .version-tag {
+            position: absolute;
+            top: 0;
+            right: 5px;
+            font-size: 10px;
+            color: #64748b;
+            font-weight: normal;
+            opacity: 0.7;
         }
 
         .price-display {
@@ -128,7 +139,7 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">5 MINUTES</div>
+            <div class="chart-header">5 MINUTES<span class="version-tag">v1.0</span></div>
             <div class="price-display" id="price-5m">$--,---</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
@@ -260,8 +271,11 @@
             const high = Math.max(...data.prices);
             const low = Math.min(...data.prices);
 
-            document.getElementById(`price-${timeframe}`).textContent =
-                `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            const priceEl = document.getElementById(`price-${timeframe}`);
+            if (priceEl) {
+                priceEl.textContent =
+                    `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }
             document.getElementById(`high-${timeframe}`).textContent =
                 `$${high.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
             document.getElementById(`low-${timeframe}`).textContent =
