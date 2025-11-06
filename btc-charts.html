@@ -69,10 +69,10 @@
         }
 
         .price-display {
-            font-size: 24px;
-            text-align: center;
-            margin-bottom: 10px;
+            font-size: 22px;
+            margin-left: auto;
             color: #2dd4bf;
+            text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
         }
 
         .chart-container {
@@ -171,6 +171,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
+                <span class="version-tag">v2.3</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -191,9 +192,8 @@
             <div class="chart-header">
                 <span class="timeframe-label">5 MINUTES</span>
                 <span class="change-display" id="change-5m">--</span>
-                <span class="version-tag">v2.2</span>
+                <span class="price-display" id="price-5m">$--,---</span>
             </div>
-            <div class="price-display" id="price-5m">$--,---</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
             </div>
