@@ -102,16 +102,8 @@
         }
 
         /* Bias Gauge */
-        .gauge-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 8px;
-            margin-top: 8px;
-        }
-
         .gauge-label {
-            font-size: 11px;
+            font-size: 10px;
             opacity: 0.9;
         }
 
@@ -198,12 +190,12 @@
         </div>
 
         <div class="chart-panel">
-            <div class="chart-header">5 MINUTES<span class="version-tag">v1.3</span></div>
+            <div class="chart-header">5 MINUTES<span class="version-tag">v1.4</span></div>
             <div class="price-display" id="price-5m">$--,---</div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
             </div>
-            <div class="gauge-row">
+            <div class="stats">
                 <span class="gauge-label buy">Buys</span>
                 <div class="gauge-wrap">
                     <canvas id="biasGauge-5m"></canvas>
