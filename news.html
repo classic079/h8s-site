@@ -209,7 +209,7 @@
         <div class="header">
             <span class="settings-icon" onclick="openSettings()">⚙️</span>
             LIVE NEWS
-            <span class="version-tag">v2.1</span>
+            <span class="version-tag">v2.2</span>
         </div>
         <div id="newsContainer">
             <div class="loading">Loading news...</div>
@@ -292,7 +292,7 @@
             }
 
             container.innerHTML = newsArray.map(item => `
-                <div class="news-item" onclick="window.open('${item.link}', '_blank')">
+                <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
                     <div class="news-title">${item.title}</div>
                     <div class="news-source">${item.source}</div>
                     <div class="news-time">${item.time}</div>
@@ -305,16 +305,16 @@
                 console.log('📰 Fetching live news...');
 
                 const feeds = [
-                    { url: 'https://www.trumpstruth.org/feed', name: 'Trump Truth' },
-                    { url: 'https://moxie.foxnews.com/google-publisher/us.xml', name: 'Fox News' },
-                    { url: 'https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US', name: 'Reuters' },
-                    { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC' },
-                    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World' },
-                    { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NY Times' },
-                    { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ' },
-                    { url: 'https://www.yahoo.com/news/rss', name: 'Yahoo News' },
-                    { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', name: 'CoinDesk' },
-                    { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph' }
+                    { url: 'https://www.trumpstruth.org/feed', name: 'Trump Truth', color: '#E91E3A' },
+                    { url: 'https://moxie.foxnews.com/google-publisher/us.xml', name: 'Fox News', color: '#003366' },
+                    { url: 'https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US', name: 'Reuters', color: '#FF6600' },
+                    { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', name: 'CNBC', color: '#0D7AB3' },
+                    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', name: 'BBC World', color: '#BB1919' },
+                    { url: 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml', name: 'NY Times', color: '#000000' },
+                    { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ', color: '#0274B6' },
+                    { url: 'https://www.yahoo.com/news/rss', name: 'Yahoo News', color: '#5F01D1' },
+                    { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml', name: 'CoinDesk', color: '#FF9800' },
+                    { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', color: '#F7931A' }
                 ];
 
                 const cacheBuster = Date.now();
@@ -349,6 +349,7 @@
                                 allNews.push({
                                     title: item.title,
                                     source: feed.name,
+                                    color: feed.color,
                                     time: timeAgo(pubDate),
                                     link: item.link || '#',
                                     pubDate: pubDate
