@@ -172,7 +172,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v2.7</span>
+                <span class="version-tag">v2.8</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -191,7 +191,7 @@
 
         <div class="chart-panel">
             <div class="chart-header">
-                <span class="timeframe-label">30 MINUTES</span>
+                <span class="timeframe-label">5 MINUTES</span>
                 <span class="change-display" id="change-5m">--</span>
                 <span class="price-display" id="price-5m">$--,---</span>
             </div>
@@ -214,9 +214,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const chartConfigs = {
-            '24h': { canvasId: 'chart-24h', granularity: 900, points: 96 },  // 15min bars, 96 points = 24 hours
-            '1h': { canvasId: 'chart-1h', granularity: 60, points: 60 },     // 1min bars, 60 points = 1 hour
-            '5m': { canvasId: 'chart-5m', granularity: 60, points: 30 }      // 1min bars, 30 points = 30 minutes
+            '24h': { canvasId: 'chart-24h', granularity: 900, points: 96, updateInterval: 900 },   // 15min bars, 96 points = 24 hours
+            '1h': { canvasId: 'chart-1h', granularity: 60, points: 60, updateInterval: 60 },       // 1min bars, 60 points = 1 hour
+            '5m': { canvasId: 'chart-5m', granularity: 60, points: 300, updateInterval: 1 }        // 1sec updates, 300 points = 5 minutes
         };
 
         const charts = {};
@@ -422,9 +422,9 @@
                     const pData = priceData[key];
                     const config = chartConfigs[key];
 
-                    // Add new data point
+                    // Add new data point based on updateInterval
                     if (pData.timestamps.length === 0 ||
-                        now - pData.timestamps[pData.timestamps.length - 1] >= config.granularity) {
+                        now - pData.timestamps[pData.timestamps.length - 1] >= config.updateInterval) {
                         pData.timestamps.push(now);
                         pData.prices.push(price);
                         pData.volumes.push(0);
