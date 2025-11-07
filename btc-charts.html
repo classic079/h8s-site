@@ -143,39 +143,6 @@
             box-shadow: 0 0 3px rgba(0,0,0,0.5);
             transition: left 0.2s;
         }
-
-        /* Volume spike alert animation */
-        .chart-panel.spikeAlert {
-            animation: volSpike 4s ease-out;
-        }
-        @keyframes volSpike {
-            0%, 10%, 20%, 30% {
-                box-shadow: 0 0 60px rgba(245, 158, 11, 0.9),
-                            0 0 100px rgba(245, 158, 11, 0.6),
-                            inset 0 0 40px rgba(245, 158, 11, 0.3);
-                transform: scale(1.05);
-                border: 3px solid #f59e0b;
-            }
-            5%, 15%, 25% {
-                box-shadow: 0 0 30px rgba(45, 212, 191, 0.7),
-                            0 0 50px rgba(45, 212, 191, 0.4);
-                transform: scale(1.02);
-                border: 3px solid #2dd4bf;
-            }
-            40% {
-                box-shadow: 0 0 40px rgba(245, 158, 11, 0.6);
-                transform: scale(1.03);
-            }
-            60% {
-                box-shadow: 0 0 25px rgba(45, 212, 191, 0.4);
-                transform: scale(1.01);
-            }
-            100% {
-                box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
-                transform: scale(1);
-                border: 3px solid transparent;
-            }
-        }
     </style>
 </head>
 <body>
@@ -204,7 +171,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.0</span>
+                <span class="version-tag">v2.4</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -253,7 +220,6 @@
 
         const charts = {};
         const priceData = {};
-        const volumeHistory = {}; // Track volume for spike detection
 
         // Initialize charts
         Object.keys(chartConfigs).forEach(key => {
@@ -399,33 +365,6 @@
         let buyVolume = 0, sellVolume = 0;
         let needlePos = 0.5;
 
-        // Volume spike detection for 5m chart
-        let recentVolumes = []; // Track recent 5-second volumes for 5m chart
-        const maxVolumeHistory = 60; // Keep last 60 data points (5 minutes)
-
-        function checkVolumeSpike() {
-            if (recentVolumes.length < 10) return false; // Need some history
-
-            // Calculate average of recent volumes (excluding current)
-            const completed = recentVolumes.slice(0, -1).filter(v => v > 0);
-            if (completed.length < 5) return false;
-
-            const avgVol = completed.reduce((a, b) => a + b, 0) / completed.length;
-            const currentVol = recentVolumes[recentVolumes.length - 1];
-
-            // Spike if current volume is 1.5x or more than average
-            return currentVol > 0 && currentVol >= (avgVol * 1.5);
-        }
-
-        function triggerSpikeAlert() {
-            const panel = document.querySelector('.chart-panel:nth-child(3)'); // 5m chart is 3rd panel
-            if (panel) {
-                panel.classList.remove('spikeAlert');
-                void panel.offsetWidth; // Force reflow to restart animation
-                panel.classList.add('spikeAlert');
-            }
-        }
-
         function drawGauge() {
             const canvas = document.getElementById('biasGauge');
             if (!canvas) return;
@@ -501,7 +440,7 @@
                 });
             }
 
-            // Handle match data for bias gauge and volume spike detection
+            // Handle match data for bias gauge
             if (data.type === 'match') {
                 const size = parseFloat(data.size);
                 if (data.side === 'buy') {
@@ -512,7 +451,6 @@
                 drawGauge();
             }
         };
-        }
 
         // Wait for window to fully load before initializing
         window.addEventListener('load', () => {
@@ -537,23 +475,8 @@
             });
         }, 60000); // Refresh every minute
 
-        // Track volume and decay for gauge + spike detection
+        // Decay volume for gauge
         setInterval(() => {
-            // Track total volume for this 5-second period for 5m chart spike detection
-            const totalVolume = buyVolume + sellVolume;
-            recentVolumes.push(totalVolume);
-
-            // Keep only last 60 data points (5 minutes)
-            if (recentVolumes.length > maxVolumeHistory) {
-                recentVolumes.shift();
-            }
-
-            // Check for volume spike and trigger alert
-            if (checkVolumeSpike()) {
-                triggerSpikeAlert();
-            }
-
-            // Decay volume for gauge
             buyVolume *= 0.8;
             sellVolume *= 0.8;
             drawGauge();
