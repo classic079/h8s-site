@@ -206,7 +206,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.1</span>
+                <span class="version-tag">v3.2</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -250,7 +250,7 @@
         const chartConfigs = {
             '24h': { canvasId: 'chart-24h', granularity: 900, points: 96, updateInterval: 900 },   // 15min bars, 96 points = 24 hours
             '1h': { canvasId: 'chart-1h', granularity: 60, points: 60, updateInterval: 60 },       // 1min bars, 60 points = 1 hour
-            '5m': { canvasId: 'chart-5m', granularity: 60, points: 5, updateInterval: 60 }         // 1min bars, 5 points = 5 minutes
+            '5m': { canvasId: 'chart-5m', granularity: 60, points: 600, updateInterval: 0.5 }      // WebSocket updates every 0.5sec, 600 points = 5 minutes
         };
 
         const charts = {};
