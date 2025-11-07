@@ -160,7 +160,7 @@
         }
 
         .news-title {
-            font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
             color: #e2e8f0;
             margin-bottom: 6px;
@@ -168,14 +168,9 @@
         }
 
         .news-source {
-            font-size: 18px;
+            font-size: 22px;
             color: #64748b;
             margin-bottom: 4px;
-        }
-
-        .news-time {
-            font-size: 16px;
-            color: #94a3b8;
         }
 
         .loading {
@@ -295,7 +290,6 @@
                 <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
                     <div class="news-title">${item.title}</div>
                     <div class="news-source">${item.source}</div>
-                    <div class="news-time">${item.time}</div>
                 </div>
             `).join('');
         }
