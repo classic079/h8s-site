@@ -206,7 +206,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.4</span>
+                <span class="version-tag">v3.5</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -248,9 +248,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         const chartConfigs = {
-            '24h': { canvasId: 'chart-24h', granularity: 900, historyPoints: 96, maxPoints: 96, updateInterval: 900 },   // 15min bars, 96 points = 24 hours
-            '1h': { canvasId: 'chart-1h', granularity: 60, historyPoints: 60, maxPoints: 60, updateInterval: 60 },       // 1min bars, 60 points = 1 hour
-            '5m': { canvasId: 'chart-5m', granularity: 60, historyPoints: 5, maxPoints: 600, updateInterval: 0.5 }       // Fetch 5min history, maintain 600 points rolling window, update every 0.5sec
+            '24h': { canvasId: 'chart-24h', granularity: 900, points: 96 },  // 15min bars, 96 points = 24 hours
+            '1h': { canvasId: 'chart-1h', granularity: 60, points: 60 },     // 1min bars, 60 points = 1 hour
+            '5m': { canvasId: 'chart-5m', granularity: 5, points: 60 }       // 5sec bars, 60 points = 5 minutes
         };
 
         const charts = {};
@@ -312,7 +312,7 @@
         async function fetchHistoricalData(timeframe) {
             const config = chartConfigs[timeframe];
             const end = Math.floor(Date.now() / 1000);
-            const start = end - (config.granularity * config.historyPoints);
+            const start = end - (config.granularity * config.points);
 
             try {
                 const response = await fetch(
@@ -326,30 +326,12 @@
                 priceData[timeframe].volumes = [];
 
                 // Coinbase returns [time, low, high, open, close, volume]
-                const candles = data.reverse();
-
-                // For 5m chart, interpolate candles to fill the chart
-                if (timeframe === '5m' && config.updateInterval < config.granularity) {
-                    const pointsPerCandle = Math.floor(config.granularity / config.updateInterval);
-                    candles.forEach(candle => {
-                        const [time, low, high, open, close, volume] = candle;
-                        // Replicate each candle value to match the update interval
-                        for (let i = 0; i < pointsPerCandle; i++) {
-                            const interpolatedTime = time + (i * config.updateInterval);
-                            priceData[timeframe].timestamps.push(interpolatedTime);
-                            priceData[timeframe].prices.push(close);
-                            priceData[timeframe].volumes.push(volume / pointsPerCandle);
-                        }
-                    });
-                } else {
-                    // Normal processing for other timeframes
-                    candles.forEach(candle => {
-                        const [time, low, high, open, close, volume] = candle;
-                        priceData[timeframe].timestamps.push(time);
-                        priceData[timeframe].prices.push(close);
-                        priceData[timeframe].volumes.push(volume);
-                    });
-                }
+                data.reverse().forEach(candle => {
+                    const [time, low, high, open, close, volume] = candle;
+                    priceData[timeframe].timestamps.push(time);
+                    priceData[timeframe].prices.push(close);
+                    priceData[timeframe].volumes.push(volume);
+                });
 
                 updateChart(timeframe);
                 updateStats(timeframe);
@@ -520,15 +502,15 @@
                     const pData = priceData[key];
                     const config = chartConfigs[key];
 
-                    // Add new data point based on updateInterval
+                    // Add new data point
                     if (pData.timestamps.length === 0 ||
-                        now - pData.timestamps[pData.timestamps.length - 1] >= config.updateInterval) {
+                        now - pData.timestamps[pData.timestamps.length - 1] >= config.granularity) {
                         pData.timestamps.push(now);
                         pData.prices.push(price);
                         pData.volumes.push(0);
 
                         // Keep only the required number of points
-                        if (pData.timestamps.length > config.maxPoints) {
+                        if (pData.timestamps.length > config.points) {
                             pData.timestamps.shift();
                             pData.prices.shift();
                             pData.volumes.shift();
