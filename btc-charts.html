@@ -206,7 +206,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.3</span>
+                <span class="version-tag">v3.4</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -326,12 +326,30 @@
                 priceData[timeframe].volumes = [];
 
                 // Coinbase returns [time, low, high, open, close, volume]
-                data.reverse().forEach(candle => {
-                    const [time, low, high, open, close, volume] = candle;
-                    priceData[timeframe].timestamps.push(time);
-                    priceData[timeframe].prices.push(close);
-                    priceData[timeframe].volumes.push(volume);
-                });
+                const candles = data.reverse();
+
+                // For 5m chart, interpolate candles to fill the chart
+                if (timeframe === '5m' && config.updateInterval < config.granularity) {
+                    const pointsPerCandle = Math.floor(config.granularity / config.updateInterval);
+                    candles.forEach(candle => {
+                        const [time, low, high, open, close, volume] = candle;
+                        // Replicate each candle value to match the update interval
+                        for (let i = 0; i < pointsPerCandle; i++) {
+                            const interpolatedTime = time + (i * config.updateInterval);
+                            priceData[timeframe].timestamps.push(interpolatedTime);
+                            priceData[timeframe].prices.push(close);
+                            priceData[timeframe].volumes.push(volume / pointsPerCandle);
+                        }
+                    });
+                } else {
+                    // Normal processing for other timeframes
+                    candles.forEach(candle => {
+                        const [time, low, high, open, close, volume] = candle;
+                        priceData[timeframe].timestamps.push(time);
+                        priceData[timeframe].prices.push(close);
+                        priceData[timeframe].volumes.push(volume);
+                    });
+                }
 
                 updateChart(timeframe);
                 updateStats(timeframe);
