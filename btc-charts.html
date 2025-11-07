@@ -73,6 +73,22 @@
             margin-left: auto;
             color: #2dd4bf;
             text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
+            transition: transform 0.3s ease;
+        }
+
+        .price-display.milestone-alert {
+            animation: milestone-pulse 1s ease-in-out 3;
+        }
+
+        @keyframes milestone-pulse {
+            0%, 100% {
+                transform: scale(1);
+                text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
+            }
+            50% {
+                transform: scale(1.2);
+                text-shadow: 0 0 30px rgba(45, 212, 191, 1), 0 0 50px rgba(45, 212, 191, 0.8);
+            }
         }
 
         .chart-container {
@@ -172,7 +188,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v2.8</span>
+                <span class="version-tag">v2.9</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -367,6 +383,10 @@
         let buyVolume = 0, sellVolume = 0;
         let needlePos = 0.5;
 
+        // Milestone tracking
+        let lastMilestone = null;
+        let priceBeforeCrossing = null;
+
         function drawGauge() {
             const canvas = document.getElementById('biasGauge');
             if (!canvas) return;
@@ -400,6 +420,45 @@
             }
         }
 
+        // Check for milestone crossing and trigger animation
+        function checkMilestone(price) {
+            const currentMilestone = Math.floor(price / 1000) * 1000;
+
+            // Initialize tracking on first run
+            if (lastMilestone === null) {
+                lastMilestone = currentMilestone;
+                priceBeforeCrossing = price;
+                return;
+            }
+
+            // Check if we crossed a milestone threshold
+            if (currentMilestone !== lastMilestone) {
+                // Calculate how far we moved from the threshold
+                const threshold = lastMilestone > currentMilestone ? lastMilestone : currentMilestone;
+                const distanceFromThreshold = Math.abs(price - threshold);
+
+                // Only trigger if we moved at least $500 from the threshold
+                if (distanceFromThreshold >= 500) {
+                    const priceEl = document.getElementById('price-5m');
+                    if (priceEl) {
+                        // Add animation class
+                        priceEl.classList.add('milestone-alert');
+
+                        // Remove class after animation completes (3 seconds for 3 pulses at 1s each)
+                        setTimeout(() => {
+                            priceEl.classList.remove('milestone-alert');
+                        }, 3000);
+                    }
+
+                    console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} → $${price.toLocaleString()}`);
+                }
+
+                // Update tracking
+                lastMilestone = currentMilestone;
+                priceBeforeCrossing = price;
+            }
+        }
+
         // WebSocket for real-time updates
         const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
 
@@ -416,6 +475,9 @@
             if (data.type === 'ticker' && data.price) {
                 const price = parseFloat(data.price);
                 const now = Math.floor(Date.now() / 1000);
+
+                // Check for milestone crossing
+                checkMilestone(price);
 
                 // Update each timeframe
                 Object.keys(chartConfigs).forEach(key => {
