@@ -1711,24 +1711,23 @@ async function fetchMetalPrices(){
       console.log('🛢️ Oil markets closed - skipping API call');
     }
 
-    // Use Coinbase API for crypto prices with 24h stats
+    // Use CoinGecko API for all crypto prices with 24h change
     const cryptos = [
-      {id: 'ETH-USD', el: ethPrice, label: 'ETH', decimals: 0},
-      {id: 'XRP-USD', el: xrpPrice, label: 'XRP', decimals: 3},
-      {id: 'ADA-USD', el: adaPrice, label: 'ADA', decimals: 3}
+      {id: 'ethereum', el: ethPrice, label: 'ETH', decimals: 0},
+      {id: 'ripple', el: xrpPrice, label: 'XRP', decimals: 3},
+      {id: 'cardano', el: adaPrice, label: 'ADA', decimals: 3}
     ];
 
     for(const crypto of cryptos){
       try{
-        const r = await fetch(`https://api.exchange.coinbase.com/products/${crypto.id}/stats`, {
+        const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${crypto.id}&vs_currencies=usd&include_24hr_change=true`, {
           headers: {Accept: 'application/json'}
         });
         if(r.ok){
           const data = await r.json();
-          if(data && data.last && data.open){
-            const price = parseFloat(data.last);
-            const open = parseFloat(data.open);
-            const change = ((price - open) / open) * 100;
+          if(data && data[crypto.id]){
+            const price = data[crypto.id].usd;
+            const change = data[crypto.id].usd_24h_change || 0;
 
             if(price > 0){
               const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
