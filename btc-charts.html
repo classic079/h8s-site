@@ -550,10 +550,12 @@
             }, 500);
         });
 
-        // Refresh historical data periodically
+        // Refresh historical data periodically (skip 5m since it updates via WebSocket)
         setInterval(() => {
             Object.keys(chartConfigs).forEach(key => {
-                fetchHistoricalData(key);
+                if (key !== '5m') {
+                    fetchHistoricalData(key);
+                }
             });
         }, 60000); // Refresh every minute
 
