@@ -72,8 +72,26 @@
             font-size: 24px;
             margin-left: auto;
             color: #2dd4bf;
+            background: rgba(45, 212, 191, 0.15);
+            padding: 6px 16px;
+            border-radius: 20px;
+            border: 1px solid rgba(45, 212, 191, 0.3);
+            cursor: pointer;
             text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
-            transition: transform 0.3s ease;
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+
+        .price-display:hover {
+            background: rgba(45, 212, 191, 0.25);
+            border-color: rgba(45, 212, 191, 0.5);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(45, 212, 191, 0.3);
+        }
+
+        .price-display:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(45, 212, 191, 0.3);
         }
 
         .price-display.milestone-alert {
@@ -188,7 +206,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v2.9</span>
+                <span class="version-tag">v3.0</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -209,7 +227,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">5 MINUTES</span>
                 <span class="change-display" id="change-5m">--</span>
-                <span class="price-display" id="price-5m">$--,---</span>
+                <span class="price-display" id="price-5m" onclick="location.reload()" title="Click to refresh">$--,---</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-5m"></canvas>
