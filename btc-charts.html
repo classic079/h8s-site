@@ -221,7 +221,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.9</span>
+                <span class="version-tag">v3.10</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -414,8 +414,10 @@
 
         // Bias Gauge
         let buyVolume = 0, sellVolume = 0;
-        let recentVolumes = [];  // Track recent trade volumes for 5min chart
-        const VOLUME_WINDOW = 30; // Track last 30 trades for average
+        let recentMinuteVolumes = [];  // Track 1-minute volume totals for spike detection
+        const VOLUME_WINDOW = 30; // Track last 30 minutes for average
+        let currentMinuteVolume = 0;
+        let currentMinuteTimestamp = Math.floor(Date.now() / 60000); // Current minute bucket
         let needlePos = 0.5;
 
         // Milestone tracking
@@ -549,23 +551,38 @@
                 }
                 drawGauge();
 
-                // Track volume for spike detection
-                recentVolumes.push(size);
-                if (recentVolumes.length > VOLUME_WINDOW) {
-                    recentVolumes.shift();
-                }
+                // Track volume by minute for spike detection
+                const currentMinute = Math.floor(Date.now() / 60000);
 
-                // Check for volume spike (1.5x average)
-                if (recentVolumes.length >= 10) {  // Need at least 10 trades for baseline
-                    const avgVolume = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
-                    if (size >= avgVolume * 1.5) {
-                        const panel = document.querySelector('#chart-5m').closest('.chart-panel');
-                        if (panel) {
-                            panel.classList.add('volume-spike');
-                            setTimeout(() => panel.classList.remove('volume-spike'), 1500);
+                // Check if we've moved to a new minute
+                if (currentMinute !== currentMinuteTimestamp) {
+                    // Save the previous minute's volume
+                    if (currentMinuteVolume > 0) {
+                        recentMinuteVolumes.push(currentMinuteVolume);
+                        if (recentMinuteVolumes.length > VOLUME_WINDOW) {
+                            recentMinuteVolumes.shift();
+                        }
+
+                        // Check for volume spike (1.5x average) on completed minute
+                        if (recentMinuteVolumes.length >= 5) {  // Need at least 5 minutes for baseline
+                            const avgVolume = recentMinuteVolumes.reduce((a, b) => a + b, 0) / recentMinuteVolumes.length;
+                            if (currentMinuteVolume >= avgVolume * 1.5) {
+                                const panel = document.querySelector('#chart-5m').closest('.chart-panel');
+                                if (panel) {
+                                    panel.classList.add('volume-spike');
+                                    setTimeout(() => panel.classList.remove('volume-spike'), 1500);
+                                }
+                            }
                         }
                     }
+
+                    // Reset for new minute
+                    currentMinuteVolume = 0;
+                    currentMinuteTimestamp = currentMinute;
                 }
+
+                // Add current trade volume to this minute's total
+                currentMinuteVolume += size;
             }
         };
 
