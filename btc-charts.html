@@ -109,6 +109,21 @@
             }
         }
 
+        .volume-spike {
+            animation: volume-blink 0.5s ease-in-out 3;
+        }
+
+        @keyframes volume-blink {
+            0%, 100% {
+                border-left-color: #2dd4bf;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            }
+            50% {
+                border-left-color: #f59e0b;
+                box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+            }
+        }
+
         .chart-container {
             flex: 1;
             position: relative;
@@ -206,7 +221,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.8</span>
+                <span class="version-tag">v3.9</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -399,6 +414,8 @@
 
         // Bias Gauge
         let buyVolume = 0, sellVolume = 0;
+        let recentVolumes = [];  // Track recent trade volumes for 5min chart
+        const VOLUME_WINDOW = 30; // Track last 30 trades for average
         let needlePos = 0.5;
 
         // Milestone tracking
@@ -531,6 +548,24 @@
                     sellVolume += size;
                 }
                 drawGauge();
+
+                // Track volume for spike detection
+                recentVolumes.push(size);
+                if (recentVolumes.length > VOLUME_WINDOW) {
+                    recentVolumes.shift();
+                }
+
+                // Check for volume spike (1.5x average)
+                if (recentVolumes.length >= 10) {  // Need at least 10 trades for baseline
+                    const avgVolume = recentVolumes.reduce((a, b) => a + b, 0) / recentVolumes.length;
+                    if (size >= avgVolume * 1.5) {
+                        const panel = document.querySelector('#chart-5m').closest('.chart-panel');
+                        if (panel) {
+                            panel.classList.add('volume-spike');
+                            setTimeout(() => panel.classList.remove('volume-spike'), 1500);
+                        }
+                    }
+                }
             }
         };
 
