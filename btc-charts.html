@@ -110,17 +110,17 @@
         }
 
         .volume-spike {
-            animation: volume-blink 0.5s ease-in-out 3;
+            animation: volume-blink 0.6s ease-in-out infinite;
         }
 
         @keyframes volume-blink {
             0%, 100% {
                 border-left-color: #2dd4bf;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 15px rgba(45, 212, 191, 0.3);
             }
             50% {
                 border-left-color: #f59e0b;
-                box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+                box-shadow: 0 0 25px rgba(245, 158, 11, 0.8), 0 0 40px rgba(245, 158, 11, 0.4);
             }
         }
 
@@ -221,7 +221,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.10</span>
+                <span class="version-tag">v3.12</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -419,10 +419,46 @@
         let currentMinuteVolume = 0;
         let currentMinuteTimestamp = Math.floor(Date.now() / 60000); // Current minute bucket
         let needlePos = 0.5;
+        let volumeSpikeActive = false;
+
+        // Real-time volume tracking
+        let recentTrades = [];  // Track last 10 seconds of trades
+        const REALTIME_WINDOW = 10000; // 10 second window in milliseconds
 
         // Milestone tracking
         let lastMilestone = null;
         let priceBeforeCrossing = null;
+
+        // Check real-time volume and update blinking
+        function checkRealtimeVolume() {
+            const now = Date.now();
+            const panel = document.querySelector('#chart-5m').closest('.chart-panel');
+            if (!panel) return;
+
+            // Remove old trades outside the window
+            recentTrades = recentTrades.filter(t => now - t.timestamp < REALTIME_WINDOW);
+
+            // Calculate current volume rate (volume per second over last 10 seconds)
+            const currentVolumeRate = recentTrades.reduce((sum, t) => sum + t.size, 0) / (REALTIME_WINDOW / 1000);
+
+            // Only compare if we have enough historical data
+            if (recentMinuteVolumes.length >= 5) {
+                // Calculate average volume rate from historical minutes
+                const avgMinuteVolume = recentMinuteVolumes.reduce((a, b) => a + b, 0) / recentMinuteVolumes.length;
+                const avgVolumeRate = avgMinuteVolume / 60; // Convert to per-second
+
+                // Check if current rate is significantly higher (1.5x average)
+                const shouldBlink = currentVolumeRate >= avgVolumeRate * 1.5 && recentTrades.length > 5;
+
+                if (shouldBlink && !volumeSpikeActive) {
+                    panel.classList.add('volume-spike');
+                    volumeSpikeActive = true;
+                } else if (!shouldBlink && volumeSpikeActive) {
+                    panel.classList.remove('volume-spike');
+                    volumeSpikeActive = false;
+                }
+            }
+        }
 
         function drawGauge() {
             const canvas = document.getElementById('biasGauge');
@@ -551,28 +587,16 @@
                 }
                 drawGauge();
 
-                // Track volume by minute for spike detection
+                // Track volume by minute for historical baseline
                 const currentMinute = Math.floor(Date.now() / 60000);
 
                 // Check if we've moved to a new minute
                 if (currentMinute !== currentMinuteTimestamp) {
-                    // Save the previous minute's volume
+                    // Save the previous minute's volume for historical baseline
                     if (currentMinuteVolume > 0) {
                         recentMinuteVolumes.push(currentMinuteVolume);
                         if (recentMinuteVolumes.length > VOLUME_WINDOW) {
                             recentMinuteVolumes.shift();
-                        }
-
-                        // Check for volume spike (1.5x average) on completed minute
-                        if (recentMinuteVolumes.length >= 5) {  // Need at least 5 minutes for baseline
-                            const avgVolume = recentMinuteVolumes.reduce((a, b) => a + b, 0) / recentMinuteVolumes.length;
-                            if (currentMinuteVolume >= avgVolume * 1.5) {
-                                const panel = document.querySelector('#chart-5m').closest('.chart-panel');
-                                if (panel) {
-                                    panel.classList.add('volume-spike');
-                                    setTimeout(() => panel.classList.remove('volume-spike'), 1500);
-                                }
-                            }
                         }
                     }
 
@@ -583,6 +607,15 @@
 
                 // Add current trade volume to this minute's total
                 currentMinuteVolume += size;
+
+                // Add trade to real-time tracking
+                recentTrades.push({
+                    size: size,
+                    timestamp: Date.now()
+                });
+
+                // Check volume in real-time
+                checkRealtimeVolume();
             }
         };
 
