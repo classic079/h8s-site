@@ -90,8 +90,8 @@
                 text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
             }
             50% {
-                transform: scale(1.4);
-                text-shadow: 0 0 30px rgba(45, 212, 191, 1), 0 0 50px rgba(45, 212, 191, 0.8);
+                transform: scale(1.8);
+                text-shadow: 0 0 40px rgba(45, 212, 191, 1), 0 0 60px rgba(45, 212, 191, 0.8);
             }
         }
 
@@ -207,7 +207,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.18</span>
+                <span class="version-tag">v3.19</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -481,7 +481,7 @@
 
         // Check for milestone crossing and trigger animation
         function checkMilestone(price) {
-            const currentMilestone = Math.floor(price / 200) * 200;
+            const currentMilestone = Math.floor(price / 1000) * 1000;
 
             // Initialize tracking on first run
             if (lastMilestone === null) {
