@@ -207,7 +207,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.19</span>
+                <span class="version-tag">v3.20</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -492,20 +492,25 @@
 
             // Check if we crossed a milestone threshold
             if (currentMilestone !== lastMilestone) {
-                // Trigger animation immediately when crossing threshold
-                const threshold = lastMilestone > currentMilestone ? lastMilestone : currentMilestone;
-                const priceEl = document.getElementById('price-5m');
-                if (priceEl) {
-                    // Add animation class
-                    priceEl.classList.add('milestone-alert');
+                // Calculate how much the price has moved
+                const priceMovement = Math.abs(price - priceBeforeCrossing);
 
-                    // Remove class after animation completes (6 seconds for 3 pulses at 2s each)
-                    setTimeout(() => {
-                        priceEl.classList.remove('milestone-alert');
-                    }, 6000);
+                // Only trigger animation if we've moved at least $500
+                if (priceMovement >= 500) {
+                    const threshold = lastMilestone > currentMilestone ? lastMilestone : currentMilestone;
+                    const priceEl = document.getElementById('price-5m');
+                    if (priceEl) {
+                        // Add animation class
+                        priceEl.classList.add('milestone-alert');
+
+                        // Remove class after animation completes (6 seconds for 3 pulses at 2s each)
+                        setTimeout(() => {
+                            priceEl.classList.remove('milestone-alert');
+                        }, 6000);
+                    }
+
+                    console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} (moved $${priceMovement.toFixed(0)} from $${priceBeforeCrossing.toLocaleString()})`);
                 }
-
-                console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} → $${price.toLocaleString()}`);
 
                 // Update tracking
                 lastMilestone = currentMilestone;
