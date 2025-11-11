@@ -221,7 +221,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.12</span>
+                <span class="version-tag">v3.13</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -495,7 +495,7 @@
 
         // Check for milestone crossing and trigger animation
         function checkMilestone(price) {
-            const currentMilestone = Math.floor(price / 1000) * 1000;
+            const currentMilestone = Math.floor(price / 200) * 200;
 
             // Initialize tracking on first run
             if (lastMilestone === null) {
@@ -510,8 +510,8 @@
                 const threshold = lastMilestone > currentMilestone ? lastMilestone : currentMilestone;
                 const distanceFromThreshold = Math.abs(price - threshold);
 
-                // Only trigger if we moved at least $500 from the threshold
-                if (distanceFromThreshold >= 500) {
+                // Only trigger if we moved at least $50 from the threshold
+                if (distanceFromThreshold >= 50) {
                     const priceEl = document.getElementById('price-5m');
                     if (priceEl) {
                         // Add animation class
