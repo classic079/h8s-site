@@ -207,7 +207,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.14</span>
+                <span class="version-tag">v3.15</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -492,25 +492,20 @@
 
             // Check if we crossed a milestone threshold
             if (currentMilestone !== lastMilestone) {
-                // Calculate how far we moved from the threshold
+                // Trigger animation immediately when crossing threshold
                 const threshold = lastMilestone > currentMilestone ? lastMilestone : currentMilestone;
-                const distanceFromThreshold = Math.abs(price - threshold);
+                const priceEl = document.getElementById('price-5m');
+                if (priceEl) {
+                    // Add animation class
+                    priceEl.classList.add('milestone-alert');
 
-                // Only trigger if we moved at least $50 from the threshold
-                if (distanceFromThreshold >= 50) {
-                    const priceEl = document.getElementById('price-5m');
-                    if (priceEl) {
-                        // Add animation class
-                        priceEl.classList.add('milestone-alert');
-
-                        // Remove class after animation completes (3 seconds for 3 pulses at 1s each)
-                        setTimeout(() => {
-                            priceEl.classList.remove('milestone-alert');
-                        }, 3000);
-                    }
-
-                    console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} → $${price.toLocaleString()}`);
+                    // Remove class after animation completes (3 seconds for 3 pulses at 1s each)
+                    setTimeout(() => {
+                        priceEl.classList.remove('milestone-alert');
+                    }, 3000);
                 }
+
+                console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} → $${price.toLocaleString()}`);
 
                 // Update tracking
                 lastMilestone = currentMilestone;
