@@ -207,7 +207,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.17</span>
+                <span class="version-tag">v3.18</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -481,7 +481,7 @@
 
         // Check for milestone crossing and trigger animation
         function checkMilestone(price) {
-            const currentMilestone = Math.floor(price / 400) * 400;
+            const currentMilestone = Math.floor(price / 200) * 200;
 
             // Initialize tracking on first run
             if (lastMilestone === null) {
