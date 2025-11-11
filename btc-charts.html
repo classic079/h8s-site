@@ -81,7 +81,7 @@
         }
 
         .price-display.milestone-alert {
-            animation: milestone-pulse 1s ease-in-out 3;
+            animation: milestone-pulse 2s ease-in-out 3;
         }
 
         @keyframes milestone-pulse {
@@ -90,7 +90,7 @@
                 text-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
             }
             50% {
-                transform: scale(1.2);
+                transform: scale(1.4);
                 text-shadow: 0 0 30px rgba(45, 212, 191, 1), 0 0 50px rgba(45, 212, 191, 0.8);
             }
         }
@@ -207,7 +207,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.16</span>
+                <span class="version-tag">v3.17</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -499,10 +499,10 @@
                     // Add animation class
                     priceEl.classList.add('milestone-alert');
 
-                    // Remove class after animation completes (3 seconds for 3 pulses at 1s each)
+                    // Remove class after animation completes (6 seconds for 3 pulses at 2s each)
                     setTimeout(() => {
                         priceEl.classList.remove('milestone-alert');
-                    }, 3000);
+                    }, 6000);
                 }
 
                 console.log(`🎯 Milestone crossed: $${threshold.toLocaleString()} → $${price.toLocaleString()}`);
