@@ -204,7 +204,7 @@
         <div class="header">
             <span class="settings-icon" onclick="openSettings()">⚙️</span>
             LIVE NEWS
-            <span class="version-tag">v2.5</span>
+            <span class="version-tag">v2.6</span>
         </div>
         <div id="newsContainer">
             <div class="loading">Loading news...</div>
@@ -314,7 +314,7 @@
                 const cacheBuster = Date.now();
                 const responses = await Promise.all(
                     feeds.map(feed =>
-                        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10&_=${cacheBuster}`)
+                        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&api_key=djafhnqfyameznub1yblwu3srnnlkd9k1dfawzvw&count=10&_=${cacheBuster}`)
                             .then(r => r.json())
                             .then(data => ({ ...feed, items: data.items || [] }))
                             .catch(err => {
@@ -373,8 +373,8 @@
         // Initial fetch
         fetchNews();
 
-        // Refresh every 30 seconds
-        setInterval(fetchNews, 30000);
+        // Refresh every 2 minutes
+        setInterval(fetchNews, 120000);
     </script>
 </body>
 </html>
