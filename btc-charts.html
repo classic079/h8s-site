@@ -95,11 +95,26 @@
             }
         }
 
-        .volume-spike {
-            animation: volume-blink 0.6s ease-in-out infinite;
+        .volume-spike-buy {
+            animation: volume-blink-buy 0.6s ease-in-out infinite;
         }
 
-        @keyframes volume-blink {
+        .volume-spike-sell {
+            animation: volume-blink-sell 0.6s ease-in-out infinite;
+        }
+
+        @keyframes volume-blink-buy {
+            0%, 100% {
+                border-left-color: #2dd4bf;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 15px rgba(45, 212, 191, 0.3);
+            }
+            50% {
+                border-left-color: #10b981;
+                box-shadow: 0 0 25px rgba(16, 185, 129, 0.8), 0 0 40px rgba(16, 185, 129, 0.4);
+            }
+        }
+
+        @keyframes volume-blink-sell {
             0%, 100% {
                 border-left-color: #2dd4bf;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 0 15px rgba(45, 212, 191, 0.3);
@@ -207,7 +222,7 @@
             <div class="chart-header">
                 <span class="timeframe-label">1 HOUR</span>
                 <span class="change-display" id="change-1h">--</span>
-                <span class="version-tag">v3.20</span>
+                <span class="version-tag">v3.21</span>
             </div>
             <div class="chart-container">
                 <canvas id="chart-1h"></canvas>
@@ -437,11 +452,23 @@
                 const shouldBlink = currentVolumeRate >= avgVolumeRate * 1.5 && recentTrades.length > 5;
 
                 if (shouldBlink && !volumeSpikeActive) {
-                    panel.classList.add('volume-spike');
-                    volumeSpikeActive = true;
+                    // Determine if it's more buy or sell volume
+                    const isBuyHeavy = buyVolume > sellVolume;
+                    const className = isBuyHeavy ? 'volume-spike-buy' : 'volume-spike-sell';
+                    panel.classList.add(className);
+                    volumeSpikeActive = className;
                 } else if (!shouldBlink && volumeSpikeActive) {
-                    panel.classList.remove('volume-spike');
+                    panel.classList.remove('volume-spike-buy', 'volume-spike-sell');
                     volumeSpikeActive = false;
+                } else if (shouldBlink && volumeSpikeActive) {
+                    // Update the class if the bias has shifted
+                    const isBuyHeavy = buyVolume > sellVolume;
+                    const newClassName = isBuyHeavy ? 'volume-spike-buy' : 'volume-spike-sell';
+                    if (newClassName !== volumeSpikeActive) {
+                        panel.classList.remove('volume-spike-buy', 'volume-spike-sell');
+                        panel.classList.add(newClassName);
+                        volumeSpikeActive = newClassName;
+                    }
                 }
             }
         }
