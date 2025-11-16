@@ -203,7 +203,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
-            font-size: 13px;
+            font-size: 17px;
         }
 
         .btc-side {
@@ -234,13 +234,6 @@
             color: #64748b;
             width: 70px;
             text-align: right;
-        }
-
-        .btc-time {
-            color: #64748b;
-            width: 70px;
-            text-align: right;
-            font-size: 11px;
         }
 
         .loading {
@@ -274,7 +267,7 @@
         <div class="header">
             <span class="settings-icon" onclick="openSettings()">⚙️</span>
             <span id="headerTitle">LIVE NEWS</span>
-            <span class="version-tag">v2.8</span>
+            <span class="version-tag">v2.9</span>
         </div>
         <div id="contentContainer">
             <div class="loading">Loading...</div>
@@ -500,12 +493,6 @@
 
             container.innerHTML = recentTrades.map(t => {
                 const usd = t.price * t.size;
-                const timeStr = new Date(t.time).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                });
                 const sideClass = t.side === 'buy' ? 'buy' : 'sell';
                 const sideLabel = t.side === 'buy' ? 'BUY' : 'SELL';
 
@@ -515,7 +502,6 @@
                         <span class="btc-price">${fmtUSD.format(t.price)}</span>
                         <span class="btc-size">${t.size.toFixed(4)} BTC</span>
                         <span class="btc-usd">${fmtUSD0.format(usd)}</span>
-                        <span class="btc-time">${timeStr}</span>
                     </div>
                 `;
             }).join('');
