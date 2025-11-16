@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto News</title>
+    <title>News & Bitcoin Ticker</title>
     <style>
         * {
             margin: 0;
@@ -152,15 +152,21 @@
             background: #0f172a;
             border-radius: 4px;
             margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
         }
 
-        .setting-option input[type="checkbox"] {
+        .setting-option:hover {
+            background: #1a2332;
+        }
+
+        .setting-option input[type="radio"] {
             cursor: pointer;
             width: 18px;
             height: 18px;
         }
 
-        /* Full View Styles */
+        /* News Styles */
         .news-item {
             background: #1e293b;
             border-radius: 6px;
@@ -190,41 +196,51 @@
             margin-bottom: 4px;
         }
 
-        /* Ticker View Styles */
-        .ticker-item {
+        /* Bitcoin Ticker Styles */
+        .btc-ticker-item {
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             padding: 8px 4px;
             display: flex;
             gap: 10px;
             align-items: center;
-            font-size: 16px;
-            cursor: pointer;
-            transition: background 0.2s;
+            font-size: 13px;
         }
 
-        .ticker-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .ticker-source {
+        .btc-side {
             font-weight: 800;
-            min-width: 120px;
-            font-size: 14px;
+            width: 45px;
         }
 
-        .ticker-title {
+        .btc-side.buy {
+            color: #10b981;
+        }
+
+        .btc-side.sell {
+            color: #ef4444;
+        }
+
+        .btc-price {
             flex: 1;
-            font-weight: 600;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-weight: 700;
         }
 
-        .ticker-time {
+        .btc-size {
             color: #64748b;
-            min-width: 80px;
+            width: 80px;
             text-align: right;
-            font-size: 12px;
+        }
+
+        .btc-usd {
+            color: #64748b;
+            width: 70px;
+            text-align: right;
+        }
+
+        .btc-time {
+            color: #64748b;
+            width: 70px;
+            text-align: right;
+            font-size: 11px;
         }
 
         .loading {
@@ -257,29 +273,32 @@
     <div class="container">
         <div class="header">
             <span class="settings-icon" onclick="openSettings()">⚙️</span>
-            LIVE NEWS
-            <span class="version-tag">v2.7</span>
+            <span id="headerTitle">LIVE NEWS</span>
+            <span class="version-tag">v2.8</span>
         </div>
-        <div id="newsContainer">
-            <div class="loading">Loading news...</div>
+        <div id="contentContainer">
+            <div class="loading">Loading...</div>
         </div>
     </div>
 
     <div class="modal" id="settingsModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>News Settings</h2>
+                <h2>Display Settings</h2>
                 <span class="close-btn" onclick="closeSettings()">×</span>
             </div>
             <div class="settings-section">
-                <h3>Display</h3>
-                <div class="setting-option">
-                    <span>📊 Ticker Mode</span>
-                    <input type="checkbox" id="tickerMode">
+                <h3>Display Mode</h3>
+                <div class="setting-option" onclick="selectMode('news')">
+                    <span>📰 News Feed</span>
+                    <input type="radio" name="displayMode" value="news" id="modeNews">
                 </div>
-                <small>Show news in compact ticker format</small>
+                <div class="setting-option" onclick="selectMode('btc')">
+                    <span>₿ Bitcoin Ticker</span>
+                    <input type="radio" name="displayMode" value="btc" id="modeBTC">
+                </div>
             </div>
-            <div class="settings-section">
+            <div class="settings-section" id="newsSettings" style="display: none;">
                 <h3>Blocked Words</h3>
                 <input type="text" id="blockedWords" placeholder="trump, biden, election">
                 <small>News containing these words will be hidden (comma-separated)</small>
@@ -291,27 +310,37 @@
         // Settings management
         function loadSettings() {
             const saved = localStorage.getItem('newsSettings');
-            return saved ? JSON.parse(saved) : { blockedWords: '', tickerMode: false };
+            return saved ? JSON.parse(saved) : { blockedWords: '', displayMode: 'news' };
         }
 
         function saveSettings(settings) {
             localStorage.setItem('newsSettings', JSON.stringify(settings));
         }
 
+        function selectMode(mode) {
+            document.getElementById('modeNews').checked = mode === 'news';
+            document.getElementById('modeBTC').checked = mode === 'btc';
+
+            // Show/hide news settings based on mode
+            document.getElementById('newsSettings').style.display = mode === 'news' ? 'block' : 'none';
+        }
+
         function openSettings() {
             const settings = loadSettings();
             document.getElementById('blockedWords').value = settings.blockedWords || '';
-            document.getElementById('tickerMode').checked = settings.tickerMode || false;
+            selectMode(settings.displayMode || 'news');
             document.getElementById('settingsModal').classList.add('open');
         }
 
         function closeSettings() {
             const blockedWords = document.getElementById('blockedWords').value;
-            const tickerMode = document.getElementById('tickerMode').checked;
-            saveSettings({ blockedWords, tickerMode });
+            const displayMode = document.getElementById('modeNews').checked ? 'news' : 'btc';
+            const settings = { blockedWords, displayMode };
+            saveSettings(settings);
             document.getElementById('settingsModal').classList.remove('open');
-            // Refresh news with new filter
-            fetchNews();
+
+            // Switch display mode
+            switchDisplayMode(displayMode);
         }
 
         // Close modal when clicking outside
@@ -322,7 +351,21 @@
             }
         });
 
-        // Format time ago
+        function switchDisplayMode(mode) {
+            if (mode === 'btc') {
+                document.getElementById('headerTitle').textContent = 'BITCOIN TICKER';
+                stopNews();
+                startBitcoinTicker();
+            } else {
+                document.getElementById('headerTitle').textContent = 'LIVE NEWS';
+                stopBitcoinTicker();
+                startNews();
+            }
+        }
+
+        // ===== NEWS FUNCTIONALITY =====
+        let newsInterval = null;
+
         function timeAgo(date) {
             const seconds = Math.floor((new Date() - date) / 1000);
             const intervals = {
@@ -344,32 +387,19 @@
         }
 
         function displayNews(newsArray) {
-            const container = document.getElementById('newsContainer');
-            const settings = loadSettings();
+            const container = document.getElementById('contentContainer');
 
             if (!newsArray || newsArray.length === 0) {
                 container.innerHTML = '<div class="loading">No news available</div>';
                 return;
             }
 
-            if (settings.tickerMode) {
-                // Ticker mode - compact view
-                container.innerHTML = newsArray.map(item => `
-                    <div class="ticker-item" onclick="window.open('${item.link}', '_blank')">
-                        <span class="ticker-source" style="color: ${item.color || '#2dd4bf'}">${item.source}</span>
-                        <span class="ticker-title">${item.title}</span>
-                        <span class="ticker-time">${item.time}</span>
-                    </div>
-                `).join('');
-            } else {
-                // Full mode - card view
-                container.innerHTML = newsArray.map(item => `
-                    <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
-                        <div class="news-title">${item.title}</div>
-                        <div class="news-source">${item.source} • ${item.time}</div>
-                    </div>
-                `).join('');
-            }
+            container.innerHTML = newsArray.map(item => `
+                <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
+                    <div class="news-title">${item.title}</div>
+                    <div class="news-source">${item.source} • ${item.time}</div>
+                </div>
+            `).join('');
         }
 
         async function fetchNews() {
@@ -402,7 +432,6 @@
                     )
                 );
 
-                // Get blocked words from settings
                 const settings = loadSettings();
                 const blockedWords = settings.blockedWords
                     ? settings.blockedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0)
@@ -412,7 +441,6 @@
                 responses.forEach(feed => {
                     feed.items.forEach(item => {
                         if (item.title && !item.title.trim().startsWith('[No Title]')) {
-                            // Check if title contains any blocked words
                             const titleLower = item.title.toLowerCase();
                             const hasBlockedWord = blockedWords.some(word => titleLower.includes(word));
 
@@ -426,33 +454,142 @@
                                     link: item.link || '#',
                                     pubDate: pubDate
                                 });
-                            } else {
-                                console.log(`🚫 Filtered: "${item.title.substring(0, 60)}..."`);
                             }
                         }
                     });
                 });
 
-                // Sort by date (newest first)
                 allNews.sort((a, b) => b.pubDate - a.pubDate);
-
-                // Take top 50
                 const topNews = allNews.slice(0, 50);
 
                 console.log(`📰 Loaded ${topNews.length} news items`);
                 displayNews(topNews);
             } catch (error) {
                 console.error('Error fetching news:', error);
-                document.getElementById('newsContainer').innerHTML =
+                document.getElementById('contentContainer').innerHTML =
                     '<div class="loading">Error loading news</div>';
             }
         }
 
-        // Initial fetch
-        fetchNews();
+        function startNews() {
+            fetchNews();
+            if (newsInterval) clearInterval(newsInterval);
+            newsInterval = setInterval(fetchNews, 120000);
+        }
 
-        // Refresh every 2 minutes
-        setInterval(fetchNews, 120000);
+        function stopNews() {
+            if (newsInterval) {
+                clearInterval(newsInterval);
+                newsInterval = null;
+            }
+        }
+
+        // ===== BITCOIN TICKER FUNCTIONALITY =====
+        let ws = null;
+        let recentTrades = [];
+        const fmtUSD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+        const fmtUSD0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+        function displayBitcoinTicker() {
+            const container = document.getElementById('contentContainer');
+
+            if (recentTrades.length === 0) {
+                container.innerHTML = '<div class="loading">Waiting for trades...</div>';
+                return;
+            }
+
+            container.innerHTML = recentTrades.map(t => {
+                const usd = t.price * t.size;
+                const timeStr = new Date(t.time).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                });
+                const sideClass = t.side === 'buy' ? 'buy' : 'sell';
+                const sideLabel = t.side === 'buy' ? 'BUY' : 'SELL';
+
+                return `
+                    <div class="btc-ticker-item">
+                        <span class="btc-side ${sideClass}">${sideLabel}</span>
+                        <span class="btc-price">${fmtUSD.format(t.price)}</span>
+                        <span class="btc-size">${t.size.toFixed(4)} BTC</span>
+                        <span class="btc-usd">${fmtUSD0.format(usd)}</span>
+                        <span class="btc-time">${timeStr}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function onBitcoinTrade(trade) {
+            recentTrades.unshift(trade);
+            if (recentTrades.length > 100) recentTrades.pop();
+            displayBitcoinTicker();
+        }
+
+        function startBitcoinTicker() {
+            console.log('₿ Starting Bitcoin ticker...');
+
+            try {
+                if (ws) ws.close();
+            } catch (e) {}
+
+            ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+
+            ws.onopen = () => {
+                console.log('✅ Bitcoin WebSocket connected');
+                ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    product_ids: ['BTC-USD'],
+                    channels: ['matches']
+                }));
+            };
+
+            ws.onmessage = e => {
+                try {
+                    const m = JSON.parse(e.data);
+                    if (m.type === 'match' && m.product_id === 'BTC-USD') {
+                        onBitcoinTrade({
+                            price: +m.price,
+                            size: +m.size,
+                            side: String(m.side || '').toLowerCase(),
+                            time: new Date(m.time)
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error parsing Bitcoin trade:', err);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('⚠️ Bitcoin WebSocket disconnected');
+                // Auto-reconnect after 2 seconds if we're still in BTC mode
+                const settings = loadSettings();
+                if (settings.displayMode === 'btc') {
+                    setTimeout(startBitcoinTicker, 2000);
+                }
+            };
+
+            ws.onerror = (err) => {
+                console.error('❌ Bitcoin WebSocket error:', err);
+                try { ws.close(); } catch (e) {}
+            };
+        }
+
+        function stopBitcoinTicker() {
+            console.log('Stopping Bitcoin ticker...');
+            try {
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+            } catch (e) {}
+            recentTrades = [];
+        }
+
+        // ===== INITIALIZATION =====
+        const settings = loadSettings();
+        switchDisplayMode(settings.displayMode || 'news');
     </script>
 </body>
 </html>
