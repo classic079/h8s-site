@@ -126,7 +126,7 @@
             color: #94a3b8;
         }
 
-        .settings-section input {
+        .settings-section input[type="text"] {
             width: 100%;
             padding: 8px;
             background: #0f172a;
@@ -144,6 +144,23 @@
             font-size: 14px;
         }
 
+        .setting-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #0f172a;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .setting-option input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Full View Styles */
         .news-item {
             background: #1e293b;
             border-radius: 6px;
@@ -171,6 +188,43 @@
             font-size: 22px;
             color: #64748b;
             margin-bottom: 4px;
+        }
+
+        /* Ticker View Styles */
+        .ticker-item {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 8px 4px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .ticker-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .ticker-source {
+            font-weight: 800;
+            min-width: 120px;
+            font-size: 14px;
+        }
+
+        .ticker-title {
+            flex: 1;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ticker-time {
+            color: #64748b;
+            min-width: 80px;
+            text-align: right;
+            font-size: 12px;
         }
 
         .loading {
@@ -204,7 +258,7 @@
         <div class="header">
             <span class="settings-icon" onclick="openSettings()">⚙️</span>
             LIVE NEWS
-            <span class="version-tag">v2.6</span>
+            <span class="version-tag">v2.7</span>
         </div>
         <div id="newsContainer">
             <div class="loading">Loading news...</div>
@@ -218,6 +272,14 @@
                 <span class="close-btn" onclick="closeSettings()">×</span>
             </div>
             <div class="settings-section">
+                <h3>Display</h3>
+                <div class="setting-option">
+                    <span>📊 Ticker Mode</span>
+                    <input type="checkbox" id="tickerMode">
+                </div>
+                <small>Show news in compact ticker format</small>
+            </div>
+            <div class="settings-section">
                 <h3>Blocked Words</h3>
                 <input type="text" id="blockedWords" placeholder="trump, biden, election">
                 <small>News containing these words will be hidden (comma-separated)</small>
@@ -229,7 +291,7 @@
         // Settings management
         function loadSettings() {
             const saved = localStorage.getItem('newsSettings');
-            return saved ? JSON.parse(saved) : { blockedWords: '' };
+            return saved ? JSON.parse(saved) : { blockedWords: '', tickerMode: false };
         }
 
         function saveSettings(settings) {
@@ -238,13 +300,15 @@
 
         function openSettings() {
             const settings = loadSettings();
-            document.getElementById('blockedWords').value = settings.blockedWords;
+            document.getElementById('blockedWords').value = settings.blockedWords || '';
+            document.getElementById('tickerMode').checked = settings.tickerMode || false;
             document.getElementById('settingsModal').classList.add('open');
         }
 
         function closeSettings() {
             const blockedWords = document.getElementById('blockedWords').value;
-            saveSettings({ blockedWords });
+            const tickerMode = document.getElementById('tickerMode').checked;
+            saveSettings({ blockedWords, tickerMode });
             document.getElementById('settingsModal').classList.remove('open');
             // Refresh news with new filter
             fetchNews();
@@ -281,17 +345,31 @@
 
         function displayNews(newsArray) {
             const container = document.getElementById('newsContainer');
+            const settings = loadSettings();
+
             if (!newsArray || newsArray.length === 0) {
                 container.innerHTML = '<div class="loading">No news available</div>';
                 return;
             }
 
-            container.innerHTML = newsArray.map(item => `
-                <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
-                    <div class="news-title">${item.title}</div>
-                    <div class="news-source">${item.source}</div>
-                </div>
-            `).join('');
+            if (settings.tickerMode) {
+                // Ticker mode - compact view
+                container.innerHTML = newsArray.map(item => `
+                    <div class="ticker-item" onclick="window.open('${item.link}', '_blank')">
+                        <span class="ticker-source" style="color: ${item.color || '#2dd4bf'}">${item.source}</span>
+                        <span class="ticker-title">${item.title}</span>
+                        <span class="ticker-time">${item.time}</span>
+                    </div>
+                `).join('');
+            } else {
+                // Full mode - card view
+                container.innerHTML = newsArray.map(item => `
+                    <div class="news-item" onclick="window.open('${item.link}', '_blank')" style="border-left-color: ${item.color || '#2dd4bf'};">
+                        <div class="news-title">${item.title}</div>
+                        <div class="news-source">${item.source} • ${item.time}</div>
+                    </div>
+                `).join('');
+            }
         }
 
         async function fetchNews() {
