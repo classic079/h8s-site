@@ -203,7 +203,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
-            font-size: 17px;
+            font-size: 19px;
         }
 
         .btc-side {
@@ -509,7 +509,7 @@
 
         function onBitcoinTrade(trade) {
             recentTrades.unshift(trade);
-            if (recentTrades.length > 20) recentTrades.pop();
+            if (recentTrades.length > 22) recentTrades.pop();
             displayBitcoinTicker();
         }
 
