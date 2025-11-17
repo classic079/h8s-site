@@ -22,7 +22,7 @@
         .container {
             padding: 4px;
             height: 100%;
-            overflow-y: auto;
+            overflow-y: hidden;
         }
 
         .header {
@@ -512,7 +512,7 @@
 
         function onBitcoinTrade(trade) {
             recentTrades.unshift(trade);
-            if (recentTrades.length > 33) recentTrades.pop();
+            if (recentTrades.length > 30) recentTrades.pop();
             displayBitcoinTicker();
         }
 
