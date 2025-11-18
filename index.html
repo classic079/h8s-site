@@ -1003,8 +1003,11 @@ function mergeMySQLTradesWithLive(data){
       // CRITICAL FIX: Update prevTopTrades to prevent infinite save loop
       // When loading from MySQL, we need to set prevTopTrades so the next
       // updateTopTrades() call doesn't think everything changed
-      prevTopTrades[key].buys = fbBuys.map(t => t.time);
-      prevTopTrades[key].sells = fbSells.map(t => t.time);
+      // IMPORTANT: Sort by USD value (same as updateTopTrades does) to ensure order matches
+      const sortedBuys = [...fbBuys].sort((a, b) => b.usd - a.usd);
+      const sortedSells = [...fbSells].sort((a, b) => b.usd - a.usd);
+      prevTopTrades[key].buys = sortedBuys.map(t => t.time);
+      prevTopTrades[key].sells = sortedSells.map(t => t.time);
 
       // Debug: Show the actual trades being loaded
       if(key === '30d' || key === '24h'){
