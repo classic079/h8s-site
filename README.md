@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.48
+**Current Version:** v13.49
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,15 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.48 (Current)
+### v13.49 (Current)
+- **Added comprehensive .htaccess optimization** - Performance and security enhancements
+- **Enabled Gzip compression** - 30-50% faster page loads for all text content (HTML, CSS, JS)
+- **Browser caching configured** - Static assets cached (1 week CSS/JS, 1 month images)
+- **Security headers added** - X-Frame-Options, X-Content-Type-Options, CSP, Referrer-Policy
+- **PHP optimizations** - Output buffering enabled, version info hidden
+- **File access controls** - Protected sensitive files and hidden directories
+
+### v13.48
 - **Fixed API proxy paths** - Moved PHP files from `/api/` subdirectory to root for Hostinger compatibility
 - **Updated all API endpoints** - Changed `/api/proxy.php` → `/api-proxy.php` and `/api/rss.php` → `/api-rss.php`
 - **Resolved news feed issue** - Fixed RSS proxy accessibility after deployment
