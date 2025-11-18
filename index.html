@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.51</title>
+<title>BTC Stalker - Multi-Timeframe v13.52</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -196,7 +196,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.51</span>
+      <span class="pill" style="opacity:.6">v13.52</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -978,17 +978,18 @@ function mergeMySQLTradesWithLive(data){
       // This ensures we get exactly what's in MySQL without duplicates
       liveArr.length = 0; // Clear array
 
-      // Add all Firebase buys
+      // Add all MySQL buys
       fbBuys.forEach(t => {
         liveArr.push({
           price: t.price,
           size: t.size,
           side: 'buy',
-          time: t.time
+          time: t.time,
+          usd: t.usd || (t.price * t.size) // Ensure USD is calculated
         });
       });
 
-      // Add all Firebase sells
+      // Add all MySQL sells
       fbSells.forEach(t => {
         liveArr.push({
           price: t.price,
