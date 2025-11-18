@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.50</title>
+<title>BTC Stalker - Multi-Timeframe v13.51</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -196,7 +196,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.50</span>
+      <span class="pill" style="opacity:.6">v13.51</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -830,7 +830,7 @@ function updateTopTrades(key, liveArr){
     } else if(!buysChanged && !sellsChanged){
       // if(key === '30d') console.log(`⏭️ ${key}: No changes, skipping save`);
     } else {
-      // console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to MySQL (list changed)`);
+      console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to MySQL`);
       saveTopTradesToMySQL(key, top10Buys, top10Sells);
     }
   }
@@ -972,10 +972,10 @@ function mergeMySQLTradesWithLive(data){
       const fbSells = data[key].sells || [];
       const liveArr = liveMap[key];
 
-      // console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from Firebase`);
+      console.log(`📥 Loading ${key}: ${fbBuys.length} buys, ${fbSells.length} sells from MySQL`);
 
-      // Replace liveArr contents with Firebase data (don't merge - replace entirely)
-      // This ensures we get exactly what's in Firebase without duplicates
+      // Replace liveArr contents with MySQL data (don't merge - replace entirely)
+      // This ensures we get exactly what's in MySQL without duplicates
       liveArr.length = 0; // Clear array
 
       // Add all Firebase buys
@@ -1512,9 +1512,9 @@ async function fetchHistoricalCandles(){
     prune();
     updateAll();
 
-    // Now that initial load is complete, allow Firebase saves
+    // Now that initial load is complete, allow MySQL saves
     isLoadingFromMySQL = false;
-    console.log('🔓 Initial load complete, Firebase saves enabled');
+    console.log('🔓 Initial load complete, MySQL saves enabled');
 
   }catch(e){
     console.error('Failed to load historical data:', e);
