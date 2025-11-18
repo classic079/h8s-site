@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.49</title>
+<title>BTC Stalker - Multi-Timeframe v13.50</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -184,8 +184,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
   100%{box-shadow:none;transform:scale(1)}
 }
 </style>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<!-- Firebase removed - now using MySQL for top trades storage -->
+<!-- <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script> -->
 </head>
 <body>
 <span id="connPill" class="pill conn-warn">Connecting…</span>
@@ -195,7 +196,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.49</span>
+      <span class="pill" style="opacity:.6">v13.50</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -326,19 +327,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 </div>
 
 <script>
-/* ===== Firebase Setup ===== */
-const firebaseConfig = {
-  apiKey: "AIzaSyAy7bMRwm98jdSgg40KUvXPuUONd8o6KLc",
-  authDomain: "btc-stalker.firebaseapp.com",
-  databaseURL: "https://btc-stalker-default-rtdb.firebaseio.com",
-  projectId: "btc-stalker",
-  storageBucket: "btc-stalker.firebasestorage.app",
-  messagingSenderId: "127552164700",
-  appId: "1:127552164700:web:c2e56579b4946b7d44e799"
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+/* ===== MySQL Storage (replaces Firebase) ===== */
+// Top trades now stored in MySQL via /api-trades.php
+// No initialization needed - API handles database connection
 
 /* ===== Config ===== */
 const TF = [
@@ -830,26 +821,27 @@ function updateTopTrades(key, liveArr){
   prevTopTrades[key].buys = top10Buys.map(t => t.time);
   prevTopTrades[key].sells = top10Sells.map(t => t.time);
 
-  // Save top trades to Firebase ONLY if the list changed (async, non-blocking)
+  // Save top trades to MySQL ONLY if the list changed (async, non-blocking)
   // Only persist 1h and longer timeframes (skip 10m, 5m, 1m - too volatile/resource intensive)
-  // Don't save if we're currently loading from Firebase (prevents infinite loop)
+  // Don't save if we're currently loading from MySQL (prevents infinite loop)
   if((key === '30d' || key === '24h' || key === '12h' || key === '8h' || key === '1h')){
-    if(isLoadingFromFirebase){
-      // if(key === '30d') console.log(`🔒 ${key}: Save blocked - still loading from Firebase`);
+    if(isLoadingFromMySQL){
+      // if(key === '30d') console.log(`🔒 ${key}: Save blocked - still loading from MySQL`);
     } else if(!buysChanged && !sellsChanged){
       // if(key === '30d') console.log(`⏭️ ${key}: No changes, skipping save`);
     } else {
-      // console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to Firebase (list changed)`);
-      saveTopTradesToFirebase(key, top10Buys, top10Sells);
+      // console.log(`💾 Saving ${key}: ${top10Buys.length} buys, ${top10Sells.length} sells to MySQL (list changed)`);
+      saveTopTradesToMySQL(key, top10Buys, top10Sells);
     }
   }
 }
 
-/* ===== Firebase: Save top trades ===== */
-function saveTopTradesToFirebase(key, buys, sells){
+/* ===== MySQL: Save top trades ===== */
+async function saveTopTradesToMySQL(key, buys, sells){
   try{
     // Save top buys and sells for longer timeframes only
     const data = {
+      timeframe: key,
       buys: buys.map(t => ({
         price: t.price,
         size: t.size,
@@ -861,12 +853,20 @@ function saveTopTradesToFirebase(key, buys, sells){
         size: t.size,
         usd: t.usd,
         time: t.time
-      })),
-      lastUpdate: Date.now()
+      }))
     };
-    db.ref(`topTrades/${key}`).set(data);
+
+    const response = await fetch('/api-trades.php?action=save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+
+    if(!response.ok){
+      console.error(`Failed to save ${key} trades:`, response.statusText);
+    }
   }catch(e){
-    console.error('Failed to save to Firebase:', e);
+    console.error('Failed to save to MySQL:', e);
   }
 }
 
@@ -903,34 +903,38 @@ function updateTicker(){
   }).join('');
 }
 
-/* ===== Firebase: Load top trades on startup ===== */
-async function loadTopTradesFromFirebase(){
+/* ===== MySQL: Load top trades on startup ===== */
+async function loadTopTradesFromMySQL(){
   try{
-    isLoadingFromFirebase = true; // Prevent saving during initial load
+    isLoadingFromMySQL = true; // Prevent saving during initial load
 
-    const snapshot = await db.ref('topTrades').once('value');
-    const data = snapshot.val();
-    if(!data) {
-      isLoadingFromFirebase = false;
+    const response = await fetch('/api-trades.php?action=load');
+    if(!response.ok){
+      throw new Error('Failed to load trades');
+    }
+
+    const result = await response.json();
+    if(!result.success || !result.data) {
+      isLoadingFromMySQL = false;
       return;
     }
 
-    // Merge Firebase data with live trade windows
-    mergeFirebaseTradesWithLive(data);
+    // Merge MySQL data with live trade windows
+    mergeMySQLTradesWithLive(result.data);
 
-    console.log('✅ Loaded top trades from Firebase');
+    console.log('✅ Loaded top trades from MySQL');
     // Don't call updateAll() here - let normal flow handle it after historical data loads
 
     // Keep flag true until after first updateAll() runs (after historical data loads)
     // Will be set to false after historical candles finish loading
   }catch(e){
-    console.error('Failed to load from Firebase:', e);
-    isLoadingFromFirebase = false;
+    console.error('Failed to load from MySQL:', e);
+    isLoadingFromMySQL = false;
   }
 }
 
-/* ===== Firebase: Setup real-time listeners ===== */
-let isLoadingFromFirebase = false; // Prevent infinite update loops
+/* ===== MySQL: State management ===== */
+let isLoadingFromMySQL = false; // Prevent infinite update loops
 
 function setupFirebaseListeners(){
   // Listen for changes to top trades in real-time
@@ -939,7 +943,7 @@ function setupFirebaseListeners(){
     if(!data) return;
 
     // Set flag to prevent save loop
-    isLoadingFromFirebase = true;
+    isLoadingFromMySQL = true;
 
     // Merge updated trades from Firebase
     mergeFirebaseTradesWithLive(data);
@@ -948,14 +952,14 @@ function setupFirebaseListeners(){
     updateAll();
 
     // Clear flag after a short delay
-    setTimeout(() => { isLoadingFromFirebase = false; }, 100);
+    setTimeout(() => { isLoadingFromMySQL = false; }, 100);
   });
 
   console.log('✅ Firebase real-time sync enabled');
 }
 
-/* ===== Helper: Merge Firebase trades with live data ===== */
-function mergeFirebaseTradesWithLive(data){
+/* ===== Helper: Merge MySQL trades with live data ===== */
+function mergeMySQLTradesWithLive(data){
   const liveMap = {
     '30d': win30dLive, '24h': win24hLive, '12h': win12hLive, '8h': win8hLive,
     '1h': win1hLive, '10m': win10mLive, '5m': win5mLive, '1m': win1mLive
@@ -1509,12 +1513,12 @@ async function fetchHistoricalCandles(){
     updateAll();
 
     // Now that initial load is complete, allow Firebase saves
-    isLoadingFromFirebase = false;
+    isLoadingFromMySQL = false;
     console.log('🔓 Initial load complete, Firebase saves enabled');
 
   }catch(e){
     console.error('Failed to load historical data:', e);
-    isLoadingFromFirebase = false;
+    isLoadingFromMySQL = false;
   }
 }
 
@@ -2109,8 +2113,8 @@ function saveSettings(){
 // Wait for DOM to be fully ready before drawing
 setTimeout(async () => {
   loadSettings(); // Load saved settings
-  await loadTopTradesFromFirebase(); // Load persisted top trades FIRST
-  // setupFirebaseListeners(); // DISABLED - causing infinite loop, need better approach
+  await loadTopTradesFromMySQL(); // Load persisted top trades from MySQL FIRST
+  // setupFirebaseListeners removed - MySQL doesn't need real-time sync
   fetchHistoricalCandles(); // Then fetch historical data (which will merge with Firebase data)
   startWS();
   fetch24h();

@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.49
+**Current Version:** v13.50
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,16 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.49 (Current)
+### v13.50 (Current)
+- **Replaced Firebase with MySQL** - Top trades now stored in MySQL database for better performance
+- **Created api-trades.php** - Complete PHP API for saving/loading top trades
+- **Faster data access** - MySQL queries are faster than Firebase with no network latency
+- **Included with hosting** - No external service dependencies or costs
+- **Full data control** - Can query, backup, and optimize database directly
+- **Removed Firebase dependencies** - Eliminated Firebase SDK and external API calls
+- **Added MYSQL_SETUP.md** - Complete setup instructions for database configuration
+
+### v13.49
 - **Added comprehensive .htaccess optimization** - Performance and security enhancements
 - **Enabled Gzip compression** - 30-50% faster page loads for all text content (HTML, CSS, JS)
 - **Browser caching configured** - Static assets cached (1 week CSS/JS, 1 month images)
