@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Firebase to MySQL Migration Tool</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #e9fef7;
+    }
+    h1 { color: #2dd4bf; }
+    .status {
+      background: #111;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border: 1px solid #333;
+    }
+    .success { color: #2dd4bf; }
+    .error { color: #f59e0b; }
+    .info { color: #888; }
+    button {
+      background: #2dd4bf;
+      color: #0a0a0a;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { background: #5eead4; }
+    button:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    pre {
+      background: #000;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .progress {
+      margin: 10px 0;
+      padding: 8px;
+      background: #1a1a1a;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔄 Firebase → MySQL Migration</h1>
+  <p>This tool will migrate your top trades data from Firebase to MySQL.</p>
+
+  <div class="status">
+    <h3>Status: <span id="status">Ready</span></h3>
+    <div id="progress"></div>
+    <div id="results"></div>
+  </div>
+
+  <button onclick="startMigration()" id="migrateBtn">Start Migration</button>
+  <button onclick="verifyData()" id="verifyBtn">Verify MySQL Data</button>
+  <button onclick="clearFirebase()" id="clearBtn" style="background: #f59e0b;">Clear Firebase (After Verification)</button>
+
+  <div class="status">
+    <h3>Instructions:</h3>
+    <ol>
+      <li><strong>Click "Start Migration"</strong> - Reads Firebase data and saves to MySQL</li>
+      <li><strong>Click "Verify MySQL Data"</strong> - Confirms data was migrated correctly</li>
+      <li><strong>Click "Clear Firebase"</strong> - Optional cleanup after successful migration</li>
+    </ol>
+    <p class="info">Note: This is a one-time migration. Safe to run multiple times.</p>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+  <script>
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAy7bMRwm98jdSgg40KUvXPuUONd8o6KLc",
+      authDomain: "btc-stalker.firebaseapp.com",
+      databaseURL: "https://btc-stalker-default-rtdb.firebaseio.com",
+      projectId: "btc-stalker",
+      storageBucket: "btc-stalker.firebasestorage.app",
+      messagingSenderId: "127552164700",
+      appId: "1:127552164700:web:c2e56579b4946b7d44e799"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function updateStatus(msg, className = 'info') {
+      document.getElementById('status').innerHTML = `<span class="${className}">${msg}</span>`;
+    }
+
+    function addProgress(msg, className = 'info') {
+      const p = document.createElement('div');
+      p.className = `progress ${className}`;
+      p.textContent = msg;
+      document.getElementById('progress').appendChild(p);
+    }
+
+    function setResults(html) {
+      document.getElementById('results').innerHTML = html;
+    }
+
+    async function startMigration() {
+      const btn = document.getElementById('migrateBtn');
+      btn.disabled = true;
+      document.getElementById('progress').innerHTML = '';
+      document.getElementById('results').innerHTML = '';
+
+      try {
+        updateStatus('Reading from Firebase...', 'info');
+        addProgress('📖 Connecting to Firebase...');
+
+        // Read all top trades from Firebase
+        const snapshot = await db.ref('topTrades').once('value');
+        const firebaseData = snapshot.val();
+
+        if (!firebaseData) {
+          updateStatus('No data found in Firebase', 'error');
+          addProgress('❌ No data to migrate', 'error');
+          btn.disabled = false;
+          return;
+        }
+
+        addProgress(`✅ Found data for ${Object.keys(firebaseData).length} timeframes`, 'success');
+
+        // Count total trades
+        let totalTrades = 0;
+        Object.keys(firebaseData).forEach(tf => {
+          const buys = firebaseData[tf].buys?.length || 0;
+          const sells = firebaseData[tf].sells?.length || 0;
+          totalTrades += buys + sells;
+          addProgress(`  - ${tf}: ${buys} buys, ${sells} sells`);
+        });
+
+        addProgress(`📊 Total trades to migrate: ${totalTrades}`, 'info');
+
+        // Migrate each timeframe
+        updateStatus('Migrating to MySQL...', 'info');
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const [timeframe, data] of Object.entries(firebaseData)) {
+          addProgress(`🔄 Migrating ${timeframe}...`);
+
+          const payload = {
+            timeframe: timeframe,
+            buys: data.buys || [],
+            sells: data.sells || []
+          };
+
+          try {
+            const response = await fetch('/api-trades.php?action=save', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              successCount++;
+              addProgress(`  ✅ ${timeframe}: ${result.buys_saved} buys, ${result.sells_saved} sells saved`, 'success');
+            } else {
+              failCount++;
+              addProgress(`  ❌ ${timeframe}: ${result.error}`, 'error');
+            }
+          } catch (e) {
+            failCount++;
+            addProgress(`  ❌ ${timeframe}: ${e.message}`, 'error');
+          }
+        }
+
+        // Summary
+        if (failCount === 0) {
+          updateStatus('Migration Complete! ✅', 'success');
+          addProgress(`\n🎉 Successfully migrated ${successCount} timeframes`, 'success');
+          setResults(`<pre>Migration Summary:\n- Timeframes migrated: ${successCount}\n- Total trades: ${totalTrades}\n- Status: Complete\n\nNext: Click "Verify MySQL Data" to confirm</pre>`);
+        } else {
+          updateStatus('Migration completed with errors', 'error');
+          addProgress(`\n⚠️ ${successCount} succeeded, ${failCount} failed`, 'error');
+        }
+
+      } catch (e) {
+        updateStatus('Migration failed', 'error');
+        addProgress(`❌ Error: ${e.message}`, 'error');
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function verifyData() {
+      const btn = document.getElementById('verifyBtn');
+      btn.disabled = true;
+
+      try {
+        updateStatus('Verifying MySQL data...', 'info');
+        document.getElementById('progress').innerHTML = '';
+
+        const response = await fetch('/api-trades.php?action=load');
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error('Failed to load data');
+        }
+
+        const data = result.data;
+        const timeframes = Object.keys(data);
+
+        if (timeframes.length === 0) {
+          updateStatus('No data in MySQL', 'error');
+          addProgress('❌ MySQL database is empty', 'error');
+        } else {
+          updateStatus('Verification Complete', 'success');
+          addProgress(`✅ Found ${timeframes.length} timeframes in MySQL`, 'success');
+
+          let totalBuys = 0;
+          let totalSells = 0;
+
+          timeframes.forEach(tf => {
+            const buys = data[tf].buys?.length || 0;
+            const sells = data[tf].sells?.length || 0;
+            totalBuys += buys;
+            totalSells += sells;
+            addProgress(`  - ${tf}: ${buys} buys, ${sells} sells`);
+          });
+
+          setResults(`<pre>MySQL Database Contents:\n- Timeframes: ${timeframes.length}\n- Total buys: ${totalBuys}\n- Total sells: ${totalSells}\n- Total trades: ${totalBuys + totalSells}\n\n✅ Migration verified successfully!</pre>`);
+        }
+
+      } catch (e) {
+        updateStatus('Verification failed', 'error');
+        addProgress(`❌ Error: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function clearFirebase() {
+      if (!confirm('Are you sure you want to clear Firebase data?\n\nOnly do this after verifying MySQL data is correct.\n\nThis action cannot be undone.')) {
+        return;
+      }
+
+      const btn = document.getElementById('clearBtn');
+      btn.disabled = true;
+
+      try {
+        updateStatus('Clearing Firebase...', 'info');
+        document.getElementById('progress').innerHTML = '';
+
+        await db.ref('topTrades').remove();
+
+        updateStatus('Firebase cleared', 'success');
+        addProgress('✅ Firebase data deleted', 'success');
+        addProgress('Your site now uses MySQL exclusively', 'info');
+
+      } catch (e) {
+        updateStatus('Clear failed', 'error');
+        addProgress(`❌ Error: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
