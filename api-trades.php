@@ -8,11 +8,10 @@ header('Access-Control-Allow-Origin: *');
 header('Content-Type: application/json');
 
 // Database configuration
-// IMPORTANT: Update these credentials after creating the database in Hostinger hPanel
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'u582515363_btc_stalker'); // Format: username_dbname
-define('DB_USER', 'u582515363'); // Your Hostinger username
-define('DB_PASS', ''); // Set this password in hPanel -> Databases
+define('DB_NAME', 'u582515363_btc_stalker'); // Database name from Hostinger
+define('DB_USER', 'u582515363_btc_user'); // MySQL username (full with prefix)
+define('DB_PASS', 'O2fUIE;5y5$'); // MySQL password
 
 /**
  * Get database connection
