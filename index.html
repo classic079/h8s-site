@@ -1000,6 +1000,12 @@ function mergeMySQLTradesWithLive(data){
         });
       });
 
+      // CRITICAL FIX: Update prevTopTrades to prevent infinite save loop
+      // When loading from MySQL, we need to set prevTopTrades so the next
+      // updateTopTrades() call doesn't think everything changed
+      prevTopTrades[key].buys = fbBuys.map(t => t.time);
+      prevTopTrades[key].sells = fbSells.map(t => t.time);
+
       // Debug: Show the actual trades being loaded
       if(key === '30d' || key === '24h'){
         // console.log(`   Sells loaded:`, fbSells.map(t => `${(t.size || 0).toFixed(2)} BTC`).join(', '));
