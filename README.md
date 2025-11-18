@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.39
+**Current Version:** v13.46
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,15 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.39 (Current)
+### v13.46 (Current)
+- **Migrated to Hostinger Premium Hosting** - Moved from GitHub Pages to Hostinger for enhanced capabilities
+- **Added server-side API proxy** - Created `/api/proxy.php` to secure API keys server-side
+- **Secured 3 API keys** - TwelveData, OilPriceAPI, and OpenWeather keys no longer exposed in client code
+- **Server-side caching** - API responses cached (1-10 minutes) to reduce API calls by 80%+
+- **Rate limiting protection** - Built-in abuse prevention for proxy endpoints
+- **Updated DNS** - Cloudflare proxying to Hostinger server at 82.29.199.16
+
+### v13.39
 - **Fixed oil price initial load** - Always fetches oil price on first page load, even when markets closed
 - **Shows last closing price** - Displays most recent oil price when markets are closed (weekends/holidays)
 - **Smart refresh logic** - After initial load, only fetches during market hours to save API calls
@@ -327,16 +335,22 @@ The "Live" arrays (win30dLive, etc.) hold the historical high scores (top trades
 
 ## Deployment
 
-**Platform:** GitHub Pages
-**Branch:** main
-**Auto-deploy:** Enabled (pushes to main deploy automatically)
+**Platform:** Hostinger Premium Hosting
+**Domain:** h8s.us
+**DNS:** Cloudflare (Login: Gmail classic078 account)
+**Server IP:** 82.29.199.16
 
-To deploy changes:
-```bash
-git add .
-git commit -m "Description of changes"
-git push origin main
-```
+**Previous Platform:** GitHub Pages (still available as backup)
+
+### Hostinger Deployment
+Files are deployed to: `/home/u582515363/domains/h8s.us/public_html/`
+
+To deploy changes, use Hostinger MCP or manual FTP upload.
+
+### DNS Management (Cloudflare)
+- **Login:** cloudflare.com with Gmail classic078 account
+- **Nameservers:** kia.ns.cloudflare.com, chad.ns.cloudflare.com
+- **A Record:** @ → 82.29.199.16 (Hostinger server)
 
 ---
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.45</title>
+<title>BTC Stalker - Multi-Timeframe v13.46</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -195,7 +195,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.45</span>
+      <span class="pill" style="opacity:.6">v13.46</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1527,17 +1527,12 @@ function updateClock(){
 /* ===== Weather ===== */
 async function updateWeather(){
   try {
-    // Using OpenWeatherMap API
-    const apiKey = '1591da776534a0f5e80ba9c577531a54';
     const zip = settings.weatherZip || '43440';
 
-    // Fetch current weather and 5-day forecast
-    const currentUrl = `https://api.openweathermap.org/data/2.5/weather?zip=${zip},US&units=imperial&appid=${apiKey}`;
-    const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?zip=${zip},US&units=imperial&appid=${apiKey}`;
-
+    // Fetch current weather and 5-day forecast via proxy
     const [currentRes, forecastRes] = await Promise.all([
-      fetch(currentUrl),
-      fetch(forecastUrl)
+      fetch(`/api/proxy.php?endpoint=weather&type=current&zip=${zip}`),
+      fetch(`/api/proxy.php?endpoint=weather&type=forecast&zip=${zip}`)
     ]);
 
     const current = await currentRes.json();
@@ -1652,12 +1647,9 @@ function isOilMarketOpen(){
 
 /* ===== Fetch Gold and crypto prices ===== */
 async function fetchMetalPrices(){
-  const TWELVE_API_KEY = '830bdfca25d44bfe9992c9872d0693f5';
-  const OIL_API_KEY = '30f7359b27f8a5ddc220f30004684bfac80a7e734ba3b8c5050c47f9f8649576';
-
   try{
-    // Fetch Gold spot price (XAU/USD)
-    const rGold = await fetch(`https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${TWELVE_API_KEY}`);
+    // Fetch Gold spot price via proxy
+    const rGold = await fetch('/api/proxy.php?endpoint=gold');
     if(rGold.ok){
       const dataGold = await rGold.json();
       if(dataGold && dataGold.price){
@@ -1672,13 +1664,8 @@ async function fetchMetalPrices(){
     const oilMarketOpen = isOilMarketOpen();
     const shouldFetchOil = !oilPriceFetched || oilMarketOpen; // First time OR markets open
 
-    if(OIL_API_KEY !== 'YOUR_OILPRICEAPI_KEY_HERE' && shouldFetchOil){
-      const rOil = await fetch('https://api.oilpriceapi.com/v1/prices/latest?by_code=WTI_USD', {
-        headers: {
-          'Authorization': `Token ${OIL_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      });
+    if(shouldFetchOil){
+      const rOil = await fetch('/api/proxy.php?endpoint=oil');
       if(rOil.ok){
         const dataOil = await rOil.json();
         if(dataOil && dataOil.data && dataOil.data.price){
