@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.47</title>
+<title>BTC Stalker - Multi-Timeframe v13.48</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -195,7 +195,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.47</span>
+      <span class="pill" style="opacity:.6">v13.48</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1531,8 +1531,8 @@ async function updateWeather(){
 
     // Fetch current weather and 5-day forecast via proxy
     const [currentRes, forecastRes] = await Promise.all([
-      fetch(`/api/proxy.php?endpoint=weather&type=current&zip=${zip}`),
-      fetch(`/api/proxy.php?endpoint=weather&type=forecast&zip=${zip}`)
+      fetch(`/api-proxy.php?endpoint=weather&type=current&zip=${zip}`),
+      fetch(`/api-proxy.php?endpoint=weather&type=forecast&zip=${zip}`)
     ]);
 
     const current = await currentRes.json();
@@ -1649,7 +1649,7 @@ function isOilMarketOpen(){
 async function fetchMetalPrices(){
   try{
     // Fetch Gold spot price via proxy
-    const rGold = await fetch('/api/proxy.php?endpoint=gold');
+    const rGold = await fetch('/api-proxy.php?endpoint=gold');
     if(rGold.ok){
       const dataGold = await rGold.json();
       if(dataGold && dataGold.price){
@@ -1665,7 +1665,7 @@ async function fetchMetalPrices(){
     const shouldFetchOil = !oilPriceFetched || oilMarketOpen; // First time OR markets open
 
     if(shouldFetchOil){
-      const rOil = await fetch('/api/proxy.php?endpoint=oil');
+      const rOil = await fetch('/api-proxy.php?endpoint=oil');
       if(rOil.ok){
         const dataOil = await rOil.json();
         if(dataOil && dataOil.data && dataOil.data.price){
@@ -1769,7 +1769,7 @@ async function fetchNewsData(){
     // Cache-busting handled server-side
     const responses = await Promise.all(
       feeds.map(feed =>
-        fetch(`/api/rss.php?rss_url=${encodeURIComponent(feed.url)}&count=10`)
+        fetch(`/api-rss.php?rss_url=${encodeURIComponent(feed.url)}&count=10`)
           .then(r => r.json())
           .then(data => {
             // Debug: Log first item's raw date for each feed
