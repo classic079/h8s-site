@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.46</title>
+<title>BTC Stalker - Multi-Timeframe v13.47</title>
 <script>
 // Mobile detection - redirect to mobile.html if on phone/tablet
 (function(){
@@ -195,7 +195,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.46</span>
+      <span class="pill" style="opacity:.6">v13.47</span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
@@ -1765,12 +1765,11 @@ async function fetchNewsData(){
       { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', color: '#F7931A' }
     ];
 
-    // Fetch all feeds in parallel using rss2json (free CORS proxy)
-    // Add timestamp to bust cache
-    const cacheBuster = Date.now();
+    // Fetch all feeds in parallel using our own RSS proxy
+    // Cache-busting handled server-side
     const responses = await Promise.all(
       feeds.map(feed =>
-        fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}&count=10&_=${cacheBuster}`)
+        fetch(`/api/rss.php?rss_url=${encodeURIComponent(feed.url)}&count=10`)
           .then(r => r.json())
           .then(data => {
             // Debug: Log first item's raw date for each feed

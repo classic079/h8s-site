@@ -2,7 +2,7 @@
 
 Real-time Bitcoin price tracking dashboard with multi-timeframe analysis, live trade monitoring, and integrated news feeds.
 
-**Current Version:** v13.46
+**Current Version:** v13.47
 **Live Site:** [h8s-site](https://github.com/classic079/h8s-site)
 
 ---
@@ -113,7 +113,15 @@ Header shows 24h prices with percentage change for:
 
 ## Recent Changes
 
-### v13.46 (Current)
+### v13.47 (Current)
+- **Added server-side RSS feed proxy** - Created `/api/rss.php` to fetch and parse RSS feeds directly
+- **Eliminated rss2json.com dependency** - No longer reliant on external RSS proxy service
+- **Better reliability** - Direct RSS parsing eliminates third-party rate limits and downtime
+- **Enhanced caching** - Server-side RSS feed caching (3 minutes) for faster loads
+- **Full control** - Can now handle all 10 news sources with custom parsing logic
+- **Supports RSS 2.0 and Atom formats** - Handles both standard feed formats
+
+### v13.46
 - **Migrated to Hostinger Premium Hosting** - Moved from GitHub Pages to Hostinger for enhanced capabilities
 - **Added server-side API proxy** - Created `/api/proxy.php` to secure API keys server-side
 - **Secured 3 API keys** - TwelveData, OilPriceAPI, and OpenWeather keys no longer exposed in client code
