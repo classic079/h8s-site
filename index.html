@@ -817,6 +817,18 @@ function updateTopTrades(key, liveArr){
   const buysChanged = !arraysEqual(prevTopTrades[key].buys, top10Buys.map(t => t.time));
   const sellsChanged = !arraysEqual(prevTopTrades[key].sells, top10Sells.map(t => t.time));
 
+  // DEBUG: Log comparison for 30d to understand infinite loop
+  if(key === '30d' && (buysChanged || sellsChanged)){
+    console.log(`🔍 30d detected changes:`, {
+      buysChanged,
+      sellsChanged,
+      prevBuyCount: prevTopTrades[key].buys.length,
+      currentBuyCount: top10Buys.length,
+      prevBuyFirst3: prevTopTrades[key].buys.slice(0,3),
+      currentBuyFirst3: top10Buys.map(t => t.time).slice(0,3)
+    });
+  }
+
   // Store current top trade times for next comparison
   prevTopTrades[key].buys = top10Buys.map(t => t.time);
   prevTopTrades[key].sells = top10Sells.map(t => t.time);
