@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Watch</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            padding: 12px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            color: #94a3b8;
+            text-align: center;
+            letter-spacing: 2px;
+            padding: 12px;
+            background: #1e293b;
+            border-radius: 8px;
+            position: relative;
+            text-shadow: 0 0 10px rgba(148, 163, 184, 0.5);
+        }
+
+        .version-tag {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 11px;
+            color: #64748b;
+            font-weight: normal;
+            opacity: 0.7;
+        }
+
+        .section {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            flex: 1;
+            box-shadow: 0 0 20px rgba(45, 212, 191, 0.05);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2dd4bf;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px rgba(45, 212, 191, 0.3);
+            border-bottom: 1px solid rgba(45, 212, 191, 0.2);
+            padding-bottom: 6px;
+        }
+
+        .ticker-row {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 0.8fr;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            align-items: center;
+        }
+
+        .ticker-row:last-child {
+            border-bottom: none;
+        }
+
+        .ticker-name {
+            font-size: 15px;
+            color: #cbd5e1;
+        }
+
+        .ticker-symbol {
+            font-size: 12px;
+            color: #64748b;
+            margin-left: 6px;
+        }
+
+        .ticker-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2dd4bf;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ticker-change {
+            font-size: 16px;
+            font-weight: bold;
+            text-align: right;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ticker-change.positive {
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .ticker-change.negative {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+        }
+
+        .error {
+            color: #f87171;
+            text-align: center;
+            padding: 10px;
+            background: rgba(248, 113, 113, 0.1);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .update-time {
+            text-align: center;
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 8px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            MARKET WATCH
+            <div class="version-tag">v1.0</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">📈 STOCKS</div>
+            <div id="stocks-data" class="loading">Loading...</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">₿ CRYPTO</div>
+            <div id="crypto-data" class="loading">Loading...</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🛢️ COMMODITIES</div>
+            <div id="commodities-data" class="loading">Loading...</div>
+        </div>
+
+        <div class="update-time" id="update-time">Last updated: --</div>
+    </div>
+
+    <script>
+        const HA_URL = 'http://192.168.86.58:8123';
+        const HA_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI5NmNmOGIxMTM5ZWI0ZTlmYmQ0MGZhYjRjZDgwNGY1YSIsImlhdCI6MTc2MzQ5Njg4OSwiZXhwIjoyMDc4ODU2ODg5fQ.uAPxDAuNGOSooPLcSnqzSFYGHEtjmkfzDVjGvzhiwnc';
+
+        const STOCKS = [
+            { entity: 'sensor.yahoofinance_dji', name: 'Dow Jones', symbol: 'DJIA', changeEntity: 'sensor.djia_change_display' },
+            { entity: 'sensor.yahoofinance_gme', name: 'GameStop', symbol: 'GME', changeEntity: 'sensor.gme_change' },
+            { entity: 'sensor.yahoofinance_mstr', name: 'MicroStrategy', symbol: 'MSTR', changeEntity: 'sensor.mstr_change' }
+        ];
+
+        const CRYPTO = [
+            { entity: 'sensor.yahoofinance_xrp_usd', name: 'Ripple', symbol: 'XRP', changeEntity: 'sensor.xrp_change' },
+            { entity: 'sensor.yahoofinance_ada_usd', name: 'Cardano', symbol: 'ADA', changeEntity: null }
+        ];
+
+        const COMMODITIES = [
+            { entity: 'sensor.yahoofinance_cl_f', name: 'Crude Oil WTI', symbol: 'CL=F', changeEntity: 'sensor.crude_oil_change' },
+            { entity: 'sensor.yahoofinance_gc_f', name: 'Gold Futures', symbol: 'GC=F', changeEntity: 'sensor.gc_f_change_display' }
+        ];
+
+        async function fetchEntityState(entityId) {
+            try {
+                const response = await fetch(`${HA_URL}/api/states/${entityId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${HA_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data.state;
+            } catch (error) {
+                console.error(`Error fetching ${entityId}:`, error);
+                return null;
+            }
+        }
+
+        function formatPrice(price) {
+            const num = parseFloat(price);
+            if (isNaN(num)) return '--';
+            return '$' + num.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function formatChange(change) {
+            const num = parseFloat(change);
+            if (isNaN(num)) return '--';
+            const sign = num >= 0 ? '+' : '';
+            return `${sign}${num.toFixed(2)}%`;
+        }
+
+        function createTickerRow(item, price, change) {
+            const changeNum = parseFloat(change);
+            const changeClass = changeNum >= 0 ? 'positive' : 'negative';
+
+            return `
+                <div class="ticker-row">
+                    <div>
+                        <span class="ticker-name">${item.name}</span>
+                        <span class="ticker-symbol">${item.symbol}</span>
+                    </div>
+                    <div class="ticker-price">${formatPrice(price)}</div>
+                    <div class="ticker-change ${changeClass}">${formatChange(change)}</div>
+                </div>
+            `;
+        }
+
+        async function updateMarketData() {
+            const now = new Date();
+            document.getElementById('update-time').textContent =
+                `Last updated: ${now.toLocaleTimeString()}`;
+
+            // Fetch stocks
+            let stocksHtml = '';
+            for (const stock of STOCKS) {
+                const price = await fetchEntityState(stock.entity);
+                const change = stock.changeEntity ? await fetchEntityState(stock.changeEntity) : null;
+                if (price) {
+                    stocksHtml += createTickerRow(stock, price, change || 0);
+                }
+            }
+            document.getElementById('stocks-data').innerHTML = stocksHtml || '<div class="error">No data available</div>';
+
+            // Fetch crypto
+            let cryptoHtml = '';
+            for (const crypto of CRYPTO) {
+                const price = await fetchEntityState(crypto.entity);
+                const change = crypto.changeEntity ? await fetchEntityState(crypto.changeEntity) : null;
+                if (price) {
+                    cryptoHtml += createTickerRow(crypto, price, change || 0);
+                }
+            }
+            document.getElementById('crypto-data').innerHTML = cryptoHtml || '<div class="error">No data available</div>';
+
+            // Fetch commodities
+            let commoditiesHtml = '';
+            for (const commodity of COMMODITIES) {
+                const price = await fetchEntityState(commodity.entity);
+                const change = commodity.changeEntity ? await fetchEntityState(commodity.changeEntity) : null;
+                if (price) {
+                    commoditiesHtml += createTickerRow(commodity, price, change || 0);
+                }
+            }
+            document.getElementById('commodities-data').innerHTML = commoditiesHtml || '<div class="error">No data available</div>';
+        }
+
+        // Initial load
+        updateMarketData();
+
+        // Update every 30 seconds
+        setInterval(updateMarketData, 30000);
+    </script>
+</body>
+</html>
