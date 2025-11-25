@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="300">
+    <title>BTC Christmas Charts</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a1628;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 8px;
+            height: 100vh;
+        }
+
+        .chart-panel {
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .chart-header {
+            font-size: 14px;
+            font-weight: bold;
+            color: #22c55e;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .version-tag {
+            position: fixed;
+            bottom: 3px;
+            right: 8px;
+            font-size: 9px;
+            color: #475569;
+            z-index: 100;
+        }
+
+        .price-display {
+            font-size: 22px;
+            margin-left: auto;
+            color: #f7931a;
+            background: rgba(247, 147, 26, 0.15);
+            padding: 4px 12px;
+            border-radius: 16px;
+            border: 1px solid rgba(247, 147, 26, 0.3);
+            text-shadow: 0 0 8px rgba(247, 147, 26, 0.4);
+        }
+
+        .price-display.milestone-alert {
+            animation: milestone-pulse 2s ease-in-out 3;
+        }
+
+        @keyframes milestone-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); text-shadow: 0 0 20px rgba(247, 147, 26, 1); }
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+        }
+
+        canvas { width: 100% !important; height: 100% !important; }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 6px;
+            font-size: 11px;
+        }
+
+        .stat { text-align: center; }
+        .stat-label { color: #64748b; font-size: 9px; }
+        .stat-value { color: #e2e8f0; font-weight: bold; font-size: 12px; }
+
+        .up { color: #22c55e; }
+        .down { color: #dc2626; }
+
+        .chart-legend {
+            display: flex;
+            gap: 12px;
+            font-size: 10px;
+            margin-top: 4px;
+            justify-content: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-color { width: 16px; height: 2px; border-radius: 1px; }
+        .legend-24h { background: #22c55e; }
+        .legend-1h { background: #fbbf24; }
+
+        .gauge-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .gauge-bar {
+            flex: 1;
+            position: relative;
+            height: 5px;
+        }
+
+        #biasGauge { width: 100%; height: 100%; border-radius: 2px; }
+
+        .needle {
+            position: absolute;
+            top: -2px;
+            width: 2px;
+            height: 9px;
+            background: white;
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+            transition: left 0.2s;
+        }
+
+        .change-badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: normal;
+        }
+        .change-badge.up { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .change-badge.down { background: rgba(220, 38, 38, 0.2); color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="version-tag">v1.0 | 5m refresh</div>
+
+    <div class="container">
+        <!-- Overlay: 24hr (green) + 1hr (gold) -->
+        <div class="chart-panel">
+            <div class="chart-header">
+                <span>24H + 1H</span>
+                <span class="change-badge" id="change-24h">--</span>
+                <span class="change-badge" id="change-1h">--</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-overlay"></canvas>
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item"><div class="legend-color legend-24h"></div><span>24hr</span></div>
+                <div class="legend-item"><div class="legend-color legend-1h"></div><span>1hr</span></div>
+            </div>
+            <div class="stats">
+                <div class="stat"><div class="stat-label">24H HIGH</div><div class="stat-value" id="high-24h">-</div></div>
+                <div class="stat"><div class="stat-label">24H LOW</div><div class="stat-value" id="low-24h">-</div></div>
+                <div class="stat"><div class="stat-label">1H HIGH</div><div class="stat-value" id="high-1h">-</div></div>
+                <div class="stat"><div class="stat-label">1H LOW</div><div class="stat-value" id="low-1h">-</div></div>
+            </div>
+        </div>
+
+        <!-- 5 Min Live -->
+        <div class="chart-panel">
+            <div class="chart-header">
+                <span style="cursor:pointer" onclick="location.reload()" title="Click to refresh">5 MIN</span>
+                <span class="change-badge" id="change-5m">--</span>
+                <span class="price-display" id="price-5m">$--,---</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-5m"></canvas>
+            </div>
+            <div class="stats">
+                <div class="gauge-container">
+                    <span class="stat-label" style="color:#22c55e;">BUY</span>
+                    <div class="gauge-bar">
+                        <canvas id="biasGauge"></canvas>
+                        <div id="needle" class="needle" style="left:50%;"></div>
+                    </div>
+                    <span class="stat-label" style="color:#dc2626;">SELL</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const chartConfigs = {
+            '24h': { granularity: 900, points: 96, historyPoints: 96, updateInterval: 900 },
+            '1h': { granularity: 60, points: 60, historyPoints: 60, updateInterval: 60 },
+            '5m': { granularity: 60, points: 300, historyPoints: 5, updateInterval: 1 }
+        };
+
+        const priceData = {
+            '24h': { timestamps: [], prices: [] },
+            '1h': { timestamps: [], prices: [] },
+            '5m': { timestamps: [], prices: [] }
+        };
+
+        // Overlay chart (24h green + 1h gold)
+        const overlayCtx = document.getElementById('chart-overlay').getContext('2d');
+        const overlayChart = new Chart(overlayCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: '24 Hour',
+                        data: [],
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        fill: true,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '1 Hour',
+                        data: [],
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.2,
+                        fill: false,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index' } },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        display: true,
+                        position: 'left',
+                        grid: { color: 'rgba(34, 197, 94, 0.1)' },
+                        ticks: { color: '#22c55e', font: { size: 10 }, maxTicksLimit: 4 }
+                    },
+                    y1: {
+                        display: true,
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { color: '#fbbf24', font: { size: 10 }, maxTicksLimit: 4 }
+                    }
+                },
+                interaction: { mode: 'index', intersect: false }
+            }
+        });
+
+        // 5m chart
+        const chart5mCtx = document.getElementById('chart-5m').getContext('2d');
+        const chart5m = new Chart(chart5mCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    borderColor: '#f7931a',
+                    backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        display: true,
+                        grid: { color: 'rgba(247, 147, 26, 0.1)' },
+                        ticks: { color: '#f7931a', font: { size: 10 }, maxTicksLimit: 4 }
+                    }
+                }
+            }
+        });
+
+        async function fetchHistoricalData(timeframe) {
+            const config = chartConfigs[timeframe];
+            const end = Math.floor(Date.now() / 1000);
+            const start = end - (config.granularity * config.historyPoints);
+
+            try {
+                const response = await fetch(
+                    `https://api.exchange.coinbase.com/products/BTC-USD/candles?start=${start}&end=${end}&granularity=${config.granularity}`
+                );
+                const data = await response.json();
+
+                priceData[timeframe].timestamps = [];
+                priceData[timeframe].prices = [];
+
+                data.reverse().forEach(candle => {
+                    const [time, , , , close] = candle;
+                    priceData[timeframe].timestamps.push(time);
+                    priceData[timeframe].prices.push(close);
+                });
+
+                updateCharts();
+                updateStats(timeframe);
+            } catch (error) {
+                console.error(`Error fetching ${timeframe}:`, error);
+            }
+        }
+
+        function updateCharts() {
+            const data24h = priceData['24h'];
+            const data1h = priceData['1h'];
+
+            if (data24h.prices.length > 0) {
+                overlayChart.data.labels = data24h.timestamps.map(t =>
+                    new Date(t * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                );
+                overlayChart.data.datasets[0].data = data24h.prices;
+            }
+
+            if (data1h.prices.length > 0) {
+                const padLen = Math.max(0, data24h.prices.length - data1h.prices.length);
+                overlayChart.data.datasets[1].data = new Array(padLen).fill(null).concat(data1h.prices);
+            }
+
+            overlayChart.update('none');
+
+            const data5m = priceData['5m'];
+            if (data5m.prices.length > 0) {
+                chart5m.data.labels = data5m.timestamps.map(t => new Date(t * 1000).toLocaleTimeString());
+                chart5m.data.datasets[0].data = data5m.prices;
+
+                const avg = data5m.prices.reduce((a, b) => a + b, 0) / data5m.prices.length;
+                const curr = data5m.prices[data5m.prices.length - 1];
+                const isUp = curr > avg;
+                chart5m.data.datasets[0].borderColor = isUp ? '#22c55e' : '#dc2626';
+                chart5m.data.datasets[0].backgroundColor = isUp ? 'rgba(34,197,94,0.1)' : 'rgba(220,38,38,0.1)';
+                chart5m.update('none');
+            }
+        }
+
+        function updateStats(timeframe) {
+            const data = priceData[timeframe];
+            if (!data.prices.length) return;
+
+            const curr = data.prices[data.prices.length - 1];
+            const start = data.prices[0];
+            const high = Math.max(...data.prices);
+            const low = Math.min(...data.prices);
+
+            const changePct = ((curr - start) / start) * 100;
+            const isUp = changePct >= 0;
+
+            if (timeframe === '5m') {
+                document.getElementById('price-5m').textContent =
+                    `$${curr.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+
+            const highEl = document.getElementById(`high-${timeframe}`);
+            const lowEl = document.getElementById(`low-${timeframe}`);
+            if (highEl) highEl.textContent = `$${high.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+            if (lowEl) lowEl.textContent = `$${low.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+
+            const changeEl = document.getElementById(`change-${timeframe}`);
+            if (changeEl) {
+                changeEl.textContent = `${isUp ? '+' : ''}${changePct.toFixed(1)}%`;
+                changeEl.className = `change-badge ${isUp ? 'up' : 'down'}`;
+            }
+        }
+
+        // Gauge
+        let buyVol = 0, sellVol = 0, needlePos = 0.5;
+
+        function drawGauge() {
+            const canvas = document.getElementById('biasGauge');
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            const total = buyVol + sellVol;
+            const target = total ? (buyVol / total) : 0.5;
+            needlePos += (target - needlePos) * 0.25;
+
+            const g = ctx.createLinearGradient(0, 0, w, 0);
+            g.addColorStop(0, '#22c55e');
+            g.addColorStop(Math.max(0, needlePos - 0.001), '#22c55e');
+            g.addColorStop(Math.min(1, needlePos + 0.001), '#dc2626');
+            g.addColorStop(1, '#dc2626');
+
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+
+            const needle = document.getElementById('needle');
+            if (needle) needle.style.left = (needlePos * 100) + '%';
+        }
+
+        // Milestone animation
+        let lastMilestone = null, priceBeforeCross = null;
+
+        function checkMilestone(price) {
+            const ms = Math.floor(price / 1000) * 1000;
+            if (lastMilestone === null) {
+                lastMilestone = ms;
+                priceBeforeCross = price;
+                return;
+            }
+            if (ms !== lastMilestone) {
+                if (Math.abs(price - priceBeforeCross) >= 500) {
+                    const el = document.getElementById('price-5m');
+                    if (el) {
+                        el.classList.add('milestone-alert');
+                        setTimeout(() => el.classList.remove('milestone-alert'), 6000);
+                    }
+                }
+                lastMilestone = ms;
+                priceBeforeCross = price;
+            }
+        }
+
+        // WebSocket
+        const ws = new WebSocket('wss://ws-feed.exchange.coinbase.com');
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({
+                type: 'subscribe',
+                product_ids: ['BTC-USD'],
+                channels: ['ticker', 'matches']
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'ticker' && data.price) {
+                const price = parseFloat(data.price);
+                const now = Math.floor(Date.now() / 1000);
+
+                checkMilestone(price);
+
+                Object.keys(chartConfigs).forEach(key => {
+                    const pData = priceData[key];
+                    const config = chartConfigs[key];
+
+                    if (!pData.timestamps.length || now - pData.timestamps[pData.timestamps.length - 1] >= config.updateInterval) {
+                        pData.timestamps.push(now);
+                        pData.prices.push(price);
+
+                        if (pData.timestamps.length > config.points) {
+                            pData.timestamps.shift();
+                            pData.prices.shift();
+                        }
+
+                        updateCharts();
+                        updateStats(key);
+                    }
+                });
+            }
+
+            if (data.type === 'match') {
+                const size = parseFloat(data.size);
+                if (data.side === 'buy') buyVol += size;
+                else sellVol += size;
+                drawGauge();
+            }
+        };
+
+        // Init
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                overlayChart.resize();
+                chart5m.resize();
+                Object.keys(chartConfigs).forEach(fetchHistoricalData);
+            }, 300);
+        });
+
+        // Refresh historical data
+        setInterval(() => {
+            fetchHistoricalData('24h');
+            fetchHistoricalData('1h');
+        }, 60000);
+
+        // Decay gauge
+        setInterval(() => {
+            buyVol *= 0.8;
+            sellVol *= 0.8;
+            drawGauge();
+        }, 5000);
+
+        console.log('Christmas BTC v1.0');
+    </script>
+</body>
+</html>
