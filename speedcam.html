@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed Cam - Live Feed</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .camera-section {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        #camera-feed {
+            display: block;
+            max-width: 640px;
+            width: 100%;
+            height: auto;
+        }
+        .speed-overlay {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #3498db;
+        }
+        .speed-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #2ecc71;
+        }
+        .speed-value.speeding { color: #e74c3c; }
+        .speed-unit { font-size: 0.9rem; color: #aaa; }
+        .speed-rank { font-size: 0.8rem; color: #f39c12; margin-top: 3px; }
+        .stats-panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            min-width: 280px;
+            backdrop-filter: blur(10px);
+        }
+        .stats-panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 10px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .stat-label { color: #aaa; }
+        .stat-value { font-weight: bold; }
+        .top-speeds { margin-top: 15px; }
+        .top-speed-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            margin: 5px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .top-speed-item:hover { background: rgba(255,255,255,0.1); }
+        .top-speed-item.speeding { border-left: 3px solid #e74c3c; }
+        .rank { color: #f39c12; width: 25px; }
+        .speed { font-weight: bold; }
+        .time { color: #888; font-size: 0.85rem; }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(46, 204, 113, 0.2);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        .status.offline { background: rgba(231, 76, 60, 0.2); }
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .stats-panel { min-width: auto; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Street Speed Camera</h1>
+    <div class="container">
+        <div class="camera-section">
+            <img id="camera-feed" src="" alt="Live Camera Feed">
+            <div class="speed-overlay">
+                <div class="speed-value" id="current-speed">--</div>
+                <div class="speed-unit">MPH</div>
+                <div class="speed-rank" id="speed-rank"></div>
+            </div>
+        </div>
+        <div class="stats-panel">
+            <h2>Today's Stats</h2>
+            <div class="stat-row">
+                <span class="stat-label">Total Cars</span>
+                <span class="stat-value" id="total-cars">--</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Average Speed</span>
+                <span class="stat-value" id="avg-speed">--</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Last Detection</span>
+                <span class="stat-value" id="last-time">--</span>
+            </div>
+            <div class="top-speeds">
+                <h3 style="font-size: 1rem; margin-bottom: 10px;">Top 5 Today</h3>
+                <div id="top-speeds-list"></div>
+            </div>
+            <div class="status" id="status">
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://seekers-charming-incredible-technique.trycloudflare.com';
+        const SPEED_LIMIT = 35;
+
+        let allSpeeds = [];
+
+        // Update camera feed
+        function updateCamera() {
+            const img = document.getElementById('camera-feed');
+            img.src = `${API_BASE}/api/camera/snapshot?t=${Date.now()}`;
+        }
+
+        // Fetch and display speed data
+        async function updateStats() {
+            try {
+                // Get latest speed
+                const latestRes = await fetch(`${API_BASE}/api/speed/latest`);
+                const latest = await latestRes.json();
+
+                const speedEl = document.getElementById('current-speed');
+                speedEl.textContent = latest.speed ? latest.speed.toFixed(1) : '--';
+                speedEl.className = 'speed-value' + (latest.speed > SPEED_LIMIT ? ' speeding' : '');
+
+                if (latest.timestamp) {
+                    const time = latest.timestamp.split(' ')[1];
+                    document.getElementById('last-time').textContent = time;
+                }
+
+                // Get top 5
+                const top5Res = await fetch(`${API_BASE}/api/speed/top5`);
+                const top5Data = await top5Res.json();
+
+                document.getElementById('total-cars').textContent = top5Data.total_today || '--';
+
+                const listEl = document.getElementById('top-speeds-list');
+                listEl.innerHTML = '';
+
+                if (top5Data.top5) {
+                    top5Data.top5.forEach((item, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'top-speed-item' + (item.speed > SPEED_LIMIT ? ' speeding' : '');
+                        const time = item.timestamp.split(' ')[1];
+                        div.innerHTML = `
+                            <span class="rank">#${idx + 1}</span>
+                            <span class="speed">${item.speed} mph</span>
+                            <span class="time">${time}</span>
+                        `;
+                        listEl.appendChild(div);
+                    });
+                }
+
+                // Calculate rank for current speed
+                if (latest.speed && top5Data.top5) {
+                    const rank = top5Data.top5.findIndex(s => latest.speed >= s.speed) + 1;
+                    const rankEl = document.getElementById('speed-rank');
+                    if (rank > 0 && rank <= 20) {
+                        rankEl.textContent = `#${rank} TODAY`;
+                        rankEl.style.color = rank <= 3 ? '#e74c3c' : '#f39c12';
+                    } else {
+                        rankEl.textContent = '';
+                    }
+                }
+
+                // Get all speeds for average
+                const allRes = await fetch(`${API_BASE}/api/speed/all`);
+                const allData = await allRes.json();
+
+                if (allData.speeds && allData.speeds.length > 0) {
+                    const sum = allData.speeds.reduce((a, s) => a + s.speed, 0);
+                    const avg = sum / allData.speeds.length;
+                    document.getElementById('avg-speed').textContent = avg.toFixed(1) + ' mph';
+                }
+
+                // Update status
+                document.getElementById('status').className = 'status';
+                document.getElementById('status-text').textContent = 'Live';
+
+            } catch (err) {
+                console.error('API error:', err);
+                document.getElementById('status').className = 'status offline';
+                document.getElementById('status-text').textContent = 'Connection Lost';
+            }
+        }
+
+        // Initial load
+        updateCamera();
+        updateStats();
+
+        // Update intervals
+        setInterval(updateCamera, 500);  // Camera every 500ms
+        setInterval(updateStats, 2000);   // Stats every 2s
+    </script>
+</body>
+</html>
