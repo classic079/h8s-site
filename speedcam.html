@@ -148,10 +148,27 @@
     </div>
 
     <script>
-        const API_BASE = 'https://seekers-charming-incredible-technique.trycloudflare.com';
+        let API_BASE = 'https://ideas-neither-showcase-bear.trycloudflare.com';
         const SPEED_LIMIT = 35;
 
         let allSpeeds = [];
+        let configLoaded = false;
+
+        // Load config to get current API URL
+        async function loadConfig() {
+            try {
+                const res = await fetch('speedcam-config.json?t=' + Date.now());
+                const config = await res.json();
+                if (config.apiUrl) {
+                    API_BASE = config.apiUrl;
+                    console.log('Loaded API URL:', API_BASE);
+                }
+                configLoaded = true;
+            } catch (e) {
+                console.log('Using default API URL');
+                configLoaded = true;
+            }
+        }
 
         // Update camera feed
         function updateCamera() {
@@ -232,12 +249,17 @@
         }
 
         // Initial load
-        updateCamera();
-        updateStats();
+        async function init() {
+            await loadConfig();
+            updateCamera();
+            updateStats();
 
-        // Update intervals
-        setInterval(updateCamera, 500);  // Camera every 500ms
-        setInterval(updateStats, 2000);   // Stats every 2s
+            // Update intervals
+            setInterval(updateCamera, 500);  // Camera every 500ms
+            setInterval(updateStats, 2000);   // Stats every 2s
+        }
+
+        init();
     </script>
 </body>
 </html>

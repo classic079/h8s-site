@@ -77,10 +77,12 @@ function fetchWithCache($url, $headers = [], $ttl = 60) {
 switch ($endpoint) {
     case 'gold':
         // Fetch gold price from TwelveData
+        // Cache for 30 minutes to conserve API quota
+        // 30 min cache = ~1,440 requests/month
         $data = fetchWithCache(
             "https://api.twelvedata.com/price?symbol=XAU/USD&apikey=" . TWELVE_API_KEY,
             [],
-            300 // Cache for 5 minutes
+            1800 // Cache for 30 minutes
         );
 
         if ($data) {
@@ -93,20 +95,26 @@ switch ($endpoint) {
 
     case 'oil':
         // Fetch oil price from OilPriceAPI
+        // Cache for 1 hour to stay within free tier limit (1000 requests/month)
+        // 1 hour cache = ~720 requests/month (well under limit)
         $data = fetchWithCache(
             "https://api.oilpriceapi.com/v1/prices/latest",
             [
                 "Authorization: Token " . OIL_API_KEY,
                 "Content-Type: application/json"
             ],
-            300 // Cache for 5 minutes
+            3600 // Cache for 1 hour
         );
 
         if ($data) {
             echo json_encode($data);
         } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to fetch oil price']);
+            // Return success with unavailable flag instead of 500 error
+            // API quota likely exceeded, resets monthly
+            echo json_encode([
+                'available' => false,
+                'message' => 'Oil price temporarily unavailable (API quota)'
+            ]);
         }
         break;
 

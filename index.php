@@ -1,20 +1,21 @@
+<?php
+// BTC Stalker - Main Page
+require_once 'includes/config.php';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BTC Stalker - Multi-Timeframe v13.53</title>
+<title><?php echo PAGE_TITLE; ?> <?php echo VERSION; ?></title>
 <script>
-// Mobile detection - DISABLED (mobile.html still accessible at /mobile.html)
-// Keeping desktop version responsive for all screen sizes
-/*
+// Mobile detection - redirect to mobile.html for phones/tablets
 (function(){
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   if(isMobile && !window.location.pathname.includes('mobile.html')){
     window.location.href = 'mobile.html';
   }
 })();
-*/
 </script>
 <style>
 :root{
@@ -199,7 +200,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="headerLeft">
       <span class="pill settingsBtn" onclick="openSettings()">⚙️ Settings</span>
       <span class="pill">BTC/USD</span>
-      <span class="pill" style="opacity:.6">v13.53</span>
+      <span class="pill" style="opacity:.6"><?php echo VERSION; ?></span>
       <span id="d24Change" class="pill">24h Δ —</span>
     </div>
     <div class="headerCenter">
