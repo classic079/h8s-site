@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Street Traffic Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-top: 5px;
+        }
+        .stat-card.highlight .stat-value { color: #2ecc71; }
+        .stat-card.direction { display: flex; justify-content: space-around; align-items: center; }
+        .direction-item { text-align: center; }
+        .direction-icon { font-size: 2rem; margin-bottom: 5px; }
+        .direction-value { font-size: 1.8rem; font-weight: bold; }
+        .direction-label { font-size: 0.8rem; color: #aaa; }
+
+        .panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Hourly Chart */
+        .hourly-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 150px;
+            gap: 2px;
+            padding: 10px 0;
+        }
+        .hour-bar {
+            flex: 1;
+            background: rgba(52, 152, 219, 0.3);
+            border-radius: 3px 3px 0 0;
+            min-height: 2px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .hour-bar:hover {
+            background: rgba(52, 152, 219, 0.6);
+        }
+        .hour-bar.current {
+            background: rgba(46, 204, 113, 0.5);
+        }
+        .hour-bar .tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        .hour-bar:hover .tooltip { display: block; }
+        .hour-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Week Chart */
+        .week-chart {
+            display: flex;
+            gap: 10px;
+            justify-content: space-between;
+        }
+        .day-bar {
+            flex: 1;
+            text-align: center;
+        }
+        .day-bar-fill {
+            height: 100px;
+            background: rgba(52, 152, 219, 0.2);
+            border-radius: 5px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            margin-bottom: 5px;
+        }
+        .day-bar-inner {
+            width: 100%;
+            background: linear-gradient(to top, #3498db, #2ecc71);
+            border-radius: 5px;
+            min-height: 2px;
+        }
+        .day-label { font-size: 0.8rem; color: #aaa; }
+        .day-count { font-size: 0.9rem; font-weight: bold; margin-top: 3px; }
+
+        /* Recent Activity */
+        .recent-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .recent-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.05);
+            margin-bottom: 5px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        .recent-item .direction { color: #3498db; }
+        .recent-item .time { color: #888; }
+
+        /* Snapshot */
+        .snapshot-container {
+            text-align: center;
+        }
+        .snapshot-img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.2);
+            display: none;
+        }
+        .snapshot-img.loaded { display: inline-block; }
+        .snapshot-time { font-size: 0.8rem; color: #888; margin-top: 10px; }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: rgba(46, 204, 113, 0.2);
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        .status.offline { background: rgba(231, 76, 60, 0.2); }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Street Traffic Monitor</h1>
+
+        <div class="stats-grid">
+            <div class="stat-card highlight">
+                <div class="stat-value" id="total-today">--</div>
+                <div class="stat-label">Vehicles Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="current-hour">--</div>
+                <div class="stat-label">This Hour</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="peak-hour">--</div>
+                <div class="stat-label">Busiest Hour</div>
+            </div>
+            <div class="stat-card direction">
+                <div class="direction-item">
+                    <div class="direction-icon">&larr;</div>
+                    <div class="direction-value" id="left-count">--</div>
+                    <div class="direction-label">Left</div>
+                </div>
+                <div class="direction-item">
+                    <div class="direction-icon">&rarr;</div>
+                    <div class="direction-value" id="right-count">--</div>
+                    <div class="direction-label">Right</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Today's Traffic by Hour</h2>
+            <div class="hourly-chart" id="hourly-chart"></div>
+            <div class="hour-labels">
+                <span>12AM</span>
+                <span>6AM</span>
+                <span>12PM</span>
+                <span>6PM</span>
+                <span>11PM</span>
+            </div>
+        </div>
+
+        <div class="two-col">
+            <div class="panel">
+                <h2>Last 7 Days</h2>
+                <div class="week-chart" id="week-chart"></div>
+            </div>
+
+            <div class="panel">
+                <h2>Last Detection</h2>
+                <div class="snapshot-container">
+                    <img id="snapshot" class="snapshot-img" alt="Last detection">
+                    <div class="snapshot-time" id="snapshot-time">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Recent Activity</h2>
+            <div class="recent-list" id="recent-list"></div>
+        </div>
+
+        <div class="status" id="status">
+            <span id="status-text">Connecting...</span>
+        </div>
+    </div>
+
+    <script>
+        let API_BASE = 'https://speedcam.h8s.us';  // Uses same tunnel
+        let lastStatsHash = '';
+        let lastHourlyHash = '';
+
+        // Load config
+        async function loadConfig() {
+            try {
+                const res = await fetch('speedcam-config.json?t=' + Date.now());
+                const config = await res.json();
+                if (config.apiUrl) {
+                    API_BASE = config.apiUrl;
+                    console.log('API URL:', API_BASE);
+                }
+            } catch (e) {
+                console.log('Using default API URL');
+            }
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '--';
+            const d = new Date(isoString);
+            return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function formatTimeAgo(isoString) {
+            if (!isoString) return '--';
+            const d = new Date(isoString);
+            const now = new Date();
+            const diff = Math.floor((now - d) / 1000);
+            if (diff < 60) return `${diff}s ago`;
+            if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+            return formatTime(isoString);
+        }
+
+        async function updateStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/traffic/stats`);
+                const data = await res.json();
+
+                document.getElementById('total-today').textContent = data.total_count || 0;
+                document.getElementById('current-hour').textContent = data.current_hour_count || 0;
+                document.getElementById('peak-hour').textContent = data.peak_hour || '--';
+                document.getElementById('left-count').textContent = data.left_count || 0;
+                document.getElementById('right-count').textContent = data.right_count || 0;
+
+                if (data.last_detection) {
+                    document.getElementById('snapshot-time').textContent = formatTimeAgo(data.last_detection);
+                }
+
+                document.getElementById('status').className = 'status';
+                document.getElementById('status-text').textContent = 'Live';
+
+            } catch (err) {
+                console.error('Stats error:', err);
+                document.getElementById('status').className = 'status offline';
+                document.getElementById('status-text').textContent = 'Connection Lost';
+            }
+        }
+
+        async function updateHourlyChart() {
+            try {
+                const res = await fetch(`${API_BASE}/api/traffic/hourly`);
+                const data = await res.json();
+
+                const hash = JSON.stringify(data.hourly);
+                if (hash === lastHourlyHash) return;
+                lastHourlyHash = hash;
+
+                const chart = document.getElementById('hourly-chart');
+                const currentHour = new Date().getHours();
+                const maxCount = Math.max(...data.hourly.map(h => h.count), 1);
+
+                chart.innerHTML = data.hourly.map(h => {
+                    const height = (h.count / maxCount) * 100;
+                    const isCurrent = h.hour === currentHour;
+                    return `
+                        <div class="hour-bar ${isCurrent ? 'current' : ''}" style="height: ${Math.max(height, 2)}%">
+                            <div class="tooltip">${h.label}: ${h.count} vehicles</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Hourly error:', err);
+            }
+        }
+
+        async function updateWeekChart() {
+            try {
+                const res = await fetch(`${API_BASE}/api/traffic/week`);
+                const data = await res.json();
+
+                const chart = document.getElementById('week-chart');
+                const maxCount = Math.max(...data.week.map(d => d.count), 1);
+
+                chart.innerHTML = data.week.map(d => {
+                    const height = (d.count / maxCount) * 100;
+                    return `
+                        <div class="day-bar">
+                            <div class="day-bar-fill">
+                                <div class="day-bar-inner" style="height: ${Math.max(height, 2)}%"></div>
+                            </div>
+                            <div class="day-label">${d.day}</div>
+                            <div class="day-count">${d.count}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Week error:', err);
+            }
+        }
+
+        async function updateRecent() {
+            try {
+                const res = await fetch(`${API_BASE}/api/traffic/recent`);
+                const data = await res.json();
+
+                const list = document.getElementById('recent-list');
+                list.innerHTML = data.recent.slice(0, 20).map(item => {
+                    const time = item.timestamp ? item.timestamp.split(' ')[1] : '--';
+                    const arrow = item.direction === 'left' ? '&larr;' : '&rarr;';
+                    return `
+                        <div class="recent-item">
+                            <span class="direction">${arrow} ${item.direction}</span>
+                            <span class="time">${time}</span>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Recent error:', err);
+            }
+        }
+
+        function updateSnapshot() {
+            const img = document.getElementById('snapshot');
+            const newImg = new Image();
+            newImg.onload = function() {
+                img.src = this.src;
+                img.classList.add('loaded');
+            };
+            newImg.src = `${API_BASE}/api/camera/snapshot?t=${Date.now()}`;
+        }
+
+        async function init() {
+            await loadConfig();
+
+            // Initial load
+            updateStats();
+            updateHourlyChart();
+            updateWeekChart();
+            updateRecent();
+            updateSnapshot();
+
+            // Refresh intervals
+            setInterval(updateStats, 3000);
+            setInterval(updateHourlyChart, 10000);
+            setInterval(updateWeekChart, 60000);
+            setInterval(updateRecent, 5000);
+            setInterval(updateSnapshot, 10000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
