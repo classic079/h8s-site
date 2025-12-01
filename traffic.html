@@ -90,6 +90,7 @@
         /* Vehicle colors */
         .det-box.car { border-color: #3498db; }
         .det-box.bus { border-color: #e74c3c; }
+        .det-box.truck { border-color: #8b4513; }
         .det-box.motorcycle { border-color: #f39c12; }
         .det-box.bicycle { border-color: #9b59b6; }
         /* Person color */
@@ -383,6 +384,11 @@
                     <div class="det-num" id="count-bus">--</div>
                     <div class="det-label">Bus</div>
                 </div>
+                <div class="det-box truck">
+                    <div class="det-icon">&#128666;</div>
+                    <div class="det-num" id="count-truck">--</div>
+                    <div class="det-label">Truck</div>
+                </div>
                 <div class="det-box motorcycle">
                     <div class="det-icon">&#127949;</div>
                     <div class="det-num" id="count-motorbike">--</div>
@@ -552,19 +558,16 @@
                 document.getElementById('total-today').textContent = data.total_count || 0;
                 document.getElementById('current-hour').textContent = data.current_hour_count || 0;
 
-                // Per-object-type counts from MobileNet AI detector
+                // Per-object-type counts from YOLOv8 AI detector - hide zeros
                 const counts = data.counts || {};
-                document.getElementById('count-car').textContent = counts.car || 0;
-                document.getElementById('count-bus').textContent = counts.bus || 0;
-                document.getElementById('count-motorbike').textContent = counts.motorbike || 0;
-                document.getElementById('count-bicycle').textContent = counts.bicycle || 0;
-                document.getElementById('count-person').textContent = counts.person || 0;
-                document.getElementById('count-dog').textContent = counts.dog || 0;
-                document.getElementById('count-cat').textContent = counts.cat || 0;
-                document.getElementById('count-bird').textContent = counts.bird || 0;
-                document.getElementById('count-cow').textContent = counts.cow || 0;
-                document.getElementById('count-horse').textContent = counts.horse || 0;
-                document.getElementById('count-sheep').textContent = counts.sheep || 0;
+                const types = ['car', 'bus', 'motorbike', 'bicycle', 'person', 'dog', 'cat', 'bird', 'cow', 'horse', 'sheep', 'truck'];
+                types.forEach(type => {
+                    const el = document.getElementById('count-' + type);
+                    const box = el ? el.closest('.det-box') : null;
+                    const count = counts[type] || 0;
+                    if (el) el.textContent = count;
+                    if (box) box.style.display = count > 0 ? '' : 'none';
+                });
 
                 // Sound level display (dB values typically range from -60 to 0)
                 updateSoundLevel(data.current_db, data.peak_db);
@@ -695,5 +698,6 @@
 
         init();
     </script>
+    <div onclick="location.reload(true)" style="position:fixed;bottom:5px;right:10px;font-size:11px;color:#666;cursor:pointer;opacity:0.6;" title="Click to reload">v2.1</div>
 </body>
 </html>
